@@ -29,4 +29,4 @@ export async function route(request,env){
  if(path==='/'||path==='/index.html'){try{await authCall(env,'/authorize',{}, {userToken:getCookie(request,'qs_session')});}catch{return Response.redirect(url.origin+'/login',302);}url.pathname='/index.html';return env.ASSETS.fetch(new Request(url,request));}
  return env.ASSETS.fetch(request);
 }
-export default {async fetch(request,env){let r;try{r=await route(request,env);}catch(e){r=json({error:e instanceof Fault?e.message:'服务暂不可用'},e.status||500);}const response=new Response(r.body,r);for(const [k,v] of Object.entries(securityHeaders))response.headers.set(k,v);return response;}};
+export default {async fetch(request,env){let r;try{r=await route(request,env);}catch(e){r=json({error:e instanceof Fault?e.message:'服务暂不可用'},e.status||500);}const response=new Response(r.body,r);for(const [k,v] of Object.entries(securityHeaders))response.headers.set(k,v);if(response.headers.get('Content-Type')?.startsWith('text/html'))response.headers.set('Cache-Control','no-store');return response;}};

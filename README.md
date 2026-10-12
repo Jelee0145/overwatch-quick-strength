@@ -32,3 +32,11 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 ## 验证边界
 
 单元与模拟上游测试、Wrangler dry-run、本地运行时测试不等于云端真实接口通过。正式使用前必须在云端完成真实查询、真实锐评和多人并发验收。免费额度不足或网易大神拒绝 Cloudflare 请求时不自动购买或搭建外部后端。
+
+## 地图素材与加载
+
+云端网页不加载本机的内嵌 `art.js`，也不请求本机 `/api/map-art`。地图、头像和段位图标由免费 Workers Static Assets 提供；脚本／样式与图片均使用内容哈希，一年 immutable 缓存。账号与 API 响应不公共缓存。地图仅加载当前图表需要的素材，最多并行四张；导出时使用较高清图片并内嵌，下载文件可以独立打开。
+
+`source/media/manifest.json` 覆盖全部133条地图记录，`coverage.json` 保存来源、同名别名和缺失项。现已取得131条真实素材；VPP Green Room、寺院没有可核实的来源，显示统一背景。预览最长边960，导出1920，不放大小图。日常 CI 使用已提交的 WebP，不请求外站。地图目录更新后，在本机用带 Pillow 的 Python 手动运行 `scripts/prepare-media.py`，检查覆盖报告，再构建部署；该脚本原图缓存仅留在 `.private`。
+
+性能比较使用本机独立 Playwright（安装环境提供，不属于线上依赖），`node scripts/speed-check.mjs`，基线网页需提前保存在 `.private/speed-baseline/public`。使用匿名模拟数据与同样网络条件，结果保存在 `.private/speed-results.json`，不会上传或暴露为网站功能。2026-10-12 最终比较：6 Mbps、100 ms 延迟、4倍 CPU 降速，各5次；可操作中位数15.719秒→2.620秒，完整图表15.863秒→3.205秒，传输8,592,280→626,424字节。以上为本地可复现基准，不代表每位用户的实际延迟，也不包含上游查询／AI耗时。
