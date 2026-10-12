@@ -33,6 +33,7 @@ app=app.replace("function busy(value){", "$('resumeQuery').onclick=async()=>{try
 app=app.replace(/\$\('credentials'\)\.open=false;[\s\S]*$/,'(async()=>{try{await Cloud.boot();const latest=await Cloud.latest();if(latest.result){raw=QS.normalize(latest.result);$("battleTag").value=raw.battletag;generate();}if(latest.activeJob){activeJob=latest.activeJob;busy(true);poll();}}catch(e){status(e.message,true);}})();');
 app=app.replace(/const payload=\{\.\.\.credentialPayload\(\),battletag:tag,matchId:match.mid\}/,'const payload={battletag:tag,matchId:match.mid,envelope:await Cloud.snapshot(tag)}');
 app=app.replace("payload.token='';",'');
+app=app.replace("status('已请求停止，正在结束当前请求…');", "status('已请求停止，正在结束当前请求…');poll();");
 await writeFile(path.join(base,'public/index.html'),html);await writeFile(path.join(base,'public/app.js'),app);
 for(const file of ['cloud-client.js','cloud-review.js','cloud.css','login.html','login.js','admin.html','admin.js'])await copyFile(path.join(base,'web',file),path.join(base,'public',file));
 console.log('Cloud build complete; original local tool preserved.');

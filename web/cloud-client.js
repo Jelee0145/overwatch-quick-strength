@@ -14,7 +14,7 @@ window.Cloud=(()=>{
  const snapshot=async tag=>{await boot();return storage('snapshot|'+scope()+'|'+tag);};
  async function save(envelope){if(!envelope?.content?.data)throw Error('查询结果缺少可信签名');lastTag=envelope.content.data.battletag;await storage('snapshot|'+scope()+'|'+lastTag,envelope);await storage('latest',lastTag);}
  async function latest(){await boot();const remote=await api('/api/latest'),tag=await storage('latest');const value=tag?await snapshot(tag):null;return {...remote,result:value?.content?.data||null};}
- async function startQuery(tag,limit){await boot();return api('/api/query',{battletag:tag,limit,envelope:await snapshot(tag)});}
+ async function startQuery(tag,limit){await boot();return api('/api/query',{battletag:tag,limit,envelope:await snapshot(tag),requestId:crypto.randomUUID()});}
  const key=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)))),n=>n.toString(16).padStart(2,'0')).join('');
  return {api,boot,snapshot,save,latest,startQuery,storage,key};
 })();

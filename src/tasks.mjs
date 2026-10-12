@@ -15,12 +15,13 @@ export class UserTasks{
    const previous=await this.storage.get('active:'+kind);if(previous){const old=await this.storage.get('job:'+previous);if(old&&active(old)){if(old.fingerprint===fingerprint)return {id:old.id,state:old.state};throw new Fault('当前'+(kind==='query'?'查询':'AI')+'任务尚未完成',409);}}
    if(kind==='ai'&&(typeof b.requestId!=='string'||b.requestId.length>100))throw new Fault('缺少请求标识');
    // A completed idempotency key is reused until the short-term result expires.
-   const done=await this.storage.get('dedupe:'+kind+':'+fingerprint);if(done){const old=await this.storage.get('job:'+done);if(old&&old.until>Date.now())return {id:old.id,state:old.state};}
+   const dedupeKey=kind==='query'? await digest(canonical({fingerprint,requestId:b.requestId||token()})):fingerprint;
+   const done=await this.storage.get('dedupe:'+kind+':'+dedupeKey);if(done){const old=await this.storage.get('job:'+done);if(old&&old.until>Date.now())return {id:old.id,state:old.state};}
    const data=kind==='query'?createQuery(b.battletag,b.limit,prior||{matches:[]}):analysis;
-   const id=token(),job={id,user,version,kind,fingerprint,state:'running',message:kind==='query'?'查询已建立':'正在准备 AI锐评…',createdAt:Date.now(),until:Date.now()+3600000};
+   const id=token(),job={id,user,version,kind,fingerprint,dedupeKey,state:'running',message:kind==='query'?'查询已建立':'正在准备 AI锐评…',createdAt:Date.now(),until:Date.now()+3600000};
    if(kind==='ai')job.reviewKey=String(b.reviewKey||'').slice(0,150);
    await authCall(this.env,'/quota',{user,kind,job:id});
-   await putBlob(this.storage,'data:'+id,data);await this.storage.put('job:'+id,job);await this.storage.put('active:'+kind,id);await this.storage.put('dedupe:'+kind+':'+fingerprint,id);await this.schedule();return {id,state:'running'};
+   await putBlob(this.storage,'data:'+id,data);await this.storage.put('job:'+id,job);await this.storage.put('active:'+kind,id);await this.storage.put('dedupe:'+kind+':'+dedupeKey,id);await this.schedule();return {id,state:'running'};
   }
   if(path==='/active'){const tasks=[];for(const kind of ['query','ai']){const id=await this.storage.get('active:'+kind),j=id&&await this.storage.get('job:'+id);if(j&&active(j)&&j.until>Date.now())tasks.push({id:j.id,kind:j.kind,state:j.state,message:j.message});}return {tasks};}
   const job=await this.job(b.id);if(job.user!==user)throw new Fault('任务不存在',404);
@@ -32,7 +33,7 @@ export class UserTasks{
  async alarm(){
   // One upstream request per alarm; all execution checkpoints are durable.
   const jobs=[...await this.storage.list({prefix:'job:'})].map(([,j])=>j);const now=Date.now();
-  for(const j of jobs)if(j.until<now){await this.storage.delete('job:'+j.id);await deleteBlob(this.storage,'data:'+j.id);await deleteBlob(this.storage,'result:'+j.id);if(await this.storage.get('active:'+j.kind)===j.id)await this.storage.delete('active:'+j.kind);await this.storage.delete('dedupe:'+j.kind+':'+j.fingerprint);}
+  for(const j of jobs)if(j.until<now){await this.storage.delete('job:'+j.id);await deleteBlob(this.storage,'data:'+j.id);await deleteBlob(this.storage,'result:'+j.id);if(await this.storage.get('active:'+j.kind)===j.id)await this.storage.delete('active:'+j.kind);await this.storage.delete('dedupe:'+j.kind+':'+(j.dedupeKey||j.fingerprint));}
   const last=await this.storage.get('lastKind');const job=jobs.filter(j=>j.state==='running'&&j.until>now).sort((a,b)=>(a.kind===last)-(b.kind===last))[0];
   if(job){
    try{

@@ -1,6 +1,6 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';import {spawn,execFileSync} from 'node:child_process';import path from 'node:path';import {passwordHash,token} from '../src/security.mjs';
 const base=path.resolve(import.meta.dirname,'..'),privateDir=path.join(base,'.private');await mkdir(privateDir,{recursive:true});
-let input='';for await(const chunk of process.stdin)input+=chunk;let password=input.trim();input='';
+let input='';for await(const chunk of process.stdin)input+=chunk;let password=input;input='';
 const status=async(state,message)=>writeFile(path.join(privateDir,'provision-status.json'),JSON.stringify({state,message,at:new Date().toISOString()}));
 try{
  const pepper=token(),adminHash=await passwordHash(password,pepper);password='';
