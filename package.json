@@ -1,5 +1,17 @@
 {
-  "name": "quick-strength-cloud", "private": true, "type": "module",
-  "scripts": {"build": "node scripts/build.mjs", "test": "node --test test/*.test.mjs", "dev": "npm run build && node scripts/wrangler.mjs dev", "deploy": "npm run build && node scripts/deploy-retry.mjs", "deploy:ci": "node scripts/deploy-retry.mjs", "check": "npm run build && node scripts/wrangler.mjs deploy --dry-run", "login": "node scripts/wrangler.mjs login"},
-  "devDependencies": {"wrangler": "4.149.0"}
+  "name": "quick-strength-cloud",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs && node scripts/native-fetch-check.mjs",
+    "dev": "npm run build && node scripts/wrangler.mjs dev",
+    "deploy": "npm run build && node scripts/deploy-retry.mjs",
+    "deploy:ci": "node scripts/deploy-retry.mjs",
+    "check": "npm run build && node scripts/wrangler.mjs deploy --dry-run",
+    "login": "node scripts/wrangler.mjs login"
+  },
+  "devDependencies": {
+    "wrangler": "4.149.0"
+  }
 }

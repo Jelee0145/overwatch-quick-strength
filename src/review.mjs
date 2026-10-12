@@ -15,7 +15,8 @@ export async function prepareReview(snapshot,mid){
 }
 export async function callReview(env,payload,fingerprint,fetcher=fetch){
  if(!env.DEEPSEEK_KEY)throw new Fault('AI 密钥尚未配置，请联系管理员',503);let response;
- try{response=await fetcher('https://api.deepseek.com/chat/completions',{method:'POST',redirect:'error',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+env.DEEPSEEK_KEY},body:JSON.stringify({model:MODEL,messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify(payload)}],thinking:{type:'enabled'},reasoning_effort:'low',stream:false,max_tokens:4096})});}catch{throw new Fault('AI 请求超时或网络不可用，请手动重试',504);}
+ try{response=await fetcher('https://api.deepseek.com/chat/completions',{method:'POST',redirect:'manual',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+env.DEEPSEEK_KEY},body:JSON.stringify({model:MODEL,messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify(payload)}],thinking:{type:'enabled'},reasoning_effort:'low',stream:false,max_tokens:4096})});}catch{throw new Fault('AI 请求超时或网络不可用，请手动重试',504);}
+ if(response.status>=300&&response.status<400)throw new Fault('AI接口发生重定向，已拒绝转发密钥',502);
  if(!response.ok)throw new Fault(({401:'AI 密钥无效，请联系管理员',402:'AI 余额不足，请联系管理员',429:'AI 接口限流，请稍后手动重试'})[response.status]||'AI 服务暂不可用，请手动重试',response.status===429?429:502);
  let value;try{value=await response.json();}catch{throw new Fault('AI 返回格式异常',502);}const text=value.choices?.[0]?.message?.content;if(typeof text!=='string'||!text.trim())throw new Fault('AI 未返回正文，请手动重试',502);
  return {text,model:MODEL,version,generatedAt:new Date().toISOString(),fingerprint,cached:false};
