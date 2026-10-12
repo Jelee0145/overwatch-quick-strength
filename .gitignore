@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.dev.vars
+.private/
+.npm-cache/
+public/
+src/shared/
+src/prompt.mjs
