@@ -8,7 +8,7 @@ export async function upstream(env,path,params,body,fetcher=fetch){
  const url=new URL('https://datamsapi.ds.163.com/v1/a19ld5tool'+path);for(const [k,v] of Object.entries(params||{}))if(v!==''&&v!==null&&v!==undefined)url.searchParams.set(k,v);
  const headers={'Accept':'application/json','GL-Bigdata-Role-Id':env.DASHEN_ROLE_ID,'GL-Bigdata-Auth-Token':env.DASHEN_TOKEN,'GL-Bigdata-Dts':env.DASHEN_DTS,'GL-Bigdata-Server':env.DASHEN_SERVER,'GL-ClientType':'60','Origin':'https://act.ds.163.com','Referer':'https://act.ds.163.com/','User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) app/df_client dfVersion/100111'};
  if(body)headers['Content-Type']='application/json;charset=UTF-8';let r;
- try{r=await fetcher(url,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(25000),redirect:'error'});}catch{throw new Fault('大神请求超时或网络不可用',504);}
+ const started=Date.now();try{r=await fetcher(url,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(25000),redirect:'error'});}catch(e){const name=['TimeoutError','AbortError','TypeError'].includes(e?.name)?e.name:'NetworkError';console.warn('dashen-fetch-failed',JSON.stringify({path,elapsedMs:Date.now()-started,type:name}));throw new Fault((name==='TimeoutError'||name==='AbortError'?'大神请求超时':'大神网络连接失败')+'（'+({'/searchBnetAccount':'搜索账号','/customer/queryMatchList':'对局列表','/customer/queryMatchInfo':'对局详情','/customer/queryCountInfo':'竞技段位'})[path]+'），请稍后重试',504);}
  if([401,403].includes(r.status))throw new Fault('大神凭证已失效，请联系管理员更新',503);
  if(r.status===429)throw new Fault('大神接口限流，当前任务已暂停，稍后继续',429);
  if(!r.ok)throw new Fault('大神接口暂不可用（HTTP '+r.status+'）',502);
