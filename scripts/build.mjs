@@ -1,6 +1,9 @@
 import {mkdir,readFile,writeFile,copyFile,cp} from 'node:fs/promises';
 import path from 'node:path';
+import {execFileSync} from 'node:child_process';
 const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source');
+let revision='local';try{revision=execFileSync('git',['rev-parse','HEAD'],{cwd:base,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{}
+await writeFile(path.join(base,'src/release.mjs'),'export const release='+JSON.stringify({revision,builtAt:new Date().toISOString(),version:'cloud-1.0.1'})+';');
 await mkdir(path.join(base,'public'),{recursive:true});await mkdir(path.join(base,'src/shared'),{recursive:true});
 const shared=['core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'];
 for(const file of [...shared,'data.js','art.js','chart.js','style.css'])await copyFile(path.join(local,file),path.join(base,'public',file));

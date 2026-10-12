@@ -1,9 +1,11 @@
 import {Fault,json,getCookie,cookie} from './security.mjs';import {authCall} from './tasks.mjs';
+import {release} from './release.mjs';
 export {AuthDirectory} from './auth.mjs';export {UserTasks} from './tasks.mjs';
 const securityHeaders={'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
 async function body(request){if(Number(request.headers.get('Content-Length'))>3000000)throw new Fault('请求数据过大',413);const s=await request.text();if(new TextEncoder().encode(s).length>3000000)throw new Fault('请求数据过大',413);try{const b=JSON.parse(s);if(!b||typeof b!=='object'||Array.isArray(b))throw 0;return b;}catch{throw new Fault('请求格式错误');}}
 export async function route(request,env){
  const url=new URL(request.url),path=url.pathname,mutation=request.method==='POST';if(!['GET','POST'].includes(request.method))throw new Fault('不支持该请求方法',405);
+ if(path==='/api/health'&&!mutation)return json({ok:true,...release});
  if(path.startsWith('/api/')){
   if(mutation&&(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json')))throw new Fault('请求来源或格式不正确',403);
   const i={userToken:getCookie(request,'qs_session'),adminToken:getCookie(request,'qs_admin'),csrf:request.headers.get('X-CSRF-Token')||'',ip:request.headers.get('CF-Connecting-IP')||'local',mutation,body:mutation?await body(request):{}};

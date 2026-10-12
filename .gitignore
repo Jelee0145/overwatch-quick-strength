@@ -6,3 +6,4 @@ node_modules/
 public/
 src/shared/
 src/prompt.mjs
+src/release.mjs
