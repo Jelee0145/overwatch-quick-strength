@@ -53,10 +53,10 @@ export class AuthDirectory{
    await this.authorize(i,true);if(i.path==='/admin/session')return {csrf:await mac({csrf:i.adminToken,admin:true},this.env.PASSWORD_PEPPER)};
    if(i.path==='/admin/users')return {users:[...await this.storage.list({prefix:'user:'})].map(([,u])=>this.view(u))};
    const u=await this.storage.get('user:'+String(b.id));if(!u)throw new Fault('玩家不存在',404);
-   if(i.path==='/admin/access'){
-    if(!['approved','rejected','revoked'].includes(b.status))throw new Fault('授权状态错误');u.status=b.status;if(b.status!=='approved')u.version++;
+   if(i.path==='/admin/access'||i.path==='/admin/quota'){
+    if(i.path==='/admin/access'){if(!['approved','rejected','revoked'].includes(b.status))throw new Fault('授权状态错误');u.status=b.status;if(b.status!=='approved')u.version++;}
     for(const k of ['queryDaily','aiDaily'])if(b[k]!==undefined){if(!Number.isInteger(b[k])||b[k]<0||b[k]>1000)throw new Fault('额度应为 0—1000 的整数');u[k]=b[k];}
-    u.updatedAt=new Date().toISOString();await this.storage.put('user:'+u.id,u);await this.audit('access:'+b.status,u.id);return {user:this.view(u)};
+    u.updatedAt=new Date().toISOString();await this.storage.put('user:'+u.id,u);await this.audit(i.path==='/admin/quota'?'quota-update':'access:'+b.status,u.id);return {user:this.view(u)};
    }
    if(i.path==='/admin/reset'){
     if(b.action==='close'){u.resetRequestedAt=null;await this.storage.put('user:'+u.id,u);await this.audit('reset-close',u.id);return {ok:true};}

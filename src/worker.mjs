@@ -8,7 +8,7 @@ export async function route(request,env){
   if(mutation&&(request.headers.get('Origin')!==url.origin||!request.headers.get('Content-Type')?.startsWith('application/json')))throw new Fault('请求来源或格式不正确',403);
   const i={userToken:getCookie(request,'qs_session'),adminToken:getCookie(request,'qs_admin'),csrf:request.headers.get('X-CSRF-Token')||'',ip:request.headers.get('CF-Connecting-IP')||'local',mutation,body:mutation?await body(request):{}};
   const publicRoutes={'/api/auth/register':'/register','/api/auth/login':'/login','/api/auth/reset/request':'/reset/request','/api/auth/reset/confirm':'/reset/confirm','/api/admin/login':'/admin/login'};
-  const authRoutes={'/api/auth/session':'/session','/api/auth/logout':'/logout','/api/admin/session':'/admin/session','/api/admin/logout':'/admin/logout','/api/admin/users':'/admin/users','/api/admin/access':'/admin/access','/api/admin/reset':'/admin/reset'};
+  const authRoutes={'/api/auth/session':'/session','/api/auth/logout':'/logout','/api/admin/session':'/admin/session','/api/admin/logout':'/admin/logout','/api/admin/users':'/admin/users','/api/admin/access':'/admin/access','/api/admin/quota':'/admin/quota','/api/admin/reset':'/admin/reset'};
   if(publicRoutes[path]||authRoutes[path]){
    const internal=publicRoutes[path]||authRoutes[path];if(['/session','/admin/session','/admin/users'].includes(internal)?mutation:!mutation)throw new Fault('请求方法错误',405);
    const value=await authCall(env,internal,i.body,i),headers={};if(value.token){headers['Set-Cookie']=cookie(value.token,path.startsWith('/api/admin/'),value.seconds);delete value.token;delete value.seconds;}
