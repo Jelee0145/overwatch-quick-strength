@@ -18,7 +18,7 @@
 
 `npm run deploy` 发布 Workers 和静态资源、自动创建 SQLite-backed Durable Object 绑定。
 
-Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，构建命令 `npm run build && npm test`，部署命令 `npx wrangler deploy`。不用 GitHub Actions 保存部署密钥，不启用预览分支部署。平台运行 Secrets 与 Git 仓库分离。
+Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，构建命令 `npm run build && npm test`，部署命令 `npm run deploy:ci`。临时429/502/503/504网络错误最多重试3次；权限、构建或语法错误不重试。不用 GitHub Actions 保存部署密钥，不启用预览分支部署。平台运行 Secrets 与 Git 仓库分离。
 
 部署后由使用者运行 `scripts/Setup-Admin.ps1` 的隐藏密码窗口；该窗口将本机已加密保存的大神/DeepSeek凭证直接传入 Wrangler 的标准输入，写入 Workers Secrets。管理员密码仅生成散列；本地备份为 Windows DPAPI 加密的 `.private/cloud-secrets.dpapi`。
 
