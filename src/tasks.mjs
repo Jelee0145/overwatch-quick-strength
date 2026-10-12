@@ -11,11 +11,11 @@ export class UserTasks{
   if(path==='/query'||path==='/ai-review'){
    const kind=path==='/query'?'query':'ai',prior=b.envelope?await verifySnapshot(b.envelope,user,this.env,b.battletag):null;
    let analysis;if(kind==='ai'){if(!prior)throw new Fault('本地缺少可信对局，请先查询');analysis=await prepareReview(prior,b.matchId);if(!b.force&&b.cachedReview?.content?.user===user&&b.cachedReview.content.fingerprint===analysis.fingerprint&&equal(b.cachedReview.signature,await mac(b.cachedReview.content,this.env.CACHE_SIGNING_KEY)))return {cached:true,review:{...b.cachedReview.content.review,cached:true},reviewEnvelope:b.cachedReview};}
-   const fingerprint=await digest(canonical(kind==='query'?{tag:b.battletag,limit:b.limit}: {fingerprint:analysis.fingerprint,requestId:b.requestId}));
+   const fingerprint=await digest(canonical(kind==='query'?{tag:b.battletag,limit:b.limit}: {fingerprint:analysis.fingerprint}));
    const previous=await this.storage.get('active:'+kind);if(previous){const old=await this.storage.get('job:'+previous);if(old&&active(old)){if(old.fingerprint===fingerprint)return {id:old.id,state:old.state};throw new Fault('当前'+(kind==='query'?'查询':'AI')+'任务尚未完成',409);}}
    if(kind==='ai'&&(typeof b.requestId!=='string'||b.requestId.length>100))throw new Fault('缺少请求标识');
    // A completed idempotency key is reused until the short-term result expires.
-   const dedupeKey=kind==='query'? await digest(canonical({fingerprint,requestId:b.requestId||token()})):fingerprint;
+   const dedupeKey=await digest(canonical({fingerprint,requestId:b.requestId||token()}));
    const done=await this.storage.get('dedupe:'+kind+':'+dedupeKey);if(done){const old=await this.storage.get('job:'+done);if(old&&old.until>Date.now())return {id:old.id,state:old.state};}
    const data=kind==='query'?createQuery(b.battletag,b.limit,prior||{matches:[]}):analysis;
    const id=token(),job={id,user,version,kind,fingerprint,dedupeKey,state:'running',message:kind==='query'?'查询已建立':'正在准备 AI锐评…',createdAt:Date.now(),until:Date.now()+3600000};
@@ -40,7 +40,7 @@ export class UserTasks{
     await authCall(this.env,'/check-user',{user:job.user,version:job.version});if(job.cancel){job.state='cancelled';job.message='查询已停止';}else{
      const data=await getBlob(this.storage,'data:'+job.id);if(!data)throw new Fault('任务数据已过期',410);
      if(job.kind==='query'){
-      job.message=await queryStep(data,this.env);if(data.phase==='done'){await putBlob(this.storage,'result:'+job.id,await signSnapshot(job.user,data.result,this.env));job.state='done';}else await putBlob(this.storage,'data:'+job.id,data);
+      job.message=await queryStep(data,this.env);if(data.phase==='done'){await putBlob(this.storage,'result:'+job.id,await signSnapshot(job.user,data.result,this.env));if(!data.result.syncStatus.fetchedMatches&&!data.result.syncStatus.rankFetches&&!data.result.historyStatus.requests)await authCall(this.env,'/quota',{user:job.user,kind:'query',job:job.id,refund:true});job.state='done';}else await putBlob(this.storage,'data:'+job.id,data);
      }else{
       // Alarms may be delivered again after interruption: never resend a dispatched AI request.
       if(job.dispatched)throw new Fault('上次 AI 请求中断，未自动重发；请手动重新锐评',504);

@@ -4,7 +4,8 @@ const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source'
 await mkdir(path.join(base,'public'),{recursive:true});await mkdir(path.join(base,'src/shared'),{recursive:true});
 const shared=['core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'];
 for(const file of [...shared,'data.js','art.js','chart.js','style.css'])await copyFile(path.join(local,file),path.join(base,'public',file));
-for(const file of shared)await copyFile(path.join(local,file),path.join(base,'src/shared',file));
+// Remove only the unused CommonJS export adapter; scoring bodies stay identical.
+for(const file of shared){const code=await readFile(path.join(local,file),'utf8');await writeFile(path.join(base,'src/shared',file),code.replace(/if\s*\(typeof module\s*!==?\s*['"]undefined['"]\)\s*module\.exports\s*=[^;]+;/g,''));}
 const heroes=JSON.parse(await readFile(path.join(local,'data/heroes.json'),'utf8'));
 const maps=JSON.parse(await readFile(path.join(local,'data/maps.json'),'utf8'));
 await writeFile(path.join(base,'src/shared/data.mjs'),'export const heroes='+JSON.stringify(Object.fromEntries(heroes.map(h=>[String(h.heroGuid),{...h,role:h.roleType}])))+';\nexport const maps='+JSON.stringify(Object.fromEntries(maps.map(m=>[String(m.guid),m])))+';');
