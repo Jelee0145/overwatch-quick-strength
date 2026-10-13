@@ -27,6 +27,8 @@ html=html.replace(/<details id="credentials">[\s\S]*?<\/details>/,'');
 html=html.replace(/<dialog id="aiKeyDialog"[\s\S]*?<\/dialog>/,'');
 html=html.replace(/<button[^>]*id="aiReviewSettings"[^>]*>[\s\S]*?<\/button>/,'');
 html=html.replace(/<\/header>/,'<div class="cloud-user"><span id="cloudIdentity"></span><button id="cloudLogout">退出</button></div></header>');
+html=html.replace('<button type="submit" id="query"', '<label class="check"><input id="supplementOtherMatches" type="checkbox">补充其他对局</label><p class="hint">不勾选为快查询：使用已有参考；勾选后按缺口补充近期对局。</p><button type="submit" id="query"');
+html=html.replace('<div id="status"', '<p id="queryStats" class="hint"></p><p id="mapCacheStats" class="hint"></p><details id="cacheRecordsPanel" class="method"><summary>缓存记录</summary><div id="cacheRecordsBody"></div></details><div id="status"');
 html=html.replace(/<body>/,'<body class="cloud-pending">');
 html=html.replace('<button type="button" id="cancel" class="full" hidden>停止查询</button>','<button type="button" id="cancel" class="full" hidden>停止查询</button><button type="button" id="resumeQuery" class="full" hidden>继续查询</button>');
 html=html.replace(/<script src="ai-review.js[^\"]*"><\/script>/,'<script src="cloud-client.js"></script><script src="cloud-review.js"></script>');
@@ -35,9 +37,11 @@ html=html.replace(/<\/head>/,'<link rel="stylesheet" href="cloud.css"></head>');
 let app=await readFile(path.join(local,'app.js'),'utf8');
 const cutStart=app.indexOf('function credentialPayload()'),cutEnd=app.indexOf('async function loadGameData');
 app=app.slice(0,cutStart)+app.slice(cutEnd);
-app=app.replace(/\$\('onlinePanel'\)\.onsubmit=[\s\S]*?(?=\$\('cancel'\)\.onclick)/,`$('onlinePanel').onsubmit=async e=>{e.preventDefault();if(activeJob)return;try{busy(true);status('正在建立查询…');const r=await Cloud.startQuery($('battleTag').value.trim(),Number($('limit').value));activeJob=r.id;poll();}catch(e){busy(false);status(e.message,true);}};\n`);
+app=app.replace(/\$\('onlinePanel'\)\.onsubmit=[\s\S]*?(?=\$\('cancel'\)\.onclick)/,`$('onlinePanel').onsubmit=async e=>{e.preventDefault();if(activeJob)return;try{busy(true);status('正在建立查询…');const r=await Cloud.startQuery($('battleTag').value.trim(),Number($('limit').value),$('supplementOtherMatches').checked);activeJob=r.id;poll();}catch(e){busy(false);status(e.message,true);}};\n`);
 {const start=app.indexOf('async function request('),end=app.indexOf('function busy(',start);if(start<0||end<0)throw Error('Local request adapter changed');app=app.slice(0,start)+'async function request(path,body){return Cloud.api(path,body);}\n'+app.slice(end);}
-app=app.replace("raw=QS.normalize(job.result);activeJob=null", "await Cloud.save(job.envelope);raw=QS.normalize(job.result);activeJob=null");
+app=app.replace("raw=QS.normalize(job.result);activeJob=null", "await Cloud.save(job.envelope,job.cacheRecords,job.queryIndex);raw=QS.normalize(job.result||job.envelope.content.data);activeJob=null");
+app=app.replace("status(job.message||'查询中…');","status(job.message||'查询中…');if(job.cacheRequest){await CloudCache.fulfill(job);pollTimer=setTimeout(poll,50);return;}");
+app=app.replace("request('/api/job/'+activeJob)","request('/api/job/'+activeJob+'?compact=1')");
 app=app.replace("}else pollTimer=setTimeout(poll,1000);", "}else if(job.state==='paused'){$('resumeQuery').hidden=false;}else pollTimer=setTimeout(poll,1000);");
 app=app.replace("function busy(value){", "$('resumeQuery').onclick=async()=>{try{await request('/api/job/'+activeJob+'/resume',{});$('resumeQuery').hidden=true;poll();}catch(e){status(e.message,true);}};\nfunction busy(value){$('resumeQuery').hidden=true;");
 app=app.replace(/\$\('credentials'\)\.open=false;[\s\S]*$/,'(async()=>{try{await Cloud.boot();const latest=await Cloud.latest();if(latest.result){raw=QS.normalize(latest.result);$("battleTag").value=raw.battletag;generate();}if(latest.activeJob){activeJob=latest.activeJob;busy(true);poll();}}catch(e){status(e.message,true);}})();');
@@ -60,7 +64,7 @@ const files=async names=>Promise.all(names.map(name=>readFile(path.join(local,na
 const browserData=await readFile(path.join(local,'data.js'),'utf8');
 const runtime=await files(shared);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
-const main=await staticFile([browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app].join('\n'),'js','app');
+const main=await staticFile([browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app].join('\n'),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script></head>`);
 await writeFile(path.join(base,'public/index.html'),html);
 for(const page of ['login','admin']){let content=await readFile(path.join(base,'web',page+'.html'),'utf8');const js=await staticFile(await readFile(path.join(base,'web',page+'.js'),'utf8'),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),content);}

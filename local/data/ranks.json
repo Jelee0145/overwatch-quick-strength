@@ -1,0 +1,233 @@
+{
+  "rankList": [
+    {
+      "key": "Bronze",
+      "name": "青铜",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-hm0wp6s9r8.png",
+      "level": [
+        0,
+        999
+      ]
+    },
+    {
+      "key": "Silver",
+      "name": "白银",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-54lydwzj1b.png",
+      "level": [
+        1000,
+        1499
+      ]
+    },
+    {
+      "key": "Gold",
+      "name": "黄金",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-lqado269cb.png",
+      "level": [
+        1500,
+        1999
+      ]
+    },
+    {
+      "key": "Platinum",
+      "name": "白金",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-9zfa7bjkc6.png",
+      "level": [
+        2000,
+        2499
+      ]
+    },
+    {
+      "key": "Emerald",
+      "name": "翡翠",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20260813/151353-jzms913ipf.png",
+      "level": [
+        2500,
+        2999
+      ]
+    },
+    {
+      "key": "Diamond",
+      "name": "钻石",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173329-ljyqwbfvd8.png",
+      "level": [
+        3000,
+        3499
+      ]
+    },
+    {
+      "key": "Master",
+      "name": "大师",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173228-cw5o7u6qfk.png",
+      "level": [
+        3500,
+        3999
+      ]
+    },
+    {
+      "key": "Grandmaster",
+      "name": "宗师",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173402-d2apin1oms.png",
+      "level": [
+        4000,
+        4499
+      ]
+    },
+    {
+      "key": "Champion",
+      "name": "英杰",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173229-3y6cl0egkj.png",
+      "level": [
+        4500,
+        999999
+      ]
+    }
+  ],
+  "rankListFight": [
+    {
+      "key": "Bronze",
+      "name": "菜鸟",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173229-23trmiuq7y.png"
+    },
+    {
+      "key": "Silver",
+      "name": "新秀",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173229-jsl5abgsz7.png"
+    },
+    {
+      "key": "Gold",
+      "name": "斗士",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173229-t7shcuog8r.png"
+    },
+    {
+      "key": "Platinum",
+      "name": "精英",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173229-vq8u27t6ss.png"
+    },
+    {
+      "key": "Diamond",
+      "name": "专家",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173229-ao849ysrwk.png"
+    },
+    {
+      "key": "Master",
+      "name": "全明星‌",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173531-g0s34wzl9v.png"
+    },
+    {
+      "key": "Grandmaster",
+      "name": "传奇",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250725/173229-gc6o0zessn.png"
+    }
+  ],
+  "bigRankList": [
+    {
+      "key": "Bronze",
+      "name": "青铜",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104614-hpjb6rl49g.png",
+      "level": [
+        0,
+        1499
+      ]
+    },
+    {
+      "key": "Silver",
+      "name": "白银",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104614-wa2us4mlzv.png",
+      "level": [
+        1500,
+        1999
+      ]
+    },
+    {
+      "key": "Gold",
+      "name": "黄金",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104611-pc6tvyf9rs.png",
+      "level": [
+        2000,
+        2499
+      ]
+    },
+    {
+      "key": "Platinum",
+      "name": "白金",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104611-5th4nmjad7.png",
+      "level": [
+        2500,
+        2999
+      ]
+    },
+    {
+      "key": "Diamond",
+      "name": "钻石",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104611-7b9tdpiqh0.png",
+      "level": [
+        3000,
+        3499
+      ]
+    },
+    {
+      "key": "Master",
+      "name": "大师",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104611-kng18sodw7.png",
+      "level": [
+        3500,
+        3999
+      ]
+    },
+    {
+      "key": "Grandmaster",
+      "name": "宗师",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104611-n9ci2ds5wr.png",
+      "level": [
+        4000,
+        4499
+      ]
+    },
+    {
+      "key": "Champion",
+      "name": "英杰",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250708/104611-3q9dogtsn5.png",
+      "level": [
+        4500,
+        999999
+      ]
+    }
+  ],
+  "bigrankListFight": [
+    {
+      "key": "Bronze",
+      "name": "菜鸟",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250513/210236-k6cnat1qh4.png"
+    },
+    {
+      "key": "Silver",
+      "name": "新秀",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250717/201052-shp6kbdecv.png"
+    },
+    {
+      "key": "Gold",
+      "name": "斗士",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250513/210237-jswgo6fd85.png"
+    },
+    {
+      "key": "Platinum",
+      "name": "精英",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250513/210236-h8ptycz296.png"
+    },
+    {
+      "key": "Diamond",
+      "name": "专家",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250513/210236-3ugs50jb4v.png"
+    },
+    {
+      "key": "Master",
+      "name": "全明星‌",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250513/210236-srdaopl7cz.png"
+    },
+    {
+      "key": "Grandmaster",
+      "name": "传奇",
+      "icon": "https://img.166.net/gameyw-misc/opd/squash/20250513/210236-ejvwrt14k7.png"
+    }
+  ]
+}

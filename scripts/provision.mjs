@@ -4,8 +4,8 @@ let input='';for await(const chunk of process.stdin)input+=chunk;let password=in
 const status=async(state,message)=>writeFile(path.join(privateDir,'provision-status.json'),JSON.stringify({state,message,at:new Date().toISOString()}));
 try{
  const pepper=token(),adminHash=await passwordHash(password,pepper);password='';
- const python='C:/Users/35992/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe';
- const local=path.resolve(base,'../quick-strength');
+ const python=process.env.QS_PYTHON||'python';
+ const local=path.resolve(base,'local');
  // DPAPI secrets are read into memory only; subprocess stdout is captured, never printed.
  const script="import sys,json;sys.path.insert(0,sys.argv[1]);from credentials import CredentialStore;from ai_review import KeyStore;from pathlib import Path;p=Path(sys.argv[1])/'.private';c=CredentialStore(p).load();print(json.dumps({'DASHEN_ROLE_ID':c['roleId'],'DASHEN_TOKEN':c['token'],'DEEPSEEK_KEY':KeyStore(p).load()}))";
  const secrets=JSON.parse(execFileSync(python,['-c',script,local],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']}));

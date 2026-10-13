@@ -1,0 +1,818 @@
+globalThis.QS_BENCHMARKS = {
+  "version": "counterwatch-2026-10-11",
+  "retrievedAt": "2026-10-11T13:54:02.117247+00:00",
+  "source": "Counterwatch",
+  "scope": "5V5 / All Ranks / 网站默认筛选；并非国服快速专属或按段位分层样本",
+  "units": "per10minutes",
+  "heroes": {
+    "207165582859042818": {
+      "name": "死神",
+      "role": "dps",
+      "slug": "reaper",
+      "per10": {
+        "kill": 17.1,
+        "death": 8.0,
+        "assist": 0.0,
+        "heroDamage": 7157.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/reaper",
+      "matches": 112906,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042819": {
+      "name": "猎空",
+      "role": "dps",
+      "slug": "tracer",
+      "per10": {
+        "kill": 16.2,
+        "death": 7.3,
+        "assist": 0.0,
+        "heroDamage": 6067.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/tracer",
+      "matches": 92505,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042820": {
+      "name": "天使",
+      "role": "healer",
+      "slug": "mercy",
+      "per10": {
+        "kill": 1.4,
+        "death": 6.1,
+        "assist": 17.7,
+        "heroDamage": 275.0,
+        "cure": 8855.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/mercy",
+      "matches": 243865,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042821": {
+      "name": "半藏",
+      "role": "dps",
+      "slug": "hanzo",
+      "per10": {
+        "kill": 15.4,
+        "death": 7.5,
+        "assist": 4.2,
+        "heroDamage": 8071.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/hanzo",
+      "matches": 111689,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042822": {
+      "name": "托比昂",
+      "role": "dps",
+      "slug": "torbjorn",
+      "per10": {
+        "kill": 16.3,
+        "death": 6.7,
+        "assist": 0.6,
+        "heroDamage": 9433.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/torbjorn",
+      "matches": 72201,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042823": {
+      "name": "莱因哈特",
+      "role": "tank",
+      "slug": "reinhardt",
+      "per10": {
+        "kill": 15.8,
+        "death": 7.2,
+        "assist": 1.7,
+        "heroDamage": 9554.0,
+        "resistDamage": 14153.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/reinhardt",
+      "matches": 168110,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042824": {
+      "name": "法老之鹰",
+      "role": "dps",
+      "slug": "pharah",
+      "per10": {
+        "kill": 16.8,
+        "death": 7.9,
+        "assist": 2.4,
+        "heroDamage": 8602.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/pharah",
+      "matches": 55819,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042825": {
+      "name": "温斯顿",
+      "role": "tank",
+      "slug": "winston",
+      "per10": {
+        "kill": 19.1,
+        "death": 6.2,
+        "assist": 3.8,
+        "heroDamage": 8986.0,
+        "resistDamage": 13912.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/winston",
+      "matches": 62685,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042826": {
+      "name": "黑百合",
+      "role": "dps",
+      "slug": "widowmaker",
+      "per10": {
+        "kill": 13.6,
+        "death": 7.1,
+        "assist": 2.9,
+        "heroDamage": 5908.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/widowmaker",
+      "matches": 99463,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042837": {
+      "name": "堡垒",
+      "role": "dps",
+      "slug": "bastion",
+      "per10": {
+        "kill": 17.4,
+        "death": 7.7,
+        "assist": 1.7,
+        "heroDamage": 9915.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/bastion",
+      "matches": 164447,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042838": {
+      "name": "秩序之光",
+      "role": "dps",
+      "slug": "symmetra",
+      "per10": {
+        "kill": 16.1,
+        "death": 7.7,
+        "assist": 5.3,
+        "heroDamage": 7289.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/symmetra",
+      "matches": 37481,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042848": {
+      "name": "禅雅塔",
+      "role": "healer",
+      "slug": "zenyatta",
+      "per10": {
+        "kill": 13.0,
+        "death": 6.9,
+        "assist": 16.7,
+        "heroDamage": 5522.0,
+        "cure": 6341.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/zenyatta",
+      "matches": 153865,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042857": {
+      "name": "源氏",
+      "role": "dps",
+      "slug": "genji",
+      "per10": {
+        "kill": 16.5,
+        "death": 7.8,
+        "assist": 0.0,
+        "heroDamage": 7087.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/genji",
+      "matches": 143101,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042880": {
+      "name": "路霸",
+      "role": "tank",
+      "slug": "roadhog",
+      "per10": {
+        "kill": 17.0,
+        "death": 5.8,
+        "assist": 3.2,
+        "heroDamage": 8531.0,
+        "resistDamage": 1818.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/roadhog",
+      "matches": 91414,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042882": {
+      "name": "卡西迪",
+      "role": "dps",
+      "slug": "cassidy",
+      "per10": {
+        "kill": 16.2,
+        "death": 8.2,
+        "assist": 1.6,
+        "heroDamage": 8367.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/cassidy",
+      "matches": 211893,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042917": {
+      "name": "狂鼠",
+      "role": "dps",
+      "slug": "junkrat",
+      "per10": {
+        "kill": 15.0,
+        "death": 7.8,
+        "assist": 2.3,
+        "heroDamage": 8586.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/junkrat",
+      "matches": 140853,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042920": {
+      "name": "查莉娅",
+      "role": "tank",
+      "slug": "zarya",
+      "per10": {
+        "kill": 18.2,
+        "death": 5.9,
+        "assist": 4.8,
+        "heroDamage": 10215.0,
+        "resistDamage": 5897.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/zarya",
+      "matches": 51403,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042926": {
+      "name": "士兵：76",
+      "role": "dps",
+      "slug": "soldier76",
+      "per10": {
+        "kill": 17.8,
+        "death": 8.0,
+        "assist": 1.1,
+        "heroDamage": 9212.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/soldier76",
+      "matches": 193135,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042937": {
+      "name": "卢西奥",
+      "role": "healer",
+      "slug": "lucio",
+      "per10": {
+        "kill": 11.4,
+        "death": 7.6,
+        "assist": 9.5,
+        "heroDamage": 3941.0,
+        "cure": 6803.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/lucio",
+      "matches": 75586,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859042938": {
+      "name": "D.Va",
+      "role": "tank",
+      "slug": "dva",
+      "per10": {
+        "kill": 18.8,
+        "death": 5.4,
+        "assist": 6.5,
+        "heroDamage": 8162.0,
+        "resistDamage": 8195.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/dva",
+      "matches": 85642,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043037": {
+      "name": "美",
+      "role": "dps",
+      "slug": "mei",
+      "per10": {
+        "kill": 15.3,
+        "death": 7.0,
+        "assist": 5.5,
+        "heroDamage": 7067.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/mei",
+      "matches": 107489,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043118": {
+      "name": "黑影",
+      "role": "healer",
+      "slug": "sombra",
+      "per10": {
+        "kill": 16.0,
+        "death": 7.9,
+        "assist": 6.2,
+        "heroDamage": 5742.0,
+        "cure": 647.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/sombra",
+      "matches": 63711,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043119": {
+      "name": "末日铁拳",
+      "role": "tank",
+      "slug": "doomfist",
+      "per10": {
+        "kill": 18.5,
+        "death": 7.2,
+        "assist": 4.1,
+        "heroDamage": 8894.0,
+        "resistDamage": 4899.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/doomfist",
+      "matches": 94159,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043131": {
+      "name": "安娜",
+      "role": "healer",
+      "slug": "ana",
+      "per10": {
+        "kill": 9.2,
+        "death": 6.1,
+        "assist": 11.3,
+        "heroDamage": 3544.0,
+        "cure": 6606.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/ana",
+      "matches": 380357,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043134": {
+      "name": "奥丽莎",
+      "role": "tank",
+      "slug": "orisa",
+      "per10": {
+        "kill": 17.8,
+        "death": 6.5,
+        "assist": 3.7,
+        "heroDamage": 11076.0,
+        "resistDamage": 7344.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/orisa",
+      "matches": 133538,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043221": {
+      "name": "布丽吉塔",
+      "role": "healer",
+      "slug": "brigitte",
+      "per10": {
+        "kill": 10.6,
+        "death": 7.6,
+        "assist": 12.4,
+        "heroDamage": 3972.0,
+        "cure": 6980.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/brigitte",
+      "matches": 67760,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043234": {
+      "name": "莫伊拉",
+      "role": "healer",
+      "slug": "moira",
+      "per10": {
+        "kill": 16.5,
+        "death": 6.4,
+        "assist": 12.0,
+        "heroDamage": 5842.0,
+        "cure": 8511.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/moira",
+      "matches": 358486,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043274": {
+      "name": "破坏球",
+      "role": "tank",
+      "slug": "wrecking-ball",
+      "per10": {
+        "kill": 16.6,
+        "death": 5.2,
+        "assist": 4.4,
+        "heroDamage": 8033.0,
+        "resistDamage": 4701.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/wrecking-ball",
+      "matches": 42485,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043308": {
+      "name": "索杰恩",
+      "role": "dps",
+      "slug": "sojourn",
+      "per10": {
+        "kill": 16.6,
+        "death": 7.8,
+        "assist": 0.3,
+        "heroDamage": 8690.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/sojourn",
+      "matches": 125681,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043328": {
+      "name": "艾什",
+      "role": "dps",
+      "slug": "ashe",
+      "per10": {
+        "kill": 15.6,
+        "death": 7.0,
+        "assist": 0.9,
+        "heroDamage": 8924.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/ashe",
+      "matches": 165735,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043334": {
+      "name": "回声",
+      "role": "dps",
+      "slug": "echo",
+      "per10": {
+        "kill": 15.9,
+        "death": 7.8,
+        "assist": 0.5,
+        "heroDamage": 7676.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/echo",
+      "matches": 55134,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043361": {
+      "name": "巴蒂斯特",
+      "role": "healer",
+      "slug": "baptiste",
+      "per10": {
+        "kill": 10.1,
+        "death": 6.5,
+        "assist": 11.6,
+        "heroDamage": 3746.0,
+        "cure": 8181.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/baptiste",
+      "matches": 76914,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043377": {
+      "name": "雾子",
+      "role": "healer",
+      "slug": "kiriko",
+      "per10": {
+        "kill": 7.9,
+        "death": 6.2,
+        "assist": 14.3,
+        "heroDamage": 3139.0,
+        "cure": 8528.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/kiriko",
+      "matches": 346584,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043382": {
+      "name": "渣客女王",
+      "role": "tank",
+      "slug": "junker-queen",
+      "per10": {
+        "kill": 19.2,
+        "death": 6.3,
+        "assist": 7.9,
+        "heroDamage": 9919.0,
+        "resistDamage": 3832.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/junker-queen",
+      "matches": 59886,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043387": {
+      "name": "西格玛",
+      "role": "tank",
+      "slug": "sigma",
+      "per10": {
+        "kill": 17.2,
+        "death": 5.7,
+        "assist": 2.2,
+        "heroDamage": 11230.0,
+        "resistDamage": 13850.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/sigma",
+      "matches": 116718,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043469": {
+      "name": "拉玛刹",
+      "role": "tank",
+      "slug": "ramattra",
+      "per10": {
+        "kill": 17.9,
+        "death": 6.6,
+        "assist": 2.7,
+        "heroDamage": 10782.0,
+        "resistDamage": 8867.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/ramattra",
+      "matches": 112403,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043473": {
+      "name": "生命之梭",
+      "role": "healer",
+      "slug": "lifeweaver",
+      "per10": {
+        "kill": 7.2,
+        "death": 5.2,
+        "assist": 13.0,
+        "heroDamage": 2135.0,
+        "cure": 9582.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/lifeweaver",
+      "matches": 173760,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043594": {
+      "name": "毛加",
+      "role": "tank",
+      "slug": "mauga",
+      "per10": {
+        "kill": 17.9,
+        "death": 7.3,
+        "assist": 6.1,
+        "heroDamage": 10858.0,
+        "resistDamage": 3793.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/mauga",
+      "matches": 63806,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043612": {
+      "name": "伊拉锐",
+      "role": "healer",
+      "slug": "illari",
+      "per10": {
+        "kill": 10.5,
+        "death": 6.2,
+        "assist": 10.1,
+        "heroDamage": 4257.0,
+        "cure": 7548.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/illari",
+      "matches": 66239,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043627": {
+      "name": "探奇",
+      "role": "dps",
+      "slug": "venture",
+      "per10": {
+        "kill": 15.6,
+        "death": 8.2,
+        "assist": 1.5,
+        "heroDamage": 7144.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/venture",
+      "matches": 34694,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043682": {
+      "name": "骇灾",
+      "role": "tank",
+      "slug": "hazard",
+      "per10": {
+        "kill": 18.8,
+        "death": 6.5,
+        "assist": 5.8,
+        "heroDamage": 9700.0,
+        "resistDamage": 6077.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/hazard",
+      "matches": 38633,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043685": {
+      "name": "朱诺",
+      "role": "healer",
+      "slug": "juno",
+      "per10": {
+        "kill": 12.6,
+        "death": 5.9,
+        "assist": 14.4,
+        "heroDamage": 3780.0,
+        "cure": 7421.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/juno",
+      "matches": 288575,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043626": {
+      "name": "弗蕾娅",
+      "role": "dps",
+      "slug": "freja",
+      "per10": {
+        "kill": 15.1,
+        "death": 7.4,
+        "assist": 0.4,
+        "heroDamage": 8553.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/freja",
+      "matches": 87326,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043779": {
+      "name": "无漾",
+      "role": "healer",
+      "slug": "wuyang",
+      "per10": {
+        "kill": 12.1,
+        "death": 6.1,
+        "assist": 15.3,
+        "heroDamage": 5204.0,
+        "cure": 6850.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/wuyang",
+      "matches": 98840,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044061": {
+      "name": "安燃",
+      "role": "dps",
+      "slug": "anran",
+      "per10": {
+        "kill": 16.2,
+        "death": 8.8,
+        "assist": 0.6,
+        "heroDamage": 7321.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/anran",
+      "matches": 132182,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044056": {
+      "name": "埃姆雷",
+      "role": "dps",
+      "slug": "emre",
+      "per10": {
+        "kill": 16.4,
+        "death": 7.5,
+        "assist": 0.0,
+        "heroDamage": 9209.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/emre",
+      "matches": 88722,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044036": {
+      "name": "金驭",
+      "role": "tank",
+      "slug": "domina",
+      "per10": {
+        "kill": 18.6,
+        "death": 5.9,
+        "assist": 3.2,
+        "heroDamage": 10661.0,
+        "resistDamage": 13965.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/domina",
+      "matches": 67639,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044067": {
+      "name": "瑞稀",
+      "role": "healer",
+      "slug": "mizuki",
+      "per10": {
+        "kill": 10.4,
+        "death": 6.8,
+        "assist": 9.7,
+        "heroDamage": 4367.0,
+        "cure": 8802.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/mizuki",
+      "matches": 184826,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044118": {
+      "name": "飞天猫",
+      "role": "healer",
+      "slug": "jetpackcat",
+      "per10": {
+        "kill": 12.6,
+        "death": 6.0,
+        "assist": 13.0,
+        "heroDamage": 3271.0,
+        "cure": 7771.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/jetpackcat",
+      "matches": 134143,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859043954": {
+      "name": "斩仇",
+      "role": "dps",
+      "slug": "vendetta",
+      "per10": {
+        "kill": 16.1,
+        "death": 9.7,
+        "assist": 1.7,
+        "heroDamage": 7028.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/vendetta",
+      "matches": 74001,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044050": {
+      "name": "西拉",
+      "role": "dps",
+      "slug": "sierra",
+      "per10": {
+        "kill": 17.5,
+        "death": 7.9,
+        "assist": 1.6,
+        "heroDamage": 8927.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/sierra",
+      "matches": 187329,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044140": {
+      "name": "死怨",
+      "role": "dps",
+      "slug": "shion",
+      "per10": {
+        "kill": 16.5,
+        "death": 8.1,
+        "assist": 1.6,
+        "heroDamage": 7925.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/shion",
+      "matches": 141557,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044208": {
+      "name": "血律",
+      "role": "healer",
+      "slug": "doctrine",
+      "per10": {
+        "kill": 10.6,
+        "death": 5.7,
+        "assist": 15.2,
+        "heroDamage": 3766.0,
+        "cure": 8751.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/doctrine",
+      "matches": 24272,
+      "sourceUpdated": "Oct 11, 2026"
+    },
+    "207165582859044162": {
+      "name": "D.Mon",
+      "role": "tank",
+      "slug": "dmon",
+      "per10": {
+        "kill": 18.9,
+        "death": 5.6,
+        "assist": 3.0,
+        "heroDamage": 10099.0,
+        "resistDamage": 7081.0
+      },
+      "source": "https://www.counterwatch.gg/stats/overwatch/heroes/dmon",
+      "matches": 154525,
+      "sourceUpdated": "Oct 11, 2026"
+    }
+  },
+  "roles": {
+    "dps": {
+      "kill": 16.3,
+      "death": 7.8,
+      "assist": 1.5,
+      "heroDamage": 8176.0
+    },
+    "healer": {
+      "kill": 10.4,
+      "death": 6.3,
+      "assist": 13.1,
+      "heroDamage": 3749.0,
+      "cure": 7735.0
+    },
+    "tank": {
+      "kill": 17.9,
+      "death": 6.3,
+      "assist": 3.7,
+      "heroDamage": 9901.0,
+      "resistDamage": 8505.0
+    }
+  }
+};

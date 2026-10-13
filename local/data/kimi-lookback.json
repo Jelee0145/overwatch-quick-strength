@@ -1,0 +1,2129 @@
+{
+  "schemaVersion": 1,
+  "battletag": "daze#51307",
+  "source": "Kimi 最终回退采集 · 2026-10-11",
+  "queriedAt": "2026-10-11（最终分段采集）",
+  "used_previous_season_fallback": true,
+  "matches": [
+    {
+      "mid": "f2e49510-cebc-f940-adf6-9bd1fb3ef584",
+      "t": 1791706624750,
+      "ret": -1,
+      "mapGuid": "576460752303423876",
+      "mapName": "",
+      "players": [
+        {
+          "name": "TWISTZZ#5992",
+          "side": "T",
+          "hero": "207165582859043134",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859044056",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859043334",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "CASRUZ#5599",
+          "side": "E",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "BadDogBebop#5830",
+          "side": "E",
+          "hero": "207165582859042880",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "张考全#5415",
+          "side": "E",
+          "hero": "207165582859043328",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "dps",
+                "s": 297,
+                "n": "Gold",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "深玄#5918",
+          "side": "E",
+          "hero": "207165582859043377",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "不要做作#5443",
+          "side": "E",
+          "hero": "207165582859042882",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 495,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "12acda6f-a136-8041-8a38-91b35fa54dca",
+      "t": 1791705867525,
+      "ret": -1,
+      "mapGuid": "576460752303425195",
+      "mapName": "",
+      "players": [
+        {
+          "name": "TWISTZZ#5992",
+          "side": "T",
+          "hero": "207165582859043134",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859044050",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859043779",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859043328",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859042820",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "StarDreamy#5913",
+          "side": "E",
+          "hero": "207165582859043131",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "dps",
+                "s": 598,
+                "n": "Master",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 197,
+                "n": "Silver",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "直接喂饱包#5618",
+          "side": "E",
+          "hero": "207165582859043469",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "甜甜圈#52431",
+          "side": "E",
+          "hero": "207165582859042926",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 449,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 199,
+                "n": "Silver",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "京阿尼#51441",
+          "side": "E",
+          "hero": "207165582859043473",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 448,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 495,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 448,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 495,
+                "n": "Diamond",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "五星好市民张三#5471",
+          "side": "E",
+          "hero": "207165582859042818",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 396,
+                "n": "Platinum",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 396,
+                "n": "Platinum",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "4bc310de-80a8-5641-99ec-36e775840f4a",
+      "t": 1791705249518,
+      "ret": -1,
+      "mapGuid": "576460752303426693",
+      "mapName": "",
+      "players": [
+        {
+          "name": "TWISTZZ#5992",
+          "side": "T",
+          "hero": "207165582859043469",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859044050",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859043779",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859043377",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859042819",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "鹿夏谜心#5979",
+          "side": "E",
+          "hero": "207165582859042821",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "房奴#51641",
+          "side": "E",
+          "hero": "207165582859042857",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "神奇海螺#51378",
+          "side": "E",
+          "hero": "207165582859043685",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "火腿派#5427",
+          "side": "E",
+          "hero": "207165582859042823",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "Flamingo#51860",
+          "side": "E",
+          "hero": "207165582859043131",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "ee7775dc-4693-2b4e-85db-a0793d0a6d2a",
+      "t": 1791702741573,
+      "ret": -1,
+      "mapGuid": "576460752303426356",
+      "mapName": "",
+      "players": [
+        {
+          "name": "TWISTZZ#5992",
+          "side": "T",
+          "hero": "207165582859042825",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859043308",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859043377",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859044140",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "卡米#52268",
+          "side": "E",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 497,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "不要忘了江湖梦#5144",
+          "side": "E",
+          "hero": "207165582859042821",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 397,
+                "n": "Platinum",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "她眼睛像繁星宇宙#5666",
+          "side": "E",
+          "hero": "207165582859043387",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "tank",
+                "s": 396,
+                "n": "Platinum",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "从未跟你饮过冰#5276",
+          "side": "E",
+          "hero": "207165582859044140",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "open",
+                "s": 447,
+                "n": "Emerald",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "月又西#5435",
+          "side": "E",
+          "hero": "207165582859043377",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "open",
+                "s": 449,
+                "n": "Emerald",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "31b81239-9651-a540-88b9-a4cc8fe7ea46",
+      "t": 1791701998215,
+      "ret": -1,
+      "mapGuid": "576460752303425649",
+      "mapName": "",
+      "players": [
+        {
+          "name": "flowers#53653",
+          "side": "T",
+          "hero": "207165582859043234",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859044050",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859043594",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859042826",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "XXXXX#52339",
+          "side": "E",
+          "hero": "207165582859043626",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "首津口#5349",
+          "side": "E",
+          "hero": "207165582859043387",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 449,
+                "n": "Emerald",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "仁义礼智信#51261",
+          "side": "E",
+          "hero": "207165582859044140",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 448,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 499,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "稳重的水獭#57794",
+          "side": "E",
+          "hero": "207165582859042848",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "急乐孝典绷#5502",
+          "side": "E",
+          "hero": "207165582859043685",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 446,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "b079e738-d786-d143-81e2-ff5f76250ff9",
+      "t": 1791701231897,
+      "ret": -1,
+      "mapGuid": "576460752303423700",
+      "mapName": "",
+      "players": [
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859044050",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859043779",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859043382",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "讨厌下雨天#51200",
+          "side": "T",
+          "hero": "207165582859043037",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 295,
+                "n": "Gold",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 198,
+                "n": "Silver",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "杨哥斯拉帅哥#5340",
+          "side": "E",
+          "hero": "207165582859042837",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "hyleremo#5172",
+          "side": "E",
+          "hero": "207165582859043131",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "风息梦陨#5826",
+          "side": "E",
+          "hero": "207165582859043119",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "布响丸辣#5377",
+          "side": "E",
+          "hero": "207165582859042848",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 447,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 499,
+                "n": "Diamond",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "闲云悠鹤#51762",
+          "side": "E",
+          "hero": "207165582859042926",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 296,
+                "n": "Gold",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "dce0470c-0a14-f742-9edf-c546bde76476",
+      "t": 1791700573796,
+      "ret": -1,
+      "mapGuid": "576460752303426899",
+      "mapName": "",
+      "players": [
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859042880",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859044140",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "标兵奔北坡#51253",
+          "side": "T",
+          "hero": "207165582859043221",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859042917",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "追梦#52693",
+          "side": "E",
+          "hero": "207165582859043954",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "dps",
+                "s": 397,
+                "n": "Platinum",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "春风花开赴约#5691",
+          "side": "E",
+          "hero": "207165582859042823",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 445,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 298,
+                "n": "Gold",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 399,
+                "n": "Platinum",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "FantasySuds#5544",
+          "side": "E",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 295,
+                "n": "Gold",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "KOTOKO#51834",
+          "side": "E",
+          "hero": "207165582859042819",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "dps",
+                "s": 495,
+                "n": "Diamond",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "Rain1ng#51408",
+          "side": "E",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 397,
+                "n": "Platinum",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 445,
+                "n": "Emerald",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "d927a666-ef8d-4242-bc9c-f86b9ad673ec",
+      "t": 1791699938609,
+      "ret": 1,
+      "mapGuid": "576460752303426116",
+      "mapName": "",
+      "players": [
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859044036",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "蓝蝴蝶#51394",
+          "side": "T",
+          "hero": "207165582859042824",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 397,
+                "n": "Platinum",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 448,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 445,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859044050",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "XXXXX#52339",
+          "side": "E",
+          "hero": "207165582859043131",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "首津口#5349",
+          "side": "E",
+          "hero": "207165582859043119",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 449,
+                "n": "Emerald",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "仁义礼智信#51261",
+          "side": "E",
+          "hero": "207165582859043626",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 448,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 499,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "稳重的水獭#57794",
+          "side": "E",
+          "hero": "207165582859043779",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "急乐孝典绷#5502",
+          "side": "E",
+          "hero": "207165582859042926",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 446,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "cc103260-226b-d242-836b-f9a8c422bb3a",
+      "t": 1791640751931,
+      "ret": 1,
+      "mapGuid": "576460752303425366",
+      "mapName": "",
+      "players": [
+        {
+          "name": "Siva#51457",
+          "side": "T",
+          "hero": "207165582859043308",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "dps",
+                "s": 495,
+                "n": "Diamond",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859044118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859044036",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859042926",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "KillerQueen#51780",
+          "side": "E",
+          "hero": "207165582859043119",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "Jerry#58859",
+          "side": "E",
+          "hero": "207165582859042821",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "虫需云力白勺虫且#5990",
+          "side": "E",
+          "hero": "207165582859044061",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "咬咬切克闹#51581",
+          "side": "E",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "干嘛#51794",
+          "side": "E",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    },
+    {
+      "mid": "0f4308ac-8583-e649-b693-664309d6fa16",
+      "t": 1791640012962,
+      "ret": 1,
+      "mapGuid": "576460752303423700",
+      "mapName": "",
+      "players": [
+        {
+          "name": "Siva#51457",
+          "side": "T",
+          "hero": "207165582859042857",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "dps",
+                "s": 495,
+                "n": "Diamond",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰镇琉璃沙沙冰#5424",
+          "side": "T",
+          "hero": "207165582859044050",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "AZUREWOLF#5252",
+          "side": "T",
+          "hero": "207165582859043131",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "daze#51307",
+          "side": "T",
+          "hero": "207165582859044208",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "三岁辉夜暴力炸金#5934",
+          "side": "T",
+          "hero": "207165582859044162",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 496,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "LinLan#51704",
+          "side": "E",
+          "hero": "207165582859043361",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 497,
+                "n": "Diamond",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "tank",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              },
+              {
+                "r": "open",
+                "s": 0,
+                "n": "None",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "矮的萌的张爱丽#5390",
+          "side": "E",
+          "hero": "207165582859042880",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "jenk#51406",
+          "side": "E",
+          "hero": "207165582859042818",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [
+              {
+                "r": "healer",
+                "s": 449,
+                "n": "Emerald",
+                "season": ""
+              },
+              {
+                "r": "dps",
+                "s": 495,
+                "n": "Diamond",
+                "season": ""
+              }
+            ],
+            "previousRows": [],
+            "sourceSeason": "24",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "冰天#51744",
+          "side": "E",
+          "hero": "207165582859042882",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        },
+        {
+          "name": "滑滑蛋#51310",
+          "side": "E",
+          "hero": "207165582859043118",
+          "role": "",
+          "score": null,
+          "res": {
+            "rows": [],
+            "previousRows": [],
+            "sourceSeason": "",
+            "error": false,
+            "previousError": false
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -7,3 +7,10 @@ public/
 src/shared/
 src/prompt.mjs
 src/release.mjs
+local/.private/
+local/__pycache__/
+local/*.json
+local/*.png
+local/*.svg
+**/__pycache__/
+*.pyc

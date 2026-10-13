@@ -1,6 +1,6 @@
 # 快速强度图 Cloudflare 共享版
 
-本机工具位于相邻 `quick-strength`，云端项目不修改它。`source` 保存评分、强度预测、图表和素材的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。本机算法更新后，可手动运行 `node scripts/sync-local.mjs` 同步白名单源码。
+完整项目已迁移到 `D:\重装大礼包\project\owqs`；本机工具位于 `local/`，云端项目不修改它。`source` 保存评分、强度预测、图表和素材的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。本机算法更新后，可手动运行 `node scripts/sync-local.mjs` 同步白名单源码。
 
 ## 使用与管理
 
@@ -40,3 +40,9 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 `source/media/manifest.json` 覆盖全部133条地图记录，`coverage.json` 保存来源、同名别名和缺失项。现已取得131条真实素材；VPP Green Room、寺院没有可核实的来源，显示统一背景。预览最长边960，导出1920，不放大小图。日常 CI 使用已提交的 WebP，不请求外站。地图目录更新后，在本机用带 Pillow 的 Python 手动运行 `scripts/prepare-media.py`，检查覆盖报告，再构建部署；该脚本原图缓存仅留在 `.private`。
 
 性能比较使用本机独立 Playwright（安装环境提供，不属于线上依赖），`node scripts/speed-check.mjs`，基线网页需提前保存在 `.private/speed-baseline/public`。使用匿名模拟数据与同样网络条件，结果保存在 `.private/speed-results.json`，不会上传或暴露为网站功能。2026-10-12 最终比较：6 Mbps、100 ms 延迟、4倍 CPU 降速，各5次；可操作中位数15.719秒→2.620秒，完整图表15.863秒→3.205秒，传输8,592,280→626,424字节。以上为本地可复现基准，不代表每位用户的实际延迟，也不包含上游查询／AI耗时。
+
+## 快／慢查询与迁移
+
+默认不勾选“补充其他对局”为快查询，勾选后按缺口补采；两种模式共用签名缓存。完整本地验收见 `LOCAL-FAST-SLOW-ACCEPTANCE.md`。目前仅有本地实现，未推送上线。
+
+重装、凭证及 Git 恢复详见 [迁移与重装恢复.md](迁移与重装恢复.md)。`.private` 中的会话工作与历史导出仅作私有资料，不作为正式入口。
