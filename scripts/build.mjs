@@ -3,6 +3,7 @@ import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {transform} from 'esbuild';
+import {gitNotes} from './release-notes.mjs';
 const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source');
 const shared=['core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'];
 let revision='local';try{revision=execFileSync('git',['rev-parse','HEAD'],{cwd:base,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{}
@@ -12,6 +13,9 @@ const outputDirectory=path.resolve(base,'public');if(path.dirname(outputDirector
 for(const name of ['art.js','data.js','chart.js','style.css','app.js','cloud.css','cloud-client.js','cloud-review.js','login.js','admin.js',...shared]){const target=path.resolve(outputDirectory,name);if(path.dirname(target)!==outputDirectory)throw Error('Unexpected legacy output');await rm(target,{force:true});}
 const legacyAssets=path.resolve(outputDirectory,'assets');if(path.dirname(legacyAssets)!==outputDirectory)throw Error('Unexpected legacy assets');await rm(legacyAssets,{recursive:true,force:true});
 await mkdir(path.join(base,'public/static'),{recursive:true});await mkdir(path.join(base,'src/shared'),{recursive:true});
+const noteConfig=JSON.parse(await readFile(path.join(base,'web/release-notes.json'),'utf8'));
+const releaseNotes=gitNotes(noteConfig.baseline,noteConfig.entries);
+await writeFile(path.join(base,'public/release-notes.json'),JSON.stringify(releaseNotes));
 // Remove only the unused CommonJS export adapter; scoring bodies stay identical.
 for(const file of shared){const code=await readFile(path.join(local,file),'utf8');await writeFile(path.join(base,'src/shared',file),code.replace(/if\s*\(typeof module\s*!==?\s*['"]undefined['"]\)\s*module\.exports\s*=[^;]+;/g,''));}
 const heroes=JSON.parse(await readFile(path.join(local,'data/heroes.json'),'utf8'));
@@ -120,9 +124,9 @@ const files=async names=>Promise.all(names.map(name=>readFile(path.join(local,na
 const browserData=await readFile(path.join(local,'data.js'),'utf8');
 const runtime=await files(shared);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
-const main=await staticFile([browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n'),'js','app');
+const main=await staticFile(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n'),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script></head>`);
 await writeFile(path.join(base,'public/index.html'),html);
 for(const page of ['login','admin']){let content=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8'));const js=await staticFile(await readFile(path.join(base,'web',page+'.js'),'utf8'),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),content);}
-await writeFile(path.join(base,'public/_headers'),`/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
+await writeFile(path.join(base,'public/_headers'),`/release-notes.json\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
 console.log('Cloud build complete: hashed scripts, lazy CDN media; original local tool preserved.');

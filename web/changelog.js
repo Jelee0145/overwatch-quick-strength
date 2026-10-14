@@ -1,15 +1,25 @@
 'use strict';
 (()=>{
- const version='2026-10-14-history-1',key='changelog|'+version;
- const dialog=document.getElementById('changelogDialog'),button=document.getElementById('changelogAcknowledge'),notice=document.getElementById('changelogNotice');
- const open=()=>{notice.textContent='';if(!dialog.open)dialog.showModal();};
+ let notes=QS_RELEASE_NOTES,checking=false;
+ const dialog=document.getElementById('changelogDialog'),button=document.getElementById('changelogAcknowledge'),notice=document.getElementById('changelogNotice'),entries=document.getElementById('changelogEntries');
+ const key=()=> 'changelog|'+notes.version;
+ const open=()=>{
+  notice.textContent='';entries.replaceChildren();document.getElementById('changelogVersion').textContent=(notes.entries[0]?.date||'')+' · 最新更新';
+  for(const [index,entry] of notes.entries.entries()){
+   const section=document.createElement(index===0?'section':'details'),heading=document.createElement(index===0?'h3':'summary');heading.textContent=entry.date+' · '+entry.title;
+   const list=document.createElement('ul');for(const item of entry.items){const line=document.createElement('li');line.textContent=item;list.append(line);}section.append(heading,list);entries.append(section);
+  }
+  if(!dialog.open)dialog.showModal();
+ };
  document.getElementById('changelogOpen').onclick=open;
  dialog.addEventListener('cancel',event=>event.preventDefault());
- button.onclick=async()=>{
-  if(button.disabled)return;button.disabled=true;
-  try{await Cloud.storage(key,true);dialog.close();}
-  catch{notice.textContent='阅读状态保存失败，请点击“我知道了”重试。';}
-  finally{button.disabled=false;}
- };
- (async()=>{try{await Cloud.boot();if(await Cloud.storage(key)!==true)open();}catch{/* Login and cache failures are handled by the application. */}})();
+ button.onclick=async()=>{if(button.disabled)return;button.disabled=true;const versionKey=key();try{await Cloud.storage(versionKey,true);dialog.close();}catch{notice.textContent='阅读状态保存失败，请点击“我知道了”重试。';}finally{button.disabled=false;}};
+ async function check(remote=false){
+  if(checking||button.disabled||(remote&&dialog.open))return;checking=true;
+  try{await Cloud.boot();if(remote){const response=await fetch('/release-notes.json',{cache:'no-store',credentials:'same-origin'});if(response.ok){const value=await response.json();if(typeof value.version==='string'&&Array.isArray(value.entries)&&value.entries.length)notes=value;}}
+   if(await Cloud.storage(key())!==true)open();
+  }catch{/* Retry on the next visit or focus; never mark unread updates as read. */}finally{checking=false;}
+ }
+ check();setInterval(()=>{if(!document.hidden)check(true);},300000);
+ window.addEventListener('focus',()=>check(true));document.addEventListener('visibilitychange',()=>{if(!document.hidden)check(true);});
 })();
