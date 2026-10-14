@@ -2,7 +2,7 @@ import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 
-export async function buildToolkit({base,brandPage,logo,staticFile,releaseNotes}){
+export async function buildToolkit({base,brandPage,logo,staticFile,releaseNotes,rewriteCopy,cleanDecorativeEnglish}){
  const manifest=JSON.parse(await readFile(path.join(base,'web/draw/heroes.json'),'utf8')),heroes=[];
  await mkdir(path.join(base,'public/media/heroes'),{recursive:true});
  for(const hero of manifest.heroes){
@@ -21,8 +21,8 @@ export async function buildToolkit({base,brandPage,logo,staticFile,releaseNotes}
  for(const page of ['toolkit','draw']){
   let html=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8')).replaceAll('{{SITE_MARK}}',logo).replaceAll('{{OW_MARK}}',owMark).replace('{{HERO_FAN}}',fan).replace('{{HERO_COUNT}}',String(heroes.length)).replace('{{CHANGELOG}}',await readFile(path.join(base,'web/changelog.html'),'utf8'));
   const code=page==='draw'?[common,'window.HERO_DRAW_DATA='+JSON.stringify({updatedAt:manifest.updatedAt,heroes})+';',await readFile(path.join(base,'web/draw-engine.js'),'utf8'),await readFile(path.join(base,'web/draw.js'),'utf8')].join('\n'):common;
-  const script=await staticFile(code,'js',page);
+  const script=await staticFile(rewriteCopy(code),'js',page);
   html=html.replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${script}"></script></head>`);
-  await writeFile(path.join(base,page==='toolkit'?'public/index.html':'public/tools/draw.html'),html);
+  await writeFile(path.join(base,page==='toolkit'?'public/index.html':'public/tools/draw.html'),rewriteCopy(cleanDecorativeEnglish(html)));
  }
 }
