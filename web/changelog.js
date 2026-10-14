@@ -5,10 +5,12 @@
  const key=()=> 'changelog|'+notes.version;
  const open=()=>{
   notice.textContent='';entries.replaceChildren();document.getElementById('changelogVersion').textContent=(notes.entries[0]?.date||'')+' · 最新更新';
+  const history=document.createElement('details'),historyHeading=document.createElement('summary');historyHeading.textContent='历史更新';history.append(historyHeading);
   for(const [index,entry] of notes.entries.entries()){
    const section=document.createElement(index===0?'section':'details'),heading=document.createElement(index===0?'h3':'summary');heading.textContent=entry.date+' · '+entry.title;
-   const list=document.createElement('ul');for(const item of entry.items){const line=document.createElement('li');line.textContent=item;list.append(line);}section.append(heading,list);entries.append(section);
+   const list=document.createElement('ul');for(const item of entry.items){const line=document.createElement('li');line.textContent=item;list.append(line);}section.append(heading,list);(index===0?entries:history).append(section);
   }
+  if(notes.entries.length>1)entries.append(history);
   if(!dialog.open)dialog.showModal();
  };
  document.getElementById('changelogOpen').onclick=open;
