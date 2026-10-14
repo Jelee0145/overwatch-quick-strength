@@ -2,3 +2,26 @@
 @keyframes card-deal{0%{transform:translateY(20px) rotate(-8deg) scale(.92)}100%{transform:translateY(0) rotate(0) scale(1)}}@keyframes emblem-pulse{from{color:#a6adb8}to{color:#f58220}}
 @media(max-width:760px){.toolkit-header{height:78px;padding:0 5%;gap:12px}.toolkit-brand{font-size:16px;gap:9px}.toolkit-brand .mark{width:32px;height:32px}.toolkit-brand small{font-size:7px}.toolkit-account{gap:5px}.toolkit-account>span{display:none}.toolkit-account button{padding:7px 8px;font-size:10px}.toolkit-main{padding:0 20px}.hub-intro{padding:42px 0 27px}.hub-intro h1{font-size:41px;letter-spacing:-1px}.hub-meta{position:static;text-align:left;flex-direction:row;margin-top:21px;gap:16px}.tool-grid{grid-template-columns:1fr;gap:22px}.tool-art{height:245px}.tool-copy{padding:22px}.tool-copy h2{font-size:23px}.toolkit-footer{margin-top:32px;flex-direction:column;gap:9px}.draw-heading h1{font-size:28px}.draw-heading{padding-bottom:22px}.draw-heading .eyebrow{font-size:9px}.draw-heading p:last-child{font-size:11px}.mode-switch{gap:18px}.mode-switch button{min-width:85px;font-size:13px}.mode-switch button span{font-size:7px}.draw-stage{min-height:330px;--cell:100px}.wheel-view{height:244px;margin:42px 0}.wheel-cell,.wheel-focus{height:190px}.wheel-cell img{height:132px}.stage-topline,.stage-bottomline{left:16px;right:16px;font-size:7px;letter-spacing:1px}.card-view,.slot-view{height:244px;margin:42px 0}.hero-card{width:158px;height:224px}.card-front img{width:140px;height:129px}.card-front strong{font-size:19px}.slot-machine{padding:11px;gap:6px}.slot-window{width:76px;height:166px}.slot-center,.slot-cell{width:112px}.slot-cell{height:166px}.slot-cell img{width:110px;height:146px}.slot-emblem .ow-mark{width:44px;height:44px}.role-switch button{padding:8px 17px}.back-link{margin-top:23px}.draw-button{width:220px}.draw-controls{padding-top:22px}}@media(max-width:360px){.toolkit-brand small{display:none}.toolkit-account button{font-size:9px;padding:6px}.toolkit-main{padding:0 14px}.slot-window{width:64px}.slot-center{width:106px}.mode-switch{gap:12px}.role-switch button{padding:8px 14px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.tool-entry:hover{transform:none}}
+
+/* Overlap portraits and progressively recede away from the wheel centre. */
+.wheel-cell{position:relative;margin-right:calc(var(--cell) * -.24);transition:none}.wheel-cell img{transform-origin:center;transition:none;border-radius:9px;background:#ffffff05;border:1px solid #ffffff12}.wheel-cell.picked img{border-color:#f5822080;filter:drop-shadow(0 8px 12px #f5822020)}
+/* Narrow the stage horizontally while preserving its original height. */
+.draw-stage{width:66.6667%;margin-inline:auto}
+.wheel-cell{border:0;background:none}.wheel-cell img,.wheel-cell.picked img{border:0;background:none}
+.wheel-focus{display:none}
+.hero-card.awaiting-reveal{cursor:pointer}.hero-card:focus-visible{outline:3px solid var(--orange);outline-offset:5px;border-radius:12px}
+.slot-cell{width:100%}.slot-cell img{width:100%}.slot-emblem{display:block}.slot-emblem>.ow-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}.slot-cell .ow-mark{width:65px;height:65px}.drawing .slot-emblem{animation:none}
+@media(max-width:760px){.draw-stage{width:100%}.slot-cell .ow-mark{width:44px;height:44px}}
+/* Portraits sit on solid card faces rather than floating in the stage. */
+.draw-stage{min-height:248px}
+.wheel-view,.card-view,.slot-view{height:200px;margin:24px 0}
+.wheel-track{top:0}.wheel-cell{height:190px}
+.wheel-cell img,.wheel-cell.picked img{height:160px;padding:6px;border:1px solid #bfa27b80;border-radius:9px;background:linear-gradient(145deg,#ede1cd,#b89b7b);box-shadow:inset 0 0 0 4px #fff2,0 8px 16px #0004;filter:none}
+.wheel-indicator{top:0}
+.hero-card{width:144px;height:200px}.card-front{padding:10px 8px}.card-front img{width:126px;height:118px}.card-front strong{font-size:18px}.card-front small{margin-top:2px}
+.slot-machine{padding:10px;gap:8px}.slot-window{height:150px}.slot-cell{height:150px;background:linear-gradient(145deg,#ede1cd,#b89b7b);box-shadow:inset 0 0 0 4px #fff2}.slot-cell img{height:138px;padding:5px;filter:none}.slot-caption{display:none}
+.stage-topline{top:12px}.stage-bottomline{bottom:10px}
+@media(max-width:760px){.draw-stage{min-height:220px}.wheel-view,.card-view,.slot-view{height:176px;margin:22px 0}.wheel-cell{height:170px}.wheel-cell img,.wheel-cell.picked img{height:140px;padding:4px}.hero-card{width:128px;height:176px}.card-front img{width:108px;height:96px}.slot-machine{padding:8px;gap:5px}.slot-window,.slot-cell{height:132px}.slot-cell img{height:120px}}
+/* Keep the reel backing consistent when portrait cells become emblems. */
+.slot-window{background:linear-gradient(145deg,#ede1cd,#b89b7b);box-shadow:inset 0 0 0 4px #fff2}
+.slot-emblem{color:#49382b}
