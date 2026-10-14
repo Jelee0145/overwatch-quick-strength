@@ -7,3 +7,12 @@ test('cloud pages use fox branding and plain labels while routes, controls and v
  const strength=await readFile(new URL('../public/tools/strength.html',import.meta.url),'utf8');for(const id of ['query','limit','statisticsRange','svg','json','png','aiReviewGenerate'])assert.ok(strength.includes('id="'+id+'"'));assert.ok(strength.includes('>保存图表'));assert.ok(strength.includes('>保存数据'));assert.ok(strength.includes('>保存图片'));
  assert.equal(rewriteCopy("const mode='wheel';const r='重装';const action='approved';"),"const mode='wheel';const r='重装';const action='approved';");
 });
+test('tool-page logos and back links return to the root homepage',async()=>{
+ for(const page of ['strength','draw']){
+  const html=await readFile(new URL('../public/tools/'+page+'.html',import.meta.url),'utf8');
+  const logo=html.match(/<a\b[^>]*class="(?:brand|toolkit-brand)"[^>]*>/)?.[0];
+  const back=html.match(/<a\b[^>]*class="(?:analysis-back-link|back-link)"[^>]*>/)?.[0];
+  assert.match(logo,/href="\/"/);assert.match(back,/href="\/"/);
+  assert.ok(!html.includes('href="./index.html"'));
+ }
+});

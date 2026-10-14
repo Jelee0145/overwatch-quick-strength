@@ -39,6 +39,7 @@ const faviconURL='/static/logo.'+createHash('sha256').update(favicon).digest('he
 await writeFile(path.join(base,'public',faviconURL.slice(1)),favicon);
 const brandPage=page=>page.replace(/<title>([^<]+)<\/title>/,(_,title)=>'<title>'+(/^(守望工具箱|快速强度图)/.test(title)?(/英雄抽取/.test(title)?'随机英雄 · ':'快速强度图'===title||title.includes('Quick Strength')?'对局分析 · ':'')+'狸狸天眼查':title.replace(/快速强度图|守望工具箱/g,'狸狸天眼查'))+'</title>').replace(/<link\b[^>]*rel="(?:shortcut )?icon"[^>]*>/g,'').replace('</head>',`<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"></head>`);
 html=html.replace('<span>快速强度图</span>','<span>狸狸天眼查</span>').replace('快速强度图首页','狸狸天眼查首页');
+html=html.replace('<a class="brand" href="./index.html"','<a class="brand" href="/"');
 html=brandPage(html).replace('<title>快速强度图 · Quick Strength</title>','<title>快速强度图</title>');
 html=html.replace(/<details id="credentials">[\s\S]*?<\/details>/,'');
 html=html.replace(/<dialog id="aiKeyDialog"[\s\S]*?<\/dialog>/,'');

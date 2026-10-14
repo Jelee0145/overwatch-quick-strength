@@ -11,3 +11,10 @@
 /* Shared placement with the random-hero page: below the header, before the title. */
 .analysis-back-link{display:inline-block;font-size:11px;color:var(--muted);text-decoration:none;margin:32px 0 10px}.analysis-back-link:hover{color:#f58220}.analysis-back-link:focus-visible{outline:3px solid #f58220;outline-offset:4px}main>.analysis-back-link+.intro{padding-top:5px}
 @media(max-width:760px){.analysis-back-link{margin-top:23px}}
+/* Team colours also cover the sticky name and rating columns. */
+#players tr{--team-row:#fff3e6;--team-hover:#ffe4c5}
+#players tr:has(.team-label.enemy){--team-row:#f2eae3;--team-hover:#e6d6c8}
+#players tr>td{background:var(--team-row)}
+#players tr:hover>td{background:var(--team-hover)}
+#players .team-label{color:#aa500b;background:#ffddb7}
+#players .team-label.enemy{color:#68452e;background:#dec8b5}

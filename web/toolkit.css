@@ -9,7 +9,7 @@
 .draw-stage{width:66.6667%;margin-inline:auto}
 .wheel-cell{border:0;background:none}.wheel-cell img,.wheel-cell.picked img{border:0;background:none}
 .wheel-focus{display:none}
-.hero-card.awaiting-reveal{cursor:pointer}.hero-card:focus-visible{outline:3px solid var(--orange);outline-offset:5px;border-radius:12px}
+.hero-card{cursor:pointer}.hero-card:focus-visible{outline:3px solid var(--orange);outline-offset:5px;border-radius:12px}
 .slot-cell{width:100%}.slot-cell img{width:100%}.slot-emblem{display:block}.slot-emblem>.ow-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}.slot-cell .ow-mark{width:65px;height:65px}.drawing .slot-emblem{animation:none}
 @media(max-width:760px){.draw-stage{width:100%}.slot-cell .ow-mark{width:44px;height:44px}}
 /* Portraits sit on solid card faces rather than floating in the stage. */

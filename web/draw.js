@@ -1,7 +1,7 @@
 'use strict';
 (()=>{
  const $=id=>document.getElementById(id),heroes=HERO_DRAW_DATA.heroes,modes={wheel:'轮盘',card:'抽卡',slot:'老虎机'},reduced=matchMedia('(prefers-reduced-motion: reduce)');
- let mode='wheel',role='all',busy=false,ready=false,records=[],lastHero=null,revealCard=null;
+ let mode='wheel',role='all',busy=false,ready=false,records=[],lastHero=null;
  const pool=()=>HeroDrawEngine.pool(heroes,role),pick=()=>HeroDrawEngine.pick(pool());
  const wait=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
  function portrait(hero){const img=document.createElement('img');img.src=hero.portrait;img.alt=hero.name;img.draggable=false;img.decoding='async';return img;}
@@ -35,8 +35,7 @@
  }
  async function runCard(hero){
   const card=$('heroCard');card.classList.remove('revealed');card.classList.add('card-dealing');await wait(reduced.matches?100:500);setCard(hero);card.classList.remove('card-dealing');
-  card.setAttribute('role','button');card.tabIndex=0;card.setAttribute('aria-label','点击揭晓英雄');card.classList.add('awaiting-reveal');$('resultHint').textContent='点击卡片，揭晓英雄。';
-  await new Promise(resolve=>{revealCard=resolve;});revealCard=null;card.classList.remove('awaiting-reveal');card.removeAttribute('role');card.removeAttribute('tabindex');card.removeAttribute('aria-label');card.classList.add('revealed');await wait(reduced.matches?120:650);
+  card.classList.add('revealed');await wait(reduced.matches?120:650);
  }
  async function runSlot(hero){
   const sides=[...document.querySelectorAll('.slot-emblem')];
@@ -70,7 +69,7 @@
  for(const button of document.querySelectorAll('button[data-mode]'))button.onclick=()=>switchMode(button.dataset.mode);
  for(const button of document.querySelectorAll('[data-role]'))button.onclick=()=>{if(busy||!ready)return;role=button.dataset.role;lastHero=null;for(const item of document.querySelectorAll('[data-role]'))item.setAttribute('aria-pressed',String(item.dataset.role===role));$('resultHint').textContent='英雄池已切换，准备出发。';$('resultName').textContent='';$('resultRole').textContent='';$('drawStage').classList.remove('has-result');idle();};
  $('drawButton').onclick=draw;$('historyOpen').onclick=()=>{history();$('drawHistory').showModal();};$('historyClose').onclick=()=>$('drawHistory').close();
- $('heroCard').onclick=()=>{if(revealCard)revealCard();};$('heroCard').onkeydown=event=>{if(revealCard&&(event.key==='Enter'||event.key===' ')){event.preventDefault();revealCard();}};
+ const drawCard=$('heroCard');drawCard.setAttribute('role','button');drawCard.tabIndex=0;drawCard.setAttribute('aria-label','抽个英雄');drawCard.onclick=()=>{if(mode==='card')draw();};drawCard.onkeydown=event=>{if(mode==='card'&&(event.key==='Enter'||event.key===' ')){event.preventDefault();draw();}};
  $('clearDrawHistory').onclick=async()=>{if(busy||!ready||!records.length)return;if(!confirm('清空当前账号在此浏览器的抽取记录？'))return;try{await Cloud.storage('hero-draw-history',[]);records=[];history();}catch(error){$('resultHint').textContent=error.message;}};
  const resize=new ResizeObserver(()=>{if(!busy&&ready)idle();});resize.observe($('drawStage'));
  Cloud.boot().then(async()=>{
