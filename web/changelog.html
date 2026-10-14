@@ -1,0 +1,14 @@
+<dialog id="changelogDialog" class="changelog-dialog" aria-labelledby="changelogTitle">
+  <p class="changelog-version">2026.10.14 · 查询与历史体验更新</p>
+  <h2 id="changelogTitle">更新日志</h2>
+  <ul>
+    <li><strong>快／慢查询：</strong>默认只查询所选范围；勾选“补充其他对局”后，按缺口补充近期参考。</li>
+    <li><strong>只补查新数据：</strong>已有对局、重复玩家的段位与有效参考共用缓存，减少重复请求。</li>
+    <li><strong>历史记录：</strong>每个账号在此浏览器保留最近 500 场已查询对局，可搜索账号并打开历史图表。</li>
+    <li><strong>可拖动卷轴：</strong>按住图表左右拖动回看，松手平滑吸附；坐标轴固定，地图按需加载。</li>
+    <li><strong>统计与导出：</strong>统计范围可选全部历史或 5／10／20 场；PNG／SVG 导出当前可见的 10 场窗口。</li>
+  </ul>
+  <p class="hint">历史和缓存保存在当前浏览器，换设备或清理站点数据后无法恢复。此版本点击“我知道了”后不再自动弹出。</p>
+  <p id="changelogNotice" role="status" class="hint"></p>
+  <button id="changelogAcknowledge" type="button" class="full">我知道了</button>
+</dialog>

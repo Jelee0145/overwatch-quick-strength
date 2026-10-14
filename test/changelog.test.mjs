@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFile} from 'node:fs/promises';
+const source=await readFile(new URL('../web/changelog.js',import.meta.url),'utf8');
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+test('changelog needs explicit acknowledgement; persists once per user and version; saving failure keeps it open',async()=>{
+ const values=new Map();let user='first',fail=false;
+ const dialog={open:false,showModal(){this.open=true;},close(){this.open=false;},addEventListener(type,handler){this[type]=handler;}};
+ const button={disabled:false},notice={},open={};
+ const Cloud={boot:async()=>{},storage:async(key,value)=>{if(fail)throw Error('quota');const scoped=user+'|'+key;if(value!==undefined)values.set(scoped,value);return values.get(scoped);}};
+ const document={getElementById:id=>({changelogDialog:dialog,changelogAcknowledge:button,changelogNotice:notice,changelogOpen:open})[id]};
+ const run=async()=>{vm.runInNewContext(source,{Cloud,document});await tick();};
+ await run();assert.equal(dialog.open,true);assert.equal(values.size,0);
+ let prevented=false;dialog.cancel({preventDefault(){prevented=true;}});assert.equal(prevented,true);assert.equal(values.size,0);
+ fail=true;await button.onclick();assert.equal(dialog.open,true);assert.match(notice.textContent,/保存失败/);assert.equal(button.disabled,false);
+ fail=false;await button.onclick();assert.equal(dialog.open,false);
+ await run();assert.equal(dialog.open,false);
+ open.onclick();assert.equal(dialog.open,true);await button.onclick();
+ user='second';await run();assert.equal(dialog.open,true);await button.onclick();assert.equal(values.size,2);
+ vm.runInNewContext(source.replace('2026-10-14-history-1','next-version'),{Cloud,document});await tick();assert.equal(dialog.open,true);
+});

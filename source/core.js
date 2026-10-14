@@ -206,7 +206,7 @@ function estimateMatches(matches,options,recent){
 }
 // Personal prediction has its own leave-one-player-out context. It never uses
 // the final match estimate, which already contains the subject's performance.
-function personalPrediction(raw,matches,heroes,evaluatePerformance){
+function personalPrediction(raw,matches,heroes,evaluatePerformance,frozen){
  const subject=raw.battletag,shown=new Set(matches.map(m=>m.mid)),order=['tank','dps','healer'];
  const excluded=[],records=[],latest=Math.max(0,...matches.map(m=>m.t));
  const direct=[];
@@ -255,6 +255,12 @@ function personalPrediction(raw,matches,heroes,evaluatePerformance){
   const gap=Math.abs(scores[0]-scores[1]);return {factor:clamp(1-gap/30,.15,1),gap,scores,roles:common};
  }
  for(const m of matches){
+  if(frozen){
+   const original=frozen.records.find(r=>r.mid===m.mid);
+   if(original){const recency=Math.pow(2,-Math.max(0,latest-original.t)/(7*86400000));records.push({...original,recency,weight:original.value===null?0:original.coverage*original.durationFactor*original.context.quality*recency});}
+   else excluded.push(frozen.excluded.find(r=>r.mid===m.mid)||{mid:m.mid,reason:'缺少原始个人预测依据'});
+   continue;
+  }
   const self=m.combatPlayers.filter(p=>p.name===subject);
   let reason=self.length!==1?'未找到唯一的本人记录':m.hasSubstitutes?'含替补或重复记录':!m.hasGameData?'缺少战斗数据':m.duration<120?'不足两分钟':!order.includes(self[0].role)?'职责未知':self[0].performance?.calibrationEligible!==true||!Number.isFinite(self[0].performance.score)||!Number.isFinite(self[0].performance.coverage)||self[0].performance.coverage<.8?'本人定位数据不足或冲突':null;
   if(reason){excluded.push({mid:m.mid,reason});continue;}
@@ -335,11 +341,17 @@ function build(raw,options,heroes,evaluatePerformance){
  // MATCH trend, while preserving every player's missing rank and provenance.
  estimateMatches(matches,options,recentReferences(raw,heroes,evaluatePerformance,options.strategy));
  const confidence=confidenceEvidence(raw,matches,options,heroes);
+ return summarize(raw,matches,options,heroes,evaluatePerformance,confidence);
+}
+// Aggregate already evaluated historical matches without re-estimating their evidence.
+function summarize(raw,matches,options,heroes,evaluatePerformance,confidence,frozenPrediction){
+ const average=xs=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null;
+ confidence??={version:'1.0',percent:matches.length?Math.round(average(matches.map(m=>m.confidenceEvidence?.percent||0))):0,aggregation:'equal-match-mean',matches:matches.length,independentAnchors:Math.max(0,...matches.map(m=>m.confidenceEvidence?.independentAnchors||0)),basis:'证据完整与稳定性评分，非预测命中率'};
  const players=matches.flatMap(m=>m.players),scores=players.filter(p=>p.score!==null).map(p=>p.score);
  const means=matches.map(m=>m.mean).filter(v=>v!==null),observed=matches.map(m=>m.observedMean).filter(v=>v!==null);
  const summary={crossRole:players.filter(p=>p.score!==null&&p.crossRole).length,total:players.length,known:scores.length,mean:average(means),observedMean:average(observed),min:means.length?Math.min(...means):null,max:means.length?Math.max(...means):null,playerMean:average(scores),estimated:matches.filter(m=>m.estimateSource).length,unanchored:matches.filter(m=>m.estimateDetails?.unanchored).length,auxiliary:matches.filter(m=>m.estimateDetails?.auxiliary.weight>0).length,previous:players.filter(p=>p.status==='previous').length,errors:players.filter(p=>p.status==='query_error').length};
  summary.confidencePercent=confidence.percent;
- return {...raw,matches,summary,confidence,options,personalPrediction:personalPrediction(raw,matches,heroes,evaluatePerformance),algorithmVersion:'2.6',aggregation:'equal-match-mean'};
+ return {...raw,matches,summary,confidence,options,personalPrediction:personalPrediction(raw,matches,heroes,evaluatePerformance,frozenPrediction),algorithmVersion:'2.6',aggregation:'equal-match-mean'};
 }
-const api={bands,bases,roles,states,role,esc,compact,rowStrength,rank,normalize,pick,build};root.QS=api;if(typeof module!=='undefined')module.exports=api;
+const api={bands,bases,roles,states,role,esc,compact,rowStrength,rank,normalize,pick,build,summarize};root.QS=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

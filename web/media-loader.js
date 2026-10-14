@@ -19,8 +19,9 @@
  async function render(svg,enabled){
   const seq=++revision;if(!svg||!enabled)return;
   const needed=()=>seq===revision&&svg.isConnected;
-  const urls=new Set([...svg.querySelectorAll('[data-map-art]')].map(n=>QS_MEDIA.maps[n.dataset.mapArt]?.preview).filter(Boolean)),hits=[...urls].filter(url=>cache.get(url)?.ready).length;
+  const nodes=[...svg.querySelectorAll('[data-map-art]')],urls=new Set(nodes.map(n=>QS_MEDIA.maps[n.dataset.mapArt]?.preview).filter(Boolean)),hits=[...urls].filter(url=>cache.get(url)?.ready||nodes.some(n=>QS_MEDIA.maps[n.dataset.mapArt]?.preview===url&&n.getAttribute('href')?.startsWith('data:image/'))).length;
   await Promise.allSettled([...svg.querySelectorAll('[data-map-art]')].map(async node=>{
+   if(node.getAttribute('href')?.startsWith('data:image/'))return;
    const item=QS_MEDIA.maps[node.dataset.mapArt];if(!item?.preview)return;
    try{const uri=await image(item.preview,needed);if(needed())node.setAttribute('href',uri);}catch{if(needed())node.dataset.assetFailed='true';}
   }));
