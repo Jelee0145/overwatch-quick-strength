@@ -23,6 +23,13 @@ await writeFile(path.join(base,'src/prompt.mjs'),'export const prompt='+JSON.str
 const media=JSON.parse(await readFile(path.join(local,'media/manifest.json'),'utf8'));
 for(const dir of ['maps','icons'])await cp(path.join(local,'media',dir),path.join(base,'public/media',dir),{recursive:true});
 let html=await readFile(path.join(local,'index.html'),'utf8');
+const logo=html.match(/<svg class="mark"[\s\S]*?<\/svg>/)?.[0];
+if(!logo)throw Error('Missing website logo');
+const favicon=logo.replace('class="mark"','xmlns="http://www.w3.org/2000/svg"').replace('width="42" height="42"','width="48" height="48"').replace(' aria-hidden="true"','');
+const faviconURL='/static/logo.'+createHash('sha256').update(favicon).digest('hex').slice(0,16)+'.svg';
+await writeFile(path.join(base,'public',faviconURL.slice(1)),favicon);
+const brandPage=page=>page.replace(/<link\b[^>]*rel="(?:shortcut )?icon"[^>]*>/g,'').replace('</head>',`<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"></head>`);
+html=brandPage(html).replace('<title>快速强度图 · Quick Strength</title>','<title>快速强度图</title>');
 html=html.replace(/<details id="credentials">[\s\S]*?<\/details>/,'');
 html=html.replace(/<dialog id="aiKeyDialog"[\s\S]*?<\/dialog>/,'');
 html=html.replace(/<button[^>]*id="aiReviewSettings"[^>]*>[\s\S]*?<\/button>/,'');
@@ -113,6 +120,6 @@ const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};windo
 const main=await staticFile([browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8')].join('\n'),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script></head>`);
 await writeFile(path.join(base,'public/index.html'),html);
-for(const page of ['login','admin']){let content=await readFile(path.join(base,'web',page+'.html'),'utf8');const js=await staticFile(await readFile(path.join(base,'web',page+'.js'),'utf8'),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),content);}
+for(const page of ['login','admin']){let content=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8'));const js=await staticFile(await readFile(path.join(base,'web',page+'.js'),'utf8'),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),content);}
 await writeFile(path.join(base,'public/_headers'),`/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
 console.log('Cloud build complete: hashed scripts, lazy CDN media; original local tool preserved.');
