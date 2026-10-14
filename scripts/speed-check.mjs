@@ -13,7 +13,7 @@ const mime=file=>({'.js':'text/javascript','.css':'text/css','.html':'text/html'
 const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://local'),p=url.pathname;
  if(p.startsWith('/api/')){const json=p==='/api/auth/session'?{csrf:'test',user:{id:'speed-test-user',email:'speed@example.test',status:'approved'},scope:{server:'1',dts:'2026'}}:p==='/api/latest'?{activeJob:null,activeAI:null}:p==='/api/map-art'?{images:{}}:{error:'Unexpected test API'};res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(json));return;}
  const old=p.startsWith('/before/'),relative=old?p.slice('/before/'.length):p.startsWith('/after/')?p.slice('/after/'.length):p.slice(1),dir=old?baseline:path.join(base,'public');
- const file=path.resolve(dir,relative||'index.html');if(!file.startsWith(dir+path.sep)){res.writeHead(403);res.end();return;}
+ const entry=!old&&relative==='index.html'?'tools/strength.html':relative||(old?'index.html':'tools/strength.html');const file=path.resolve(dir,entry);if(!file.startsWith(dir+path.sep)){res.writeHead(403);res.end();return;}
  let buffer=contentCache.get(file);if(!buffer){const plain=await fs.readFile(file);buffer=/\.(js|css|html)$/.test(file)?zlib.brotliCompressSync(plain,{params:{[zlib.constants.BROTLI_PARAM_QUALITY]:4}}):plain;contentCache.set(file,buffer);}
  const headers={'Content-Type':mime(file),'Cache-Control':p.startsWith('/static/')||p.startsWith('/media/')?'public,max-age=31536000,immutable':'no-cache'};if(/\.(js|css|html)$/.test(file))headers['Content-Encoding']='br';res.writeHead(200,headers);res.end(buffer);
  }catch{res.writeHead(404);res.end();}});

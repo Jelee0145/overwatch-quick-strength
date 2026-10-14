@@ -4,6 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {transform} from 'esbuild';
 import {gitNotes} from './release-notes.mjs';
+import {buildToolkit} from './build-toolkit.mjs';
 const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source');
 const shared=['core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'];
 let revision='local';try{revision=execFileSync('git',['rev-parse','HEAD'],{cwd:base,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{}
@@ -38,7 +39,7 @@ html=html.replace(/<details id="credentials">[\s\S]*?<\/details>/,'');
 html=html.replace(/<dialog id="aiKeyDialog"[\s\S]*?<\/dialog>/,'');
 html=html.replace(/<button[^>]*id="aiReviewSettings"[^>]*>[\s\S]*?<\/button>/,'');
 html=html.replace(/<\/header>/,'<div class="cloud-user"><span id="cloudIdentity"></span><button id="cloudLogout">退出</button></div></header>');
-html=html.replace('<button id="cloudLogout">','<button id="changelogOpen" type="button">更新日志</button><button id="cloudLogout">');
+html=html.replace('<button id="cloudLogout">','<a href="/" class="toolkit-return">工具箱</a><button id="changelogOpen" type="button">更新日志</button><button id="cloudLogout">');
 html=html.replace('</body>',await readFile(path.join(base,'web/changelog.html'),'utf8')+'</body>');
 html=html.replace('</body>','<dialog id="mobileChartDialog" class="mobile-chart-dialog"><div class="mobile-chart-heading"><h2>对局图表</h2><button id="mobileChartClose" type="button">关闭</button></div><div id="mobileChartBody" class="mobile-chart-body"></div><p class="hint">滑动查看完整图表，点击场次返回查看明细。</p></dialog></body>');
 html=html.replace('<div class="canvas-wrap">','<div id="mobileSummary" class="mobile-summary" aria-label="对局统计摘要"></div><div class="canvas-wrap">').replace('<button id="chartZoom"','<button id="mobileChartOpen" type="button" class="mobile-chart-open">放大查看</button><button id="chartZoom"');
@@ -126,7 +127,9 @@ const runtime=await files(shared);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
 const main=await staticFile(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n'),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script></head>`);
-await writeFile(path.join(base,'public/index.html'),html);
+await mkdir(path.join(base,'public/tools'),{recursive:true});
+await writeFile(path.join(base,'public/tools/strength.html'),html);
+await buildToolkit({base,brandPage,logo,staticFile,releaseNotes});
 for(const page of ['login','admin']){let content=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8'));const js=await staticFile(await readFile(path.join(base,'web',page+'.js'),'utf8'),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),content);}
 await writeFile(path.join(base,'public/_headers'),`/release-notes.json\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
 console.log('Cloud build complete: hashed scripts, lazy CDN media; original local tool preserved.');

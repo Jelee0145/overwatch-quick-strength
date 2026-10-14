@@ -26,7 +26,11 @@ export async function route(request,env){
  }
  // Only the explicitly built public directory is published; configuration and secrets are never assets.
  if(path==='/admin'||path==='/login'||path==='/reset'){url.pathname=path==='/admin'?'/admin.html':'/login.html';return env.ASSETS.fetch(new Request(url,request));}
- if(path==='/'||path==='/index.html'){try{await authCall(env,'/authorize',{}, {userToken:getCookie(request,'qs_session')});}catch{return Response.redirect(url.origin+'/login',302);}url.pathname='/index.html';return env.ASSETS.fetch(new Request(url,request));}
+ if(path==='/'||path==='/index.html'||path.startsWith('/tools/')){
+  try{await authCall(env,'/authorize',{}, {userToken:getCookie(request,'qs_session')});}catch{return Response.redirect(url.origin+'/login'+(path.startsWith('/tools/')?'?next='+encodeURIComponent(path):''),302);}
+  const pages={'/':'/index.html','/index.html':'/index.html','/tools/strength':'/tools/strength.html','/tools/strength/':'/tools/strength.html','/tools/draw':'/tools/draw.html','/tools/draw/':'/tools/draw.html'};
+  url.pathname=pages[path]||path;return env.ASSETS.fetch(new Request(url,request));
+ }
  return env.ASSETS.fetch(request);
 }
 export default {async fetch(request,env){let r;try{r=await route(request,env);}catch(e){r=json({error:e instanceof Fault?e.message:'服务暂不可用'},e.status||500);}const response=new Response(r.body,r);for(const [k,v] of Object.entries(securityHeaders))response.headers.set(k,v);if(response.headers.get('Content-Type')?.startsWith('text/html'))response.headers.set('Cache-Control','no-store');return response;}};
