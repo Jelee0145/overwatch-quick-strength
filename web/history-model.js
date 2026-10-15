@@ -8,7 +8,7 @@
   if(!account||previous&&(previous.scope!==scope||previous.tag!==account))throw Error('历史归档账号或范围不一致');
   const batches={...(previous?.batches||{}),[batchId]:envelope},index=new Map((previous?.matches||[]).map(m=>[m.mid,m]));
   for(const m of data.matches){const mid=String(m.mid);if(!mid||!Array.isArray(m.players))throw Error('历史对局数据不完整');const old=index.get(mid),queriedAt=data.queriedAt;
-   if(old&&Date.parse(old.queriedAt)>Date.parse(queriedAt))continue;
+   if(old&&(Date.parse(old.queriedAt)>Date.parse(queriedAt)||Date.parse(old.queriedAt)===Date.parse(queriedAt)&&old.batchId>=batchId))continue;
    index.set(mid,{mid,t:Number(m.t)||0,mapGuid:m.mapGuid,mapName:m.mapName,ret:m.ret,batchId,queriedAt});
   }
   const matches=[...index.values()].sort((a,b)=>a.t-b.t||a.mid.localeCompare(b.mid)).slice(-500),used=new Set(matches.map(m=>m.batchId));

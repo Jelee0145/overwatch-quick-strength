@@ -101,7 +101,7 @@ window.addEventListener('resize',()=>{clearTimeout(timeline.resizeTimer);timelin
 $('matchSelect').addEventListener('change',()=>{timeline.selected=model.matches[Number($('matchSelect').value)]?.mid;});
 async function renderHistoryList(){
  const body=$('historyList');body.replaceChildren();try{const accounts=await CloudHistory.list(),search=QS_HISTORY_MODEL.tag($('historySearch').value).toLowerCase(),rows=accounts.filter(a=>a.tag.toLowerCase().includes(search));
-  if(!rows.length){body.textContent=accounts.length?'没有匹配的账号':'此浏览器尚无历史查询';return;}
+  if(!rows.length){body.textContent=accounts.length?'没有匹配的账号':'暂无已保存的战绩历史';return;}
   for(const a of rows){const section=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${a.tag} · ${a.matches.length} 场 · 更新于 ${new Date(a.updatedAt).toLocaleString('zh-CN')}`;section.append(summary);
    const open=document.createElement('button');open.type='button';open.textContent='打开历史图表';open.onclick=()=>activate(a.tag);section.append(open);
    for(const m of [...a.matches].reverse()){const button=document.createElement('button');button.type='button';button.className='history-match';button.textContent=`${new Date(m.t).toLocaleString('zh-CN')} · ${QS_DATA.maps[m.mapGuid]?.name||m.mapName||'未知地图'} · ${m.ret===1?'胜':m.ret===-1?'负':'未知'} · ${m.mid}`;button.onclick=()=>activate(a.tag,m.mid);section.append(button);}body.append(section);
@@ -109,5 +109,5 @@ async function renderHistoryList(){
  }catch(e){body.textContent=e.message;}
 }
 async function activate(tag,mid){if(activeJob){$('historyNotice').textContent='当前查询尚未完成，请完成或停止后再切换账号';return;}try{await openHistory(tag,mid);await Cloud.storage('latest',tag);$('historyDialog').close();}catch(e){$('historyNotice').textContent=e.message;}}
-$('historyOpen').onclick=async()=>{try{await Cloud.boot();$('historyNotice').textContent='历史仅保存在此浏览器；每账号最多保留500场，换设备或清理缓存后无法恢复。';$('historyDialog').showModal();await renderHistoryList();}catch(e){status(e.message,true);}};
+$('historyOpen').onclick=async()=>{try{await Cloud.boot();const note=$('historyNotice');note.replaceChildren();const description=document.createElement('span');description.textContent='同账号自动同步战绩历史，每个战网账号最多500场。抽签记录、锐评及设置仍保存在本机。';const syncStatus=document.createElement('span');syncStatus.id='historySyncStatus';syncStatus.textContent=CloudHistory.status();syncStatus.style.display='block';const retry=document.createElement('button');retry.type='button';retry.textContent='同步历史';retry.onclick=async()=>{retry.disabled=true;try{await CloudHistory.sync();await renderHistoryList();}finally{retry.disabled=false;}};note.append(description,syncStatus,retry);$('historyDialog').showModal();await renderHistoryList();retry.click();}catch(e){status(e.message,true);}};
 $('historyClose').onclick=()=>$('historyDialog').close();$('historySearch').oninput=()=>{clearTimeout(timeline.searchTimer);timeline.searchTimer=setTimeout(renderHistoryList,120);};

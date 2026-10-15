@@ -19,6 +19,7 @@ export async function route(request,env){
   const auth=await authCall(env,'/authorize',{},i),task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));let internal,b=i.body;
   if(path==='/api/query'&&mutation)internal='/query';
   else if(path==='/api/ai-review'&&mutation)internal='/ai-review';
+  else if(path==='/api/history'&&mutation)internal='/history';
   else if(path==='/api/latest'&&!mutation){const r=await task.fetch('https://internal/',{method:'POST',body:JSON.stringify({path:'/active',user:auth.user.id,version:auth.version})});const v=await r.json();if(!r.ok)throw new Fault(v.error,r.status);return json({activeJob:v.tasks.find(t=>t.kind==='query')?.id||null,activeAI:v.tasks.find(t=>t.kind==='ai')?.id||null,result:null});}
   else if(/^\/api\/job\/[a-f0-9]{64}(\/(cancel|resume|cache))?$/.test(path)){const parts=path.split('/');internal=parts[4]?'/'+parts[4]:'/status';if(internal==='/status'?mutation:!mutation)throw new Fault('请求方法错误',405);b={...i.body,id:parts[3],compact:url.searchParams.get('compact')==='1'};}
   else throw new Fault('接口不存在',404);

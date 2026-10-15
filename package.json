@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test test/*.test.mjs && node scripts/native-fetch-check.mjs",
+    "test": "node --test test/*.test.mjs && node scripts/native-fetch-check.mjs && node scripts/history-runtime-check.mjs",
     "dev": "npm run build && node scripts/wrangler.mjs dev",
     "deploy": "npm run build && node scripts/deploy-retry.mjs",
     "deploy:ci": "node scripts/deploy-retry.mjs",

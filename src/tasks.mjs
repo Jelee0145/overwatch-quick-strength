@@ -1,16 +1,18 @@
+import {CloudHistory} from './cloud-history.mjs';
 import {mintQueryIndex,verifyQueryIndex,cleanManifest,cacheEntries,mintCacheRecords,verifyCacheRecord} from './cache-records.mjs';
 import {Fault,json,token,digest,canonical,mac,equal,signSnapshot,verifySnapshot,putBlob,getBlob,deleteBlob} from './security.mjs';
 import {createQuery,runQuery,queryProgress,accountScope,accountRecords,queryCheckpoint,restoreQuery,upgradeQuery,ingestCache} from './query.mjs';import {prepareReview,callReview} from './review.mjs';
 export async function authCall(env,path,body={},rest={}){const r=await env.AUTH.get(env.AUTH.idFromName('directory')).fetch('https://internal/',{method:'POST',body:JSON.stringify({path,body,...rest})});const data=await r.json();if(!r.ok)throw new Fault(data.error,r.status);return data;}
 const active=j=>['running','paused','awaiting-cache'].includes(j?.state);
 export class UserTasks{
- constructor(ctx,env){this.ctx=ctx;this.env=env;this.storage=ctx.storage;this.chain=Promise.resolve();}
+ constructor(ctx,env){this.ctx=ctx;this.env=env;this.storage=ctx.storage;this.chain=Promise.resolve();this.history=new CloudHistory(this.storage,env);}
  async fetch(request){const i=await request.json();const work=this.chain.then(()=>this.handle(i));this.chain=work.catch(()=>{});try{return json(await work);}catch(e){return json({error:e instanceof Fault?e.message:'任务服务暂不可用'},e.status||500);}}
  async schedule(){await this.storage.setAlarm(Date.now()+1);}
  async readAccounts(){const value=await getBlob(this.storage,'accounts');const scope=await (this.scopePromise||=accountScope(this.env));return value?.scope===scope&&value.until>Date.now()?value.items:[];}
  async saveAccounts(s){const items=accountRecords(s),signature=canonical(items);if(items.length&&signature!==this.accountSignature){await putBlob(this.storage,'accounts',{scope:await (this.scopePromise||=accountScope(this.env)),until:Math.max(...items.map(a=>Date.parse(a.queriedAt)))+1800000,items});this.accountSignature=signature;}}
  async job(id){const j=await this.storage.get('job:'+id);if(!j||j.until<Date.now())throw new Fault('任务不存在或已过期',404);return j;}
  async handle(i){const {user,version,path,body:b={}}=i;await authCall(this.env,'/check-user',{user,version});
+  if(path==='/history')return this.history.handle(user,b);
   if(path==='/query'||path==='/ai-review'){
    const kind=path==='/query'?'query':'ai',prior=b.envelope?await verifySnapshot(b.envelope,user,this.env,b.battletag):null;
    let analysis;if(kind==='ai'){if(!prior)throw new Fault('本地缺少可信对局，请先查询');analysis=await prepareReview(prior,b.matchId);if(!b.force&&b.cachedReview?.content?.user===user&&b.cachedReview.content.fingerprint===analysis.fingerprint&&equal(b.cachedReview.signature,await mac(b.cachedReview.content,this.env.CACHE_SIGNING_KEY)))return {cached:true,review:{...b.cachedReview.content.review,cached:true},reviewEnvelope:b.cachedReview};}
@@ -43,7 +45,7 @@ export class UserTasks{
    if(completed){job.state='running';job.cacheRequest=null;job.lastCacheBatch=previousBatch;job.message='缓存已核验，继续查询…';job.resumeAfter=0;}else job.cacheRequest=data.cacheRequest;
    await this.storage.put('job:'+job.id,job);await this.schedule();return {ok:true};
   }
-  if(path==='/status'){const r={id:job.id,kind:job.kind,state:job.state,message:job.message,progress:job.progress||null,cacheRequest:job.cacheRequest||null,reviewKey:job.reviewKey||null};if(job.state==='done'){if(job.kind==='query'){r.envelope=await getBlob(this.storage,'result:'+job.id);r.queryIndex=await getBlob(this.storage,'query-index:'+job.id);r.cacheRecords=await getBlob(this.storage,'cache-result:'+job.id)||[];if(!b.compact)r.result=r.envelope.content.data;}else{r.reviewEnvelope=await getBlob(this.storage,'result:'+job.id);r.review=r.reviewEnvelope.content.review;}}return r;}
+  if(path==='/status'){const r={id:job.id,kind:job.kind,state:job.state,message:job.message,progress:job.progress||null,cacheRequest:job.cacheRequest||null,reviewKey:job.reviewKey||null};if(job.state==='done'){if(job.kind==='query'){r.archiveWarning=job.archiveWarning||null;r.envelope=await getBlob(this.storage,'result:'+job.id);r.queryIndex=await getBlob(this.storage,'query-index:'+job.id);r.cacheRecords=await getBlob(this.storage,'cache-result:'+job.id)||[];if(!b.compact)r.result=r.envelope.content.data;}else{r.reviewEnvelope=await getBlob(this.storage,'result:'+job.id);r.review=r.reviewEnvelope.content.review;}}return r;}
   if(path==='/cancel'){if(job.kind==='ai')throw new Fault('已发出的 AI 请求不能取消计费');job.cancel=true;if(['paused','awaiting-cache'].includes(job.state)){job.state='cancelled';job.message='查询已停止';job.until=Date.now()+3600000;await this.storage.delete('active:query');}await this.storage.put('job:'+job.id,job);await this.schedule();return {ok:true};}
   if(path==='/resume'){if(job.kind!=='query'||job.state!=='paused')throw new Fault('当前任务不能继续');if(job.resumeAfter>Date.now())throw new Fault('请稍后继续当前任务',429);job.state='running';job.reducedConcurrency=true;job.message='正在继续查询…';await this.storage.put('job:'+job.id,job);await this.schedule();return {ok:true};}
   throw new Fault('接口不存在',404);
@@ -66,7 +68,7 @@ export class UserTasks{
       const checkpoint=async s=>{if(s.checkpointRevision===persisted)return;const revision=s.checkpointRevision;await putBlob(this.storage,'data:'+job.id,queryCheckpoint(s));await this.saveAccounts(s);const latest=await this.storage.get('job:'+job.id);if(!latest)return;job.progress=queryProgress(s);await this.storage.put('job:'+job.id,{...latest,progress:job.progress,message:(s.phase==='done'?'正在完成查询…':job.progress.phaseLabel+' '+job.progress.completed+'/'+job.progress.total)+' · 请求 '+job.progress.requests+' · 缓存 '+job.progress.cacheHits});persisted=revision;};
       job.message=await runQuery(data,this.env,{checkpoint,shouldStop:async()=>!!(await this.storage.get('job:'+job.id))?.cancel});
       if(data.cacheRequest){job.state='awaiting-cache';job.cacheRequest=data.cacheRequest;job.message='正在复用浏览器缓存…';}
-      if(data.phase==='done'){await putBlob(this.storage,'query-index:'+job.id,await mintQueryIndex(job.user,data.result,this.env));await putBlob(this.storage,'cache-result:'+job.id,await mintCacheRecords(job.user,data.result,this.env));await putBlob(this.storage,'result:'+job.id,await signSnapshot(job.user,data.result,this.env));if(!data.result.syncStatus.fetchedMatches&&!data.result.syncStatus.rankFetches&&!data.result.historyStatus.requests)await authCall(this.env,'/quota',{user:job.user,kind:'query',job:job.id,refund:true});job.state='done';}
+      if(data.phase==='done'){await putBlob(this.storage,'query-index:'+job.id,await mintQueryIndex(job.user,data.result,this.env));await putBlob(this.storage,'cache-result:'+job.id,await mintCacheRecords(job.user,data.result,this.env));const envelope=await signSnapshot(job.user,data.result,this.env);await putBlob(this.storage,'result:'+job.id,envelope);try{await this.history.handle(job.user,{action:'push',envelopes:[envelope]});job.archiveWarning=null;}catch(e){job.archiveWarning=e instanceof Fault?e.message:'云端历史归档暂不可用，已保留查询结果，可稍后补传';}if(!data.result.syncStatus.fetchedMatches&&!data.result.syncStatus.rankFetches&&!data.result.historyStatus.requests)await authCall(this.env,'/quota',{user:job.user,kind:'query',job:job.id,refund:true});job.state='done';}
      }else{
       // Alarms may be delivered again after interruption: never resend a dispatched AI request.
       if(job.dispatched)throw new Fault('上次 AI 请求中断，未自动重发；请手动重新锐评',504);
