@@ -14,3 +14,7 @@ local/*.png
 local/*.svg
 **/__pycache__/
 *.pyc
+
+dist/owqs-server*
+dist/server-stage/
+dist/migration-code-backup/

@@ -4,6 +4,7 @@ const num=v=>v===null||v===undefined||v===''||typeof v==='boolean'||!Number.isFi
 const text=(v,n=100)=>String(v??'').slice(0,n);
 export function unwrap(v){for(let i=0;i<3&&v&&typeof v==='object'&&!Array.isArray(v)&&v.data&&!['guideCountData','teammateList','matchId'].some(k=>k in v);i++)v=v.data;return v;}
 export async function upstream(env,path,params,body,fetcher=fetch){
+ fetcher=env.UPSTREAM_FETCH||fetcher;
  if(!env.DASHEN_TOKEN||!env.DASHEN_ROLE_ID)throw new Fault('查询凭证尚未配置，请联系管理员',503);
  const url=new URL('https://datamsapi.ds.163.com/v1/a19ld5tool'+path);for(const [k,v] of Object.entries(params||{}))if(v!==''&&v!==null&&v!==undefined)url.searchParams.set(k,v);
  const headers={'Accept':'application/json','GL-Bigdata-Role-Id':env.DASHEN_ROLE_ID,'GL-Bigdata-Auth-Token':env.DASHEN_TOKEN,'GL-Bigdata-Dts':env.DASHEN_DTS,'GL-Bigdata-Server':env.DASHEN_SERVER,'GL-ClientType':'60','Origin':'https://act.ds.163.com','Referer':'https://act.ds.163.com/','User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) app/df_client dfVersion/100111'};

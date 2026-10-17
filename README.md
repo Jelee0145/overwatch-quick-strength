@@ -51,6 +51,8 @@ Authorization: Bearer owqs_...
 
 ## 构建与部署
 
+腾讯云独立网站、SQLite 持久化、HTTPS 与 Cloudflare 账号历史迁移见 [STANDALONE.md](STANDALONE.md)。独立网站继续提供现有 Bot 查询 API。
+
 战绩获取、数据整理和分析计算的仓库内复用入口、调用示例及平台边界见 [SERVICES.md](SERVICES.md)。网页、Bot 与 AI 锐评共用服务模块，支持直接分析已有数据。
 
 `npm ci`、`npm run build`、`npm test`、`npm run check`。`npm run login` 打开官方OAuth，登录文件与日志留在项目私有目录。

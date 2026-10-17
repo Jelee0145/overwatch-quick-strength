@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew OWQS public IP TLS certificate
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/owqs-certbot/bin/certbot renew --quiet --deploy-hook "/usr/bin/systemctl reload nginx"

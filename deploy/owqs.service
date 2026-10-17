@@ -1,0 +1,29 @@
+[Unit]
+Description=OWQS standalone website and Bot API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=owqs
+Group=owqs
+WorkingDirectory=/opt/owqs/current
+ExecStart=/usr/local/bin/node server/main.mjs
+Environment=NODE_ENV=production
+Environment=OWQS_DATA=/var/lib/owqs
+Environment=OWQS_CONFIG=/etc/owqs/config.json
+Environment=PORT=8788
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=90
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/owqs
+MemoryMax=768M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

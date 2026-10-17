@@ -9,7 +9,10 @@
     "deploy": "npm run build && node scripts/deploy-retry.mjs",
     "deploy:ci": "node scripts/deploy-retry.mjs",
     "check": "npm run build && node scripts/wrangler.mjs deploy --dry-run",
-    "login": "node scripts/wrangler.mjs login"
+    "login": "node scripts/wrangler.mjs login",
+    "server:build": "npm run build && node scripts/package-server.mjs",
+    "server:start": "node server/main.mjs",
+    "server:test": "node --test test/standalone.test.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

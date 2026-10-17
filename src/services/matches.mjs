@@ -15,6 +15,9 @@ import {createDataService,nameKey,usableMatch} from './data.mjs';
  * @returns {object} Existing query operations; checkpoints contain data only and remain private.
  */
 export function createMatchService({provider,pick,playerIdentity,digest,canonical,createId,data=createDataService(),now=Date.now,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}){
+// State-scoped memo is deliberately absent from checkpoints and public results.
+const identities=new WeakMap();
+function identity(s,env,ct){if(!ct)return playerIdentity(env,ct);let memo=identities.get(s);if(!memo)identities.set(s,memo=new Map());if(!memo.has(ct))memo.set(ct,Promise.resolve().then(()=>playerIdentity(env,ct)).catch(error=>{memo.delete(ct);throw error;}));return memo.get(ct);}
 const HOUR=3600000, POLICY=2, tagOK=name=>typeof name==='string'&&/^.+#\d+$/.test(name);
 const fresh=(date,ttl)=>{const age=now()-Date.parse(date);return age>=0&&age<ttl;};
 const usable=usableMatch;
@@ -46,7 +49,7 @@ async function detail(v,m,owner,s,env){
  for(const [key,side] of [['teammateList','T'],['enemyList','E']])for(const p of (v[key]||[]).slice(0,15)){
   const name=nameKey(String(p.name??'').slice(0,100)),ct=p.customerToken;touchToken(s,name,ct);if(ct)s.wanted[ct]=name;
   const hero=String(p.heroGuid??'').slice(0,80);if(ct)s.rowTokens[canonical([m.mid,name,hero,side])]=ct;
-  players.push(data.player(p,side,{name,playerKey:await playerIdentity(env,ct),res:s.ranks[ct]||s.profiles[name]||{rows:[]}}));
+  players.push(data.player(p,side,{name,playerKey:await identity(s,env,ct),res:s.ranks[ct]||s.profiles[name]||{rows:[]}}));
  }
  return {owner,game:data.matchDetail(v,m,players,s.now)};
 }
