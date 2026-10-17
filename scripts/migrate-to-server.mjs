@@ -39,8 +39,8 @@ try{
  const namespaces=[{ns:'auth',records:auth}];
  for(const user of users)namespaces.push({ns:'tasks:'+user,records:await namespace('tasks',{user})});
  const child=spawn('ssh',['-i',keyPath,'-o','BatchMode=yes',host,'node /opt/owqs/current/server/import.mjs'],{stdio:['pipe','pipe','pipe'],windowsHide:true});
- let output='';child.stdout.on('data',chunk=>output+=chunk);child.stderr.resume();child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({version:1,config,namespaces}));
- const code=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('exit',resolve);});if(code!==0)throw Error('Server rejected migration; source unchanged');
+ let output='',errorOutput='';child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>errorOutput+=chunk);child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({version:1,config,namespaces}));
+ const code=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('exit',resolve);});if(code!==0){const diagnostic=errorOutput.split('\n').find(line=>line.startsWith('OWQS_MIGRATION_ERROR '));if(diagnostic)console.error(diagnostic);throw Error('Server rejected migration; source unchanged');}
  const summary=JSON.parse(output);if(!summary.imported)throw Error('Missing destination receipt');console.log(JSON.stringify(summary));
 }catch(error){console.error(error.message);process.exitCode=1;}
 finally{

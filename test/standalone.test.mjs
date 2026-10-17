@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,writeFile,mkdir} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile,mkdir,readFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
@@ -18,6 +18,7 @@ import {importMigration} from '../server/migration.mjs';
 import {signSnapshot} from '../src/security.mjs';
 import {migrationBridge} from '../scripts/migration-bridge.mjs';
 import {pathToFileURL} from 'node:url';
+import {spawnSync} from 'node:child_process';
 
 test('SQLite preserves namespace isolation, atomic blobs, rollback and durable alarms through reopen',async()=>{
  const dir=await mkdtemp(path.join(os.tmpdir(),'owqs-sqlite-')),filename=path.join(dir,'state.sqlite3');let db=new SqliteDatabase(filename);
@@ -103,5 +104,18 @@ test('temporary migration bridge requires its separate key and delegates normal 
   assert.equal((await bridge.default.fetch(new Request('https://site.test/api/query',{method:'POST'}),env)).status,503);
   const headers={Authorization:'Bearer '+env.OWQS_MIGRATION_KEY},secrets=await bridge.default.fetch(new Request('https://site.test/__owqs_migration?op=secrets',{headers}),env);assert.equal((await secrets.json()).PASSWORD_PEPPER,env.PASSWORD_PEPPER);
   const obj=new bridge.AuthDirectory({storage:{list:async()=>new Map([['key','value']])}},env);assert.deepEqual((await(await obj.fetch(new Request('https://internal/',{headers}))).json()).records,[['key','value']]);
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('migration CLI preserves a large UTF-8 payload across stdin chunks and persists config privately',async()=>{
+ const dir=await mkdtemp(path.join(os.tmpdir(),'owqs-import-cli-')),user='a'.repeat(64),description='中文玩家🦊'.repeat(15000);
+ try{
+  const config={PASSWORD_PEPPER:'test-only-pepper',CACHE_SIGNING_KEY:'test-only-sign',API_KEY_ENCRYPTION_KEY:'test-only-encryption',ADMIN_PASSWORD_HASH:'{}',PUBLIC_ORIGIN:'https://site.test'};
+  const input={version:1,config,namespaces:[{ns:'auth',records:[['user:'+user,{id:user,description}]]}]};
+  const filename=path.join(dir,'state.sqlite3'),configPath=path.join(dir,'config.json');
+  const child=spawnSync(process.execPath,[path.resolve('server/import.mjs')],{input:Buffer.from(JSON.stringify(input)),encoding:'utf8',env:{...process.env,OWQS_DATABASE:filename,OWQS_CONFIG:configPath},windowsHide:true,timeout:10000});
+  assert.equal(child.status,0,child.stderr);assert.equal(JSON.parse(child.stdout).users,1);
+  const db=new SqliteDatabase(filename);try{assert.equal((await db.store('auth').get('user:'+user)).description,description);}finally{await db.close();}
+  assert.deepEqual(JSON.parse(await readFile(configPath,'utf8')),config);
  }finally{await rm(dir,{recursive:true,force:true});}
 });
