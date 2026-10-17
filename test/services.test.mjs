@@ -7,7 +7,8 @@ import {build} from 'esbuild';
 import {createMatchService,createDataService,ServiceError} from '../src/services/index.mjs';
 import {analysisService,dataService} from '../src/services/runtime.mjs';
 import {analyzeResult} from '../src/api-analysis.mjs';
-import {prepareReview} from '../src/review.mjs';
+import {prepareReview,MODEL} from '../src/review.mjs';
+import {prompt,version} from '../src/prompt.mjs';
 import {digest,canonical} from '../src/security.mjs';
 import {service} from './query-fixture.mjs';
 import {analysisFixture,archiveFixture} from './services-fixture.mjs';
@@ -21,11 +22,28 @@ test('shared analysis preserves pre-refactor Bot output and AI payload/fingerpri
  const raw=freeze(analysisFixture()),before=hash(raw);
  for(const item of baseline.cases)assert.equal(hash(analyzeResult(raw,item.options)),item.hash,JSON.stringify(item.options));
  assert.equal(hash(analyzeResult({matches:[]})),baseline.empty);
- assert.equal(hash(await prepareReview(raw,'fixture-4')),baseline.review);
+ const review=await prepareReview(raw,'fixture-4');
+ assert.equal(hash(review.payload),baseline.reviewPayload);
+ assert.equal(review.fingerprint,await digest(canonical({account:raw.battletag,mid:'fixture-4',payload:review.payload,model:MODEL,prompt,version,reasoningEffort:'low'})));
  assert.equal(hash(raw),before);
  const result=analysisService.analyzeBatch(raw);result.matches[0].players[0].stats.kill=0;
  assert.equal(hash(raw),before);
  assert.throws(()=>analysisService.analyzeBatch({...raw,matches:Array(51).fill(raw.matches[0])}),/最多 50 场/);
+});
+
+test('review baseline accepts both LF and CRLF checkouts while fingerprints bind the exact runtime prompt',async()=>{
+ const raw=analysisFixture(),lf=prompt.replaceAll('\r\n','\n'),fingerprints=[];
+ for(const runtimePrompt of [lf,lf.replaceAll('\n','\r\n')]){
+  const compiled=await build({entryPoints:[new URL('../src/review.mjs',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,format:'esm',platform:'neutral',write:false,plugins:[{name:'checkout-line-endings',setup(b){
+   b.onLoad({filter:/[\\/]src[\\/]prompt\.mjs$/},()=>({contents:`export const prompt=${JSON.stringify(runtimePrompt)};export const version=${JSON.stringify(version)};`,loader:'js'}));
+  }}]});
+  const runtime=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+  const review=await runtime.prepareReview(raw,'fixture-4');
+  assert.equal(hash(review.payload),baseline.reviewPayload);
+  assert.equal(review.fingerprint,await digest(canonical({account:raw.battletag,mid:'fixture-4',payload:review.payload,model:MODEL,prompt:runtimePrompt,version,reasoningEffort:'low'})));
+  fingerprints.push(review.fingerprint);
+ }
+ assert.notEqual(fingerprints[0],fingerprints[1]);
 });
 
 test('history analysis preserves original per-batch evidence and frozen personal predictions',()=>{

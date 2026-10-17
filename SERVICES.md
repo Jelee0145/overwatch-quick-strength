@@ -78,3 +78,5 @@ const restored = matches.restoreQuery(savedCheckpoint, originalPrior);
 ## 验证
 
 运行 `npm run build`、`npm test`、`npm run check`。新增服务测试使用匿名固定数据，对照重构前保存的 Bot、历史分析、个人预测和锐评载荷结果，并覆盖输入不可变、依赖注入、JSON 检查点恢复、500 场历史和浏览器/Worker 一致性。原查询、缓存、签名、额度、归档和原生 Worker 运行时测试继续执行。
+
+锐评基线固定匿名载荷，指纹按当前运行时提示词验证；额外覆盖 LF 和 CRLF 两种换行。提示词原文字节参与既有指纹计算，不能把某台机器生成的完整指纹作为跨平台固定值，也不应为通过测试改动生产提示词或缓存规则。
