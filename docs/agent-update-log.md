@@ -19,3 +19,19 @@
 
 - User selected public HTTPS on a nonstandard port while arranging a domain. Updated Nginx 8443, HTTP redirect and PUBLIC_ORIGIN; proxy preserves the Host port. Public IPv4 health returns HTTP 200 and the browser renders the login page with a valid certificate.
 - verified: final full suite 95/95 passed; additional 8443-origin auth/CSRF test passed. Restart of the running service preserved existing account/API access. Final release upload and checksum verification in progress.
+
+## 2026-10-17 AstrBot website API plugin
+
+- Goal: install and configure a website-API client plugin on the user-selected AstrBot at 106.55.47.68:6185; the initially supplied 8.138.90.253 panel was a mistaken target and received no changes. Use Chrome for panel actions.
+- confirmed-current: AstrBot 4.26.7, Docker astrbot, host data /opt/astrbot/data; existing independent direct-provider plugin work in the repository is preserved. New client is plugins/astrbot_plugin_owqs_api.
+- Plan: API base/key config, /owqs help/bind/query/cancel commands, owqs_query/owqs_bind/owqs_cancel LLM tools; use original website API and polling, share quota, cancel remote work on timeout, never retry query creation automatically, per-user binding isolation. Package only explicit plugin sources with empty default key.
+- Hazards: do not log, package or display keys; do not change existing account API keys, unrelated plugins, model providers or bot platforms; do not send real chat messages during installation. Preserve original plugin/config state and reload only the new plugin where possible.
+- Verification: mock API success/auth/timeout/cancel/redirect cases, command and tool registration against installed AstrBot, real website API acceptance, plugin enabled/configured in the correct panel.
+
+## 2026-10-17 Idle static resource loading
+
+- User goal: prioritize visible resources, preload remaining public resources during idle time, persist them in the browser, update Tencent website, then resume the paused AstrBot installation.
+- confirmed-current: website already serves hashed immutable static/media URLs and loads only current chart previews with four foreground requests. Missing feature is controlled idle prewarming; no Service Worker is currently installed.
+- Approach: reuse persistent browser HTTP cache; generate a build-time allowlist of current public scripts/styles/icons/hero portraits/map previews. Delay until load and idle, one low-priority transfer at a time, abort on interaction/visible chart asset work, skip slow/save-data/offline networks, bound each session to 8 MiB. High-resolution exports remain demand-loaded. Small versioned local progress checkpoint contains no account data.
+- Files: web/asset-preload.js, scripts/build-asset-preload.mjs, scripts/build.mjs, web/media-loader.js, test/asset-preload.test.mjs, README.md.
+- Risks: no HTML/API/private data may enter prewarm plans; no recursive source sync; authentication and API routes stay network-only. Browser may evict HTTP cache; absence of storage/network APIs must preserve ordinary page behavior. Test cancellation, resume/version changes and resource priority before deployment.

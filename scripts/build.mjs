@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {transform,build} from 'esbuild';
 import {gitNotes} from './release-notes.mjs';
 import {buildToolkit} from './build-toolkit.mjs';
+import {buildAssetPreload} from './build-asset-preload.mjs';
 import {rewriteCopy,cleanDecorativeEnglish} from './ui-copy.mjs';
 const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source');
 const shared=['core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'];
@@ -142,4 +143,5 @@ await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDe
 await buildToolkit({base,brandPage,logo,staticFile,releaseNotes,rewriteCopy,cleanDecorativeEnglish});
 for(const page of ['login','admin']){let content=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8'));const js=await staticFile(rewriteCopy(await readFile(path.join(base,'web',page+'.js'),'utf8')),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),rewriteCopy(cleanDecorativeEnglish(content)));}
 await writeFile(path.join(base,'public/_headers'),`/release-notes.json\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
-console.log('Cloud build complete: hashed scripts, lazy CDN media; original local tool preserved.');
+await buildAssetPreload({base,media,staticFile});
+console.log('Cloud build complete: hashed scripts, lazy CDN media, idle browser prewarming; original local tool preserved.');

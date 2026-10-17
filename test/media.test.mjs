@@ -11,7 +11,8 @@ test('CDN manifest covers every map ID; content-addressed media is real WebP',as
 test('optimized page has a small deferred bundle and no local map API',async()=>{
  const html=await read('public/tools/strength.html');assert.ok(!html.includes('art.js'));const script=html.match(/<script defer src="([^"]+)"/)[1],css=html.match(/<link rel="stylesheet" href="([^"]+)"/)[1];
  const code=await read('public'+script);assert.ok(!code.includes('/api/map-art'));assert.ok(!/data:image\/[^;\s"']+;base64,[A-Za-z0-9+/=]{100,}/.test(code));assert.ok(!code.includes('credentialPayload'));
- const bytes=(await stat(path.join(base,'public',script))).size+(await stat(path.join(base,'public',css))).size+Buffer.byteLength(html);assert.ok(bytes<300000,`${bytes} exceeds the startup budget`);
+ const scripts=[...html.matchAll(/<script defer src="([^"]+)"/g)].map(m=>m[1]);
+ const bytes=(await Promise.all(scripts.map(file=>stat(path.join(base,'public',file))))).reduce((n,s)=>n+s.size,0)+(await stat(path.join(base,'public',css))).size+Buffer.byteLength(html);assert.ok(bytes<300000,`${bytes} exceeds the startup budget`);
  assert.deepEqual((await readdir(path.join(base,'public'))).filter(f=>f.endsWith('.js')),[]);
 });
 test('timeline preview clips only moving content, keeps axes outside moving layers and preserves ten-column geometry with one buffer',async()=>{
