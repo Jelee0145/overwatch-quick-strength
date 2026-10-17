@@ -1,0 +1,6 @@
+{
+  "api_base": {"type": "string", "description": "网站 API 基础地址", "default": "https://106.55.47.68:8443", "hint": "只填 HTTPS 网站地址及端口，不加 /api/v1；域名更换后在这里更新"},
+  "api_key": {"type": "string", "description": "网站账户 API 密钥（保密）", "default": "", "hint": "登录网站，在账户的 API 面板查看或生成 owqs_ 开头的密钥；不要在群聊里发送", "obvious_hint": true},
+  "query_timeout": {"type": "int", "description": "单次查询等待超时（秒，不含排队）", "default": 600, "hint": "超时后会请求网站取消任务，不自动重复创建查询"},
+  "max_pending": {"type": "int", "description": "本插件最多未完成查询数", "default": 5, "hint": "范围 1—5；每位发送者最多一个未完成查询，共用密钥所属账户的额度"}
+}

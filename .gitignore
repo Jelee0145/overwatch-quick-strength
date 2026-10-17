@@ -18,3 +18,5 @@ local/*.svg
 dist/owqs-server*
 dist/server-stage/
 dist/migration-code-backup/
+dist/astrbot_plugin_owqs_api-*
+dist/astrbot-api-*.jpg
