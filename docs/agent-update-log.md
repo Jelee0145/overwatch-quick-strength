@@ -16,3 +16,6 @@
 - Fixed during acceptance: stdin chunks could split UTF-8 code points and invalidate signed Chinese history. Import now joins bytes before decoding; CLI regression covers a large Chinese/emoji payload. Target transaction prevented partial data writes on the rejected attempt.
 - confirmed-current: trusted IP certificate installed, Nginx and owqs active, renewal timer enabled, application binds loopback 8788. Public IPv4 test pending: user found security-group rules had only allowed IPv6. IPv4 80/443 rules are required. No current evidence proves an ICP interception.
 - Remaining: finish IPv4 public/browser acceptance and restart check; independent sites do not synchronize future changes. Runtime secrets remain solely in root-protected server config, source data remains on Cloudflare, pre-release SQLite backup created server-side.
+
+- User selected public HTTPS on a nonstandard port while arranging a domain. Updated Nginx 8443, HTTP redirect and PUBLIC_ORIGIN; proxy preserves the Host port. Public IPv4 health returns HTTP 200 and the browser renders the login page with a valid certificate.
+- verified: final full suite 95/95 passed; additional 8443-origin auth/CSRF test passed. Restart of the running service preserved existing account/API access. Final release upload and checksum verification in progress.

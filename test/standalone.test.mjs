@@ -54,9 +54,9 @@ test('standalone HTTP supports secure login, approval, Bot query, history and re
  config.ADMIN_PASSWORD_HASH=JSON.stringify(await passwordHash('admin-password',config.PASSWORD_PEPPER));
  const mock=service();const upstreamFetch=async(url,init)=>{const u=new URL(url);return Response.json({code:0,data:await mock.call(config,u.pathname.replace('/v1/a19ld5tool',''),Object.fromEntries(u.searchParams),init.body?JSON.parse(init.body):undefined)});};
  let runtime=createRuntime(config,{filename:path.join(dir,'state.sqlite3'),assets:staticAssets(path.join(dir,'public')),upstreamFetch,intervalMs:0});
- const server=createHttpServer(runtime,{origin:'https://owqs.test',allowLoopback:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const server=createHttpServer(runtime,{origin:'https://owqs.test:8443',allowLoopback:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const base='http://127.0.0.1:'+server.address().port;
- const api=async(url,body,cookie='',csrf='')=>{const r=await fetch(base+url,{method:body?'POST':'GET',redirect:'manual',headers:{...(body?{'Content-Type':'application/json',Origin:'https://owqs.test'}:{}),Cookie:cookie,'X-CSRF-Token':csrf},...(body?{body:JSON.stringify(body)}:{})});return {r,v:await r.json()};};
+ const api=async(url,body,cookie='',csrf='')=>{const r=await fetch(base+url,{method:body?'POST':'GET',redirect:'manual',headers:{...(body?{'Content-Type':'application/json',Origin:'https://owqs.test:8443'}:{}),Cookie:cookie,'X-CSRF-Token':csrf},...(body?{body:JSON.stringify(body)}:{})});return {r,v:await r.json()};};
  try{
   assert.equal((await fetch(base+'/login')).status,200);assert.equal((await fetch(base+'/.private/config')).status,404);assert.equal((await fetch(base+'/_headers')).status,404);
   const forged=await new Promise(resolve=>http.get(base+'/api/health',{headers:{Host:'attacker.test'}},res=>{res.resume();resolve(res.statusCode);}));assert.equal(forged,421);

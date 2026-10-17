@@ -29,9 +29,11 @@ node scripts/package-server.mjs
 
 ## 公网 IP 与证书
 
-`deploy/nginx-http.conf` 仅提供 ACME 校验与 HTTPS 跳转，`deploy/nginx-https.conf` 代理应用。Cookie 始终带 Secure。公网 IP 使用 Let's Encrypt shortlived 证书，必须启用 `owqs-cert-renew.timer` 每 12 小时检查并在续期后重载 Nginx。安全组需允许 TCP 80 和 443。不要把应用的 8788 端口暴露公网。
+`deploy/nginx-http.conf` 仅提供 ACME 校验与 HTTPS 跳转，`deploy/nginx-https.conf` 通过 8443 代理应用，当前 `PUBLIC_ORIGIN` 为 `https://106.55.47.68:8443`。Cookie 始终带 Secure。公网 IP 使用 Let's Encrypt shortlived 证书，必须启用 `owqs-cert-renew.timer` 每 12 小时检查并在续期后重载 Nginx。安全组需允许 IPv4 TCP 80 和 8443（来源 `0.0.0.0/0`）；IPv6 的 `::/0` 不会放行 IPv4。不要把应用的 8788 端口暴露公网。
 
 配置域名后，将 `PUBLIC_ORIGIN`、Nginx server_name、证书配置和 HTTP 跳转一起更新。原 IP 浏览器站点数据不会自动出现在新域名；云端账号历史保留。
+
+非标准端口不替代内地网站正式对外服务所需的备案；域名准备好后再完善正式入口。
 
 ## 迁移 Cloudflare 账号与历史
 
