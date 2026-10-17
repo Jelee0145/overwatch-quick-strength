@@ -1,10 +1,10 @@
-import './shared/core.js';import './shared/benchmarks.js';import './shared/rating-rules.js';import './shared/resource-rating.js';import './shared/performance.js';
+import {analysisService} from './services/runtime.mjs';
 import {heroes,maps} from './shared/data.mjs';import {prompt,version} from './prompt.mjs';
 import {Fault,canonical,digest} from './security.mjs';
-import {statKeys} from './query.mjs';
+import {statKeys} from './services/data.mjs';
 export const MODEL='deepseek-flash';
 export async function prepareReview(snapshot,mid){
- const normalized=globalThis.QS.normalize(snapshot),model=globalThis.QS.build(normalized,{limit:50,side:'all',strategy:'legacy',estimate:true},heroes,(p,m)=>globalThis.QS_PERFORMANCE.evaluate(p,m,heroes,globalThis.QS_BENCHMARKS));
+ const model=analysisService.analyzeBatch(snapshot,{side:'all',strategy:'legacy',estimate:true});
  const m=model.matches.find(m=>m.mid===mid),roster=m?.combatPlayers||m?.players;if(!m?.hasGameData||!m.duration||!roster?.length)throw new Fault('本场缺少有效时长或对局详情');const subject=roster.filter(p=>p.name===snapshot.battletag);if(subject.length!==1)throw new Fault('本场缺少唯一的查询账号');if(!Object.values(subject[0].stats).some(Number.isFinite))throw new Fault('本人战斗数据缺失');
  const labels=roster.map(p=>(p.side==='E'?'对方':'我方')+(heroes[p.hero]?.name||'未知英雄')),counts={},indices={};for(const name of labels)counts[name]=(counts[name]||0)+1;
  const players=roster.map((p,i)=>{indices[labels[i]]=(indices[labels[i]]||0)+1;const r=p.performance||{},resource=r.resource;

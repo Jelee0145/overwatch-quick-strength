@@ -1,3 +1,4 @@
+import {createDataService} from '../src/services/data.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -111,7 +112,7 @@ function syncServer() {
 
 async function device(server, db = memoryDB(), value = session) {
  const status = {textContent: ''};
- const window = {document: {getElementById: id => id === 'historySyncStatus' ? status : null}};
+ const window = {OWQS_SERVICES:{data:createDataService()},document: {getElementById: id => id === 'historySyncStatus' ? status : null}};
  const context = vm.createContext({
   window,
   Cloud: {key: async envelope => batchId(envelope), api: (path, body) => server.api(value, path, body)}

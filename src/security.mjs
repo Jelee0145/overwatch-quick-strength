@@ -1,5 +1,6 @@
 const enc=new TextEncoder();
-export class Fault extends Error{constructor(message,status=400){super(message);this.status=status;}}
+export {ServiceError as Fault} from './services/errors.mjs';
+import {ServiceError as Fault} from './services/errors.mjs';
 export const token=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),v=>v.toString(16).padStart(2,'0')).join('');
 const hex=b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,'0')).join('');
 export const digest=async text=>hex(await crypto.subtle.digest('SHA-256',enc.encode(text)));

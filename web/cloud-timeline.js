@@ -1,20 +1,12 @@
 const TIMELINE_WINDOW=10;
 const timeline={archive:null,all:[],start:0,selected:null,serial:0,drag:null,suppressUntil:0,scrollTimer:null,frame:null,statistics:null};
-const evaluateHistory=(p,m)=>QS_PERFORMANCE.evaluate(p,m,QS_DATA.heroes,QS_BENCHMARKS);
 async function openHistory(tag,mid){
  const serial=++timeline.serial,archive=await CloudHistory.load(tag);if(serial!==timeline.serial)return;
  cancelTimelineMotion();timeline.archive=archive;timeline.statisticsRaw=null;timeline.detailMatch=null;timeline.selected=mid||null;
  if(!archive){timeline.all=[];generate();return;}
  $('battleTag').value=archive.tag;
- const originals=new Map(),models=new Map(),histories=new Map();let latest=null;
- for(const [id,envelope] of Object.entries(archive.batches)){
-  const data=QS.normalize(envelope.content.data);models.set(id,QS.build(data,{...options(),limit:50},QS_DATA.heroes,evaluateHistory));originals.set(id,data);
-  if(!latest||Date.parse(data.queriedAt)>Date.parse(latest.queriedAt))latest=data;
-  for(const h of data.recentHistory||[]){const old=histories.get(h.name);if(!old||Date.parse(h.queriedAt)>Date.parse(old.queriedAt))histories.set(h.name,h);}
- }
- const matches=[];timeline.all=[];timeline.personalRecords=[];timeline.personalExcluded=[];
- for(const entry of archive.matches){const data=originals.get(entry.batchId),originalModel=models.get(entry.batchId),m=data?.matches.find(m=>m.mid===entry.mid),analyzed=originalModel?.matches.find(m=>m.mid===entry.mid);if(m&&analyzed){matches.push(m);timeline.all.push(analyzed);const record=originalModel.personalPrediction.byRole.flatMap(r=>r.records).find(r=>r.mid===entry.mid);if(record)timeline.personalRecords.push(record);else {const excluded=originalModel.personalPrediction.excluded.find(r=>r.mid===entry.mid);if(excluded)timeline.personalExcluded.push(excluded);}}}
- raw={...latest,battletag:archive.tag,matches,recentHistory:[...histories.values()]};timeline.axis=QS_HISTORY_MODEL.axisRange(timeline.all);
+ const history=OWQS_SERVICES.analysis.analyzeHistory(archive,options());
+ raw=history.raw;timeline.all=history.matches;timeline.personalRecords=history.personalRecords;timeline.personalExcluded=history.personalExcluded;timeline.axis=QS_HISTORY_MODEL.axisRange(timeline.all);
  const capacity=TIMELINE_WINDOW,index=mid?timeline.all.findIndex(m=>m.mid===mid):-1;
  timeline.start=Math.max(0,(index>=0?index+1:timeline.all.length)-capacity);timeline.selected=mid||timeline.all.at(-1)?.mid||null;
  generate();
@@ -24,8 +16,7 @@ function calculateStatistics(){
  const window=timelineWindow(),range=QS_HISTORY_MODEL.statisticsRange(timeline.all.length,window.end,$('statisticsRange').value),matches=timeline.all.slice(range.start,range.end);
  const key=[range.start,range.end,$('statisticsRange').value,options().side,options().strategy,options().estimate].join('|');
  if(timeline.statisticsRaw===raw&&timeline.statisticsKey===key)return false;
- const context={...raw,matches:raw.matches.filter(m=>matches.some(v=>v.mid===m.mid))};
- timeline.statistics=QS.summarize(context,matches,{...options(),limit:matches.length},QS_DATA.heroes,evaluateHistory,undefined,timeline.archive?{records:timeline.personalRecords,excluded:timeline.personalExcluded}:undefined);
+ timeline.statistics=OWQS_SERVICES.analysis.summarize(raw,matches,options(),timeline.archive?{records:timeline.personalRecords,excluded:timeline.personalExcluded}:undefined);
  const dates=matches.length?new Date(matches[0].t).toLocaleDateString('zh-CN')+'—'+new Date(matches.at(-1).t).toLocaleDateString('zh-CN'):'';
  timeline.statistics.statisticsLabel=($('statisticsRange').value==='all'?'全部历史':'窗口末尾向前')+' · '+matches.length+' 场'+(dates?' · '+dates:'');
  $('statisticsNote').textContent=timeline.statistics.statisticsLabel;timeline.statisticsRaw=raw;timeline.statisticsKey=key;return true;
@@ -56,7 +47,7 @@ function configureScroll(){const scroll=$('timelineScroll'),max=Math.max(0,timel
 }
 function cancelTimelineMotion(){timeline.motionGeneration=(timeline.motionGeneration||0)+1;clearTimeout(timeline.scrollTimer);for(const key of ['frame','snapFrame','afterSnapFrame']){if(timeline[key])cancelAnimationFrame(timeline[key]);timeline[key]=null;}timeline.pendingOffset=null;timeline.snap=null;$('chart').classList.remove('timeline-moving');}
 function generate(){cancelTimelineMotion();
- if(!timeline.archive){timeline.all=QS.build(raw,{...options(),limit:50},QS_DATA.heroes,evaluateHistory).matches;timeline.axis=QS_HISTORY_MODEL.axisRange(timeline.all);}
+ if(!timeline.archive){timeline.all=OWQS_SERVICES.analysis.analyzeBatch(raw,options()).matches;timeline.axis=QS_HISTORY_MODEL.axisRange(timeline.all);}
  const w=timelineWindow();timeline.start=w.start;const changed=calculateStatistics();paintTimeline();if(changed)showPersonal();configureScroll();
  status(timeline.all.length?`已保留 ${timeline.all.length} 场历史 · 当前显示 ${w.end-w.start} 场`:'请输入战网昵称开始查询');
 }

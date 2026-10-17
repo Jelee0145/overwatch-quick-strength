@@ -1,0 +1,36 @@
+{
+  "description": "Pre-refactor synthetic API analysis and AI payload/fingerprint hashes",
+  "cases": [
+    {
+      "options": {},
+      "hash": "9c97a004a5377d5ab1dc46e04b9f23958dc18cc7b6b9e491a366cd9c59b0d32a"
+    },
+    {
+      "options": {
+        "statisticsRange": "5"
+      },
+      "hash": "b08a4973b434113aab66ea2b6da7e19b0494e01e083e1f828040a040b94ad9a6"
+    },
+    {
+      "options": {
+        "statisticsRange": "10",
+        "side": "E",
+        "strategy": "role",
+        "estimate": false
+      },
+      "hash": "2976846ee3e042f381193c0a5f07d8cdc3a01502fafd0ad5e638d3ddf71c8914"
+    },
+    {
+      "options": {
+        "statisticsRange": "20",
+        "side": "T",
+        "strategy": "highest"
+      },
+      "hash": "b586ea38cb10ac240de78f8e158a73239031a35d4b53e2b7b75eba5d35329d48"
+    }
+  ],
+  "empty": "3458cda7418c27e795d334a7a7d306e01eab4c831a89d9b166df1a93e7c9a602",
+  "review": "f9e4c9f6e28b46727af9a9258320d35658116f72a6c19cc7a5a9d1b80972de00",
+  "history": "632bce478885c4c6759a08ebfbbbc10c004c574d203029f8f051796fee676bc7",
+  "historySummary": "77fcf5a0ee97bf3ce75a257a28a0d584bfc04febda1c255b95c35053558599f8"
+}

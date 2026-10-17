@@ -1,5 +1,5 @@
 import {Fault} from './security.mjs';
-export const statKeys=['kill','assist','death','heroDamage','cure','resistDamage','finalHit','soloKill','targetCompetingTime','healingTaken','damageTaken'];
+export {statKeys} from './services/data.mjs';
 const num=v=>v===null||v===undefined||v===''||typeof v==='boolean'||!Number.isFinite(Number(v))||Number(v)<0?null:Number(v);
 const text=(v,n=100)=>String(v??'').slice(0,n);
 export function unwrap(v){for(let i=0;i<3&&v&&typeof v==='object'&&!Array.isArray(v)&&v.data&&!['guideCountData','teammateList','matchId'].some(k=>k in v);i++)v=v.data;return v;}

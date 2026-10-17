@@ -1,4 +1,6 @@
+import {createDataService} from './services/data.mjs';
 import {Fault,canonical,digest,verifySnapshot,putBlob,getBlob} from './security.mjs';
+const dataService=createDataService();
 
 // Limits cover all seasons/servers for this user. Full signed batches remain intact
 // because a match extracted and re-signed here would change the AI trust boundary.
@@ -42,14 +44,9 @@ export class CloudHistory{
     account.batches[item.id]=item.envelope;
    }
    for(const [key,account] of updates){
-    const index=new Map();let updatedAt=null;
-    // Rebuild only from previously verified, server-stored envelopes and newly verified input.
-    for(const [id,envelope] of Object.entries(account.batches)){
-     const data=envelope.content.data,stamp=Date.parse(data.queriedAt);
-     if(updatedAt===null||stamp>Date.parse(updatedAt))updatedAt=data.queriedAt;
-     for(const m of data.matches){const old=index.get(m.mid);if(!old||stamp>old.stamp||stamp===old.stamp&&compare(id,old.batchId)>0)index.set(m.mid,{mid:m.mid,t:Number(m.t),stamp,batchId:id});}
-    }
-    account.matches=[...index.values()].sort((a,b)=>a.t-b.t||compare(a.mid,b.mid)).slice(-this.limits.matches);
+    let updatedAt=null;
+    for(const envelope of Object.values(account.batches)){const queriedAt=envelope.content.data.queriedAt;if(updatedAt===null||Date.parse(queriedAt)>Date.parse(updatedAt))updatedAt=queriedAt;}
+    account.matches=dataService.indexHistory(account.batches,{limit:this.limits.matches}).map(({mid,t,queriedAt,batchId})=>({mid,t,stamp:Date.parse(queriedAt),batchId}));
     const used=new Set(account.matches.map(m=>m.batchId));for(const id of Object.keys(account.batches))if(!used.has(id))delete account.batches[id];
     const batchIds=Object.keys(account.batches).sort();
     // Empty query results do not consume account slots.

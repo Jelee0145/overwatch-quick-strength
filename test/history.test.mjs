@@ -1,5 +1,6 @@
+import {createDataService} from '../src/services/data.mjs';
 import {test} from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';import {createHash} from 'node:crypto';import {signSnapshot,verifySnapshot} from '../src/security.mjs';
-const source=await readFile(new URL('../web/history-model.js',import.meta.url),'utf8'),context=vm.createContext({});vm.runInContext(source,context);const H=context.QS_HISTORY_MODEL;
+const source=await readFile(new URL('../web/history-model.js',import.meta.url),'utf8'),context=vm.createContext({OWQS_SERVICES:{data:createDataService()}});vm.runInContext(source,context);const H=context.QS_HISTORY_MODEL;
 const scope='u|1|2026',tag='Main#100',game=(i)=>({mid:'900719925474099'+String(i).padStart(4,'0'),t:i*1000,players:[],mapGuid:'map',ret:1}),envelope=(from,to,stamp='2026-10-14T00:00:00Z')=>({content:{data:{battletag:tag,matches:Array.from({length:to-from},(_,j)=>game(from+j)),queriedAt:stamp}},signature:'test'});
 test('history merges five new and five overlapping games without replacing old games; long string IDs remain distinct',()=>{
  const first=H.merge(null,envelope(0,10),'a',scope),second=H.merge(first,envelope(5,15,'2026-10-14T01:00:00Z'),'b',scope);assert.equal(second.matches.length,15);assert.equal(new Set(second.matches.map(m=>m.mid)).size,15);assert.equal(second.matches[0].mid,game(0).mid);assert.equal(second.matches[5].batchId,'b');assert.equal(second.matches[0].batchId,'a');assert.equal(first.matches.length,10);

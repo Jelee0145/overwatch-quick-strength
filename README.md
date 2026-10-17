@@ -22,6 +22,8 @@
 
 ### Bot 查询 API
 
+完整接口字段、状态、错误码、额度规则和代码示例见 [BOT-API.md](BOT-API.md)。
+
 账户页右上角“API”打开密钥面板。密钥默认隐藏，可查看、复制或重新生成；服务端使用专用的 `API_KEY_ENCRYPTION_KEY` 加密保存明文，鉴权只使用密钥摘要。重新生成会立即删除旧密钥索引。
 
 ```http
@@ -48,6 +50,8 @@ Authorization: Bearer owqs_...
 完成后返回 `state: "done"`、原始对局数据 `result` 和服务端计算的分析 `analysis`，并自动写入密钥所属账户的历史。失败、取消或超时返回终态和 `quota: "released"`；运行、暂停任务显示 `quota: "reserved"`。可选 `POST /api/v1/jobs/{id}/cancel` 取消任务。接口不返回 CORS 头，浏览器应通过自己的后端代理调用。
 
 ## 构建与部署
+
+战绩获取、数据整理和分析计算的仓库内复用入口、调用示例及平台边界见 [SERVICES.md](SERVICES.md)。网页、Bot 与 AI 锐评共用服务模块，支持直接分析已有数据。
 
 `npm ci`、`npm run build`、`npm test`、`npm run check`。`npm run login` 打开官方OAuth，登录文件与日志留在项目私有目录。
 

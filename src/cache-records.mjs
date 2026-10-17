@@ -1,5 +1,6 @@
 import {Fault,mac,equal,canonical} from './security.mjs';
-export const nameKey=v=>String(v??'').normalize('NFC').trim();
+export {nameKey} from './services/data.mjs';
+import {nameKey} from './services/data.mjs';
 export const profileKey=p=>p.playerKey||'n:'+nameKey(p.name);
 export async function playerIdentity(env,ct){return ct&&env.CACHE_SIGNING_KEY?mac({domain:'qs-player-v1',server:env.DASHEN_SERVER,dts:env.DASHEN_DTS,ct},env.CACHE_SIGNING_KEY):undefined;}
 function identityGroups(players){const parent=new Map(),root=k=>{if(!parent.has(k))parent.set(k,k);if(parent.get(k)!==k)parent.set(k,root(parent.get(k)));return parent.get(k);};const keys=p=>[/^.+#\d+$/.test(nameKey(p.name))?'n:'+nameKey(p.name):null,p.playerKey].filter(Boolean);for(const p of players){const a=keys(p);for(const k of a)root(k);if(a.length===2)parent.set(root(a[1]),root(a[0]));}const groups=new Map();for(const p of players){const a=keys(p);if(!a.length)continue;const key=root(a[0]);if(!groups.has(key))groups.set(key,{names:new Set(),ids:new Set()});const g=groups.get(key);g.names.add(nameKey(p.name));if(p.playerKey)g.ids.add(p.playerKey);}return [...groups.values()];}
