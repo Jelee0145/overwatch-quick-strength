@@ -15,11 +15,11 @@ export async function buildToolkit({base,brandPage,logo,staticFile,releaseNotes,
   heroes.push({id:hero.id,name:hero.name,role:hero.role,portrait});
  }
  const css=await staticFile(await readFile(path.join(base,'web/cloud.css'),'utf8')+'\n'+await readFile(path.join(base,'web/toolkit.css'),'utf8'),'css','toolkit');
- const common=['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/toolkit-session.js'),'utf8'),await readFile(path.join(base,'web/changelog.js'),'utf8')].join('\n');
+ const common=['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/toolkit-session.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/changelog.js'),'utf8')].join('\n');
  const owMark='<svg class="ow-mark" viewBox="0 0 100 100" fill="none" aria-hidden="true"><path d="M22 18A43 43 0 0 1 78 18" stroke="#f58220" stroke-width="10"/><path d="M15 25A43 43 0 1 0 85 25" stroke="currentColor" stroke-width="10"/><path d="M22 78L42 59V34L50 26L58 34V59L78 78L67 85L50 69L33 85Z" fill="currentColor"/></svg>';
  const fan=['genji','tracer','dva'].map(id=>'<img loading="lazy" src="'+heroes.find(h=>h.id===id).portrait+'" alt="">').join('');
  for(const page of ['toolkit','draw']){
-  let html=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8')).replaceAll('{{SITE_MARK}}',logo).replaceAll('{{OW_MARK}}',owMark).replace('{{HERO_FAN}}',fan).replace('{{HERO_COUNT}}',String(heroes.length)).replace('{{CHANGELOG}}',await readFile(path.join(base,'web/changelog.html'),'utf8'));
+  let html=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8')).replaceAll('{{SITE_MARK}}',logo).replaceAll('{{OW_MARK}}',owMark).replace('{{HERO_FAN}}',fan).replace('{{HERO_COUNT}}',String(heroes.length)).replace('{{CHANGELOG}}',await readFile(path.join(base,'web/changelog.html'),'utf8')+await readFile(path.join(base,'web/api-key.html'),'utf8'));
   const code=page==='draw'?[common,'window.HERO_DRAW_DATA='+JSON.stringify({updatedAt:manifest.updatedAt,heroes})+';',await readFile(path.join(base,'web/draw-engine.js'),'utf8'),await readFile(path.join(base,'web/draw.js'),'utf8')].join('\n'):common;
   const script=await staticFile(rewriteCopy(code),'js',page);
   html=html.replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${script}"></script></head>`);

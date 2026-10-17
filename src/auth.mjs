@@ -1,5 +1,5 @@
 import policy from '../access-policy.json' with {type:'json'};
-import {Fault,token,digest,email,passwordHash,passwordOK,json,mac,day} from './security.mjs';
+import {Fault,token,digest,email,passwordHash,passwordOK,json,mac,day,encryptSecret,decryptSecret} from './security.mjs';
 const LIMIT_WINDOW=15*60*1000;
 export class AuthDirectory{
  constructor(ctx,env){this.ctx=ctx;this.env=env;this.storage=ctx.storage;this.chain=Promise.resolve();}
@@ -9,7 +9,7 @@ export class AuthDirectory{
  async session(raw,admin=false){if(!raw)throw new Fault('请先登录',401);const s=await this.storage.get('session:'+await digest(raw));if(!s||s.until<Date.now()||s.admin!==admin)throw new Fault('登录已过期，请重新登录',401);if(!admin){const u=await this.storage.get('user:'+s.user);if(!u||u.version!==s.version)throw new Fault('登录已失效，请重新登录',401);return {...s,account:u};}return s;}
  async authorize(input,admin=false,approved=true){const raw=admin?input.adminToken:input.userToken,s=await this.session(raw,admin);if(input.mutation&&input.csrf!==await mac({csrf:raw,admin},this.env.PASSWORD_PEPPER))throw new Fault('请求校验失败，请刷新页面',403);if(!admin&&approved&&s.account.status!=='approved')throw new Fault('账号尚未授权或授权已撤销',403);return s;}
  async issue(user,admin=false){const raw=token(),p=await this.storage.get('policy'),seconds=admin?p.adminSessionHours*3600:p.sessionDays*86400;const s={admin,user:user?.id||null,version:user?.version||0,until:Date.now()+seconds*1000};await this.storage.put('session:'+await digest(raw),s);return {token:raw,seconds,csrf:await mac({csrf:raw,admin},this.env.PASSWORD_PEPPER)};}
- view(u){return {id:u.id,email:u.email,status:u.status,createdAt:u.createdAt,updatedAt:u.updatedAt,queryDaily:u.queryDaily,aiDaily:u.aiDaily,resetRequestedAt:u.resetRequestedAt||null};}
+ view(u){return {id:u.id,email:u.email,status:u.status,createdAt:u.createdAt,updatedAt:u.updatedAt,queryDaily:u.queryDaily,aiDaily:u.aiDaily,resetRequestedAt:u.resetRequestedAt||null,apiKey:u.apiKey?{exists:true,createdAt:u.apiKey.createdAt,updatedAt:u.apiKey.updatedAt}:{exists:false}};}
  async audit(action,user){const key='audit:'+Date.now()+':'+token().slice(0,8);await this.storage.put(key,{action,user,at:new Date().toISOString()});}
  async handle(i){await this.init();const b=i.body||{},p=await this.storage.get('policy');
   if(i.path==='/register'){
@@ -43,11 +43,31 @@ export class AuthDirectory{
   if(i.path==='/authorize'){const s=await this.authorize(i);return {user:this.view(s.account),version:s.version};}
   if(i.path==='/check-user'){const u=await this.storage.get('user:'+b.user);if(!u||u.status!=='approved'||u.version!==b.version)throw new Fault('授权或会话已失效',403);return {user:this.view(u)};}
   if(i.path==='/quota'){
-   const u=await this.storage.get('user:'+b.user);if(!u||u.status!=='approved')throw new Fault('账号未授权',403);
+   const u=await this.storage.get('user:'+b.user);if(!u||(!b.refund&&u.status!=='approved'))throw new Fault('账号未授权',403);
    const key='usage:'+u.id,old=await this.storage.get(key),r=old?.day===day()?old:{day:day(),query:0,ai:0};const kind=b.kind;
    if(!['query','ai'].includes(kind)||!b.job)throw new Fault('额度类型错误');const reservation='quota:'+b.job,existing=await this.storage.get(reservation);
    if(b.refund){if(existing&&!existing.refunded){if(existing.day===r.day){r[kind]=Math.max(0,r[kind]-1);await this.storage.put(key,r);}await this.storage.put(reservation,{...existing,refunded:true});}return {usage:r};}
    if(existing)return {usage:r};if(r[kind]>=u[kind+'Daily'])throw new Fault('今日'+(kind==='ai'?'AI锐评':'查询')+'额度已用完',429);r[kind]++;await this.storage.put(key,r);await this.storage.put(reservation,{day:r.day,user:u.id,until:Date.now()+2*86400000});return {usage:r};
+  }
+  if(i.path==='/api-key'){
+   const s=await this.authorize(i),u=await this.storage.get('user:'+s.user);if(!u||u.status!=='approved')throw new Fault('账号尚未授权',403);
+   if(b.action==='reveal'){
+    await this.rate('api-key-reveal:'+u.id,30);if(!u.apiKey)throw new Fault('尚未创建 API 密钥',404);
+    return {key:await decryptSecret(u.apiKey,this.env.API_KEY_ENCRYPTION_KEY),createdAt:u.apiKey.createdAt};
+   }
+   if(b.action!=='regenerate')throw new Fault('密钥操作无效');
+   const now=new Date().toISOString(),key='owqs_'+token(),record=await encryptSecret(key,this.env.API_KEY_ENCRYPTION_KEY);
+   if(u.apiKey?.digest)await this.storage.delete('apikey:'+u.apiKey.digest);
+   u.apiKey={...record,digest:await digest(key),createdAt:now,updatedAt:now};u.updatedAt=now;
+   await this.storage.put('apikey:'+u.apiKey.digest,u.id);await this.storage.put('user:'+u.id,u);await this.audit('api-key-regenerate',u.id);
+   return {key,createdAt:now};
+  }
+  if(i.path==='/api-key-auth'){
+   if(typeof b.key!=='string'||b.key.length>100)throw new Fault('API 密钥无效',401);
+   const key=await digest(b.key),userId=await this.storage.get('apikey:'+key);if(!userId)throw new Fault('API 密钥无效',401);
+   const u=await this.storage.get('user:'+userId);if(!u||u.apiKey?.digest!==key)throw new Fault('API 密钥无效',401);
+   if(u.status!=='approved')throw new Fault('账号尚未授权或授权已撤销',403);
+   return {user:this.view(u),version:u.version};
   }
   if(i.path.startsWith('/admin/')){
    await this.authorize(i,true);if(i.path==='/admin/session')return {csrf:await mac({csrf:i.adminToken,admin:true},this.env.PASSWORD_PEPPER)};

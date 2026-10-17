@@ -44,10 +44,10 @@ html=brandPage(html).replace('<title>快速强度图 · Quick Strength</title>',
 html=html.replace(/<details id="credentials">[\s\S]*?<\/details>/,'');
 html=html.replace(/<dialog id="aiKeyDialog"[\s\S]*?<\/dialog>/,'');
 html=html.replace(/<button[^>]*id="aiReviewSettings"[^>]*>[\s\S]*?<\/button>/,'');
-html=html.replace(/<\/header>/,'<div class="cloud-user"><span id="cloudIdentity"></span><button id="cloudLogout">退出</button></div></header>');
+html=html.replace(/<\/header>/,'<div class="cloud-user"><span id="cloudIdentity"></span><button id="apiKeyOpen" type="button">API</button><button id="cloudLogout">退出</button></div></header>');
 html=html.replace('<button id="cloudLogout">','<button id="changelogOpen" type="button">更新日志</button><button id="cloudLogout">');
 html=html.replace('<main>','<main><a href="/" class="analysis-back-link">← 返回首页</a>');
-html=html.replace('</body>',await readFile(path.join(base,'web/changelog.html'),'utf8')+'</body>');
+html=html.replace('</body>',await readFile(path.join(base,'web/changelog.html'),'utf8')+await readFile(path.join(base,'web/api-key.html'),'utf8')+'</body>');
 html=html.replace('</body>','<dialog id="mobileChartDialog" class="mobile-chart-dialog"><div class="mobile-chart-heading"><h2>对局图表</h2><button id="mobileChartClose" type="button">关闭</button></div><div id="mobileChartBody" class="mobile-chart-body"></div><p class="hint">滑动查看完整图表，点击场次返回查看明细。</p></dialog></body>');
 html=html.replace('<div class="canvas-wrap">','<div id="mobileSummary" class="mobile-summary" aria-label="对局统计摘要"></div><div class="canvas-wrap">').replace('<button id="chartZoom"','<button id="mobileChartOpen" type="button" class="mobile-chart-open">放大查看</button><button id="chartZoom"');
 html=html.replace('<small>CONFIGURATION</small>','<small>CONFIGURATION</small><button id="mobileSettingsToggle" type="button" aria-expanded="true">收起设置</button>');
@@ -132,7 +132,7 @@ const files=async names=>Promise.all(names.map(name=>readFile(path.join(local,na
 const browserData=await readFile(path.join(local,'data.js'),'utf8');
 const runtime=await files(shared);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
-const main=await staticFile(rewriteCopy(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
+const main=await staticFile(rewriteCopy(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script></head>`);
 await mkdir(path.join(base,'public/tools'),{recursive:true});
 await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDecorativeEnglish(html)));

@@ -12,11 +12,40 @@
 - `/api/health`：只返回版本、构建时间与提交标识，可核验自动部署是否实际生效，不返回用户或凭证信息。
 - 密码至少10字符，玩家登录30天，管理登录2小时。管理员生成的重置链接30分钟有效、只能使用一次。
 - `access-policy.json` 仅初始化一次；部署不会覆盖后台授权记录。默认每天查询10次、AI100次，北京时间零点重置。
-- 每用户同时一个查询和一个AI任务，不同用户独立执行。重复点击复用任务；限流暂停查询，30秒后可点击继续。
+- 每用户网页端同时一个查询和一个AI任务，不同用户独立执行。重复点击复用任务；限流暂停查询，30秒后可点击继续。Bot 查询 API 每个密钥最多同时保留 5 个未完成任务。
+- Bot 查询 API：`POST /api/v1/query` 创建查询，`GET /api/v1/jobs/{id}` 读取状态与结果。每个账户只有一个 API 密钥，账户页默认隐藏，可查看、复制和重新生成；重新生成后旧密钥立即失效。接口使用 `Authorization: Bearer <密钥>`，供 Bot 后端服务器调用，不开放浏览器跨域直连。
+- API 查询场次只决定最近 5/10/20 场的搜索范围；分析图表固定最近 10 场，统计范围可选全部/5/10/20。每个成功查询扣 1 次查询额度，与场次及缓存命中无关，纯缓存结果也扣 1；失败、取消或最终超时释放预留，不扣额度。每个密钥最多 5 个未完成任务，超过返回 HTTP 429。
 - 同登录账号的战绩历史和原始签名包保存在现有 SQLite-backed Durable Objects，浏览器 IndexedDB 保留本地副本；进入对局分析、打开历史和完成查询时同步。新查询由服务端自动归档，旧浏览器历史上传后重新验签合并。同步失败保留本地数据，可在历史弹窗中重试。
 - “历史记录”按当前登录用户、服务器、赛季和战网账号隔离；每战网账号最多保留最近500场，并受云端每登录账号总计32 MiB、30个账号归档（跨服务器和赛季合计）限制。成功查询按对局ID合并，以签名内查询时间和固定批次规则决胜，失败不会覆盖旧历史；旧设备需至少打开一次对局分析完成补传，已清理或被覆盖的本地记录无法补回。锐评、抽签记录、个人设置及临时缓存仍保存在本机。
 - 图表按时间从左到右排列，可按住拖动、使用滚动条或左右按钮回看。“查询场数”仅控制最近5/10/20场的查询范围，已有有效对局复用，仅补查缺少的数据并合并历史；不会改变图表固定10场的可见窗口。统计范围默认全部，可选5/10/20，有限范围以窗口最右侧为终点。PNG/SVG导出当前可见窗口，JSON导出当前账号保留的全部历史。已成功同步的战绩历史可在另一设备登录同账号后恢复；未完成补传的旧本地历史仍应保留原浏览器数据。JSON 导出不含签名包，仍用于查看和分析，不作为可信恢复入口。
 - 请求不自动重复发送AI，超时后可能已经产生供应商费用；请确认后手动重试。网站AI额度失败时返还，不代表供应商退款。
+
+### Bot 查询 API
+
+账户页右上角“API”打开密钥面板。密钥默认隐藏，可查看、复制或重新生成；服务端使用专用的 `API_KEY_ENCRYPTION_KEY` 加密保存明文，鉴权只使用密钥摘要。重新生成会立即删除旧密钥索引。
+
+```http
+POST /api/v1/query
+Authorization: Bearer owqs_...
+Content-Type: application/json
+
+{"battletag":"昵称#12345","limit":10,"mode":"fast","statisticsRange":"all"}
+```
+
+创建成功返回 `200` 和任务 ID：
+
+```json
+{"id":"…","state":"running","status":"/api/v1/jobs/…"}
+```
+
+`limit` 仅接受 `5`、`10`、`20`，表示搜索范围；`mode` 为 `fast`/`slow`（也接受 `supplementOtherMatches` 布尔值）。可选 `statisticsRange`（`all`/`5`/`10`/`20`）、`side`（`all`/`T`/`E`）、`strategy`（`legacy`/`role`/`highest`）和 `estimate` 布尔值。分析结果的图表窗口固定最近 10 场，`statisticsRange` 只影响统计范围。
+
+```http
+GET /api/v1/jobs/{id}
+Authorization: Bearer owqs_...
+```
+
+完成后返回 `state: "done"`、原始对局数据 `result` 和服务端计算的分析 `analysis`，并自动写入密钥所属账户的历史。失败、取消或超时返回终态和 `quota: "released"`；运行、暂停任务显示 `quota: "reserved"`。可选 `POST /api/v1/jobs/{id}/cancel` 取消任务。接口不返回 CORS 头，浏览器应通过自己的后端代理调用。
 
 ## 构建与部署
 
@@ -28,11 +57,13 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 
 部署后由使用者运行 `scripts/Setup-Admin.ps1` 的隐藏密码窗口；该窗口将本机已加密保存的大神/DeepSeek凭证直接传入 Wrangler 的标准输入，写入 Workers Secrets。管理员密码仅生成散列；本地备份为 Windows DPAPI 加密的 `.private/cloud-secrets.dpapi`。
 
-首次配置需要这些 Secrets：`DASHEN_ROLE_ID`、`DASHEN_TOKEN`、`DEEPSEEK_KEY`、`PASSWORD_PEPPER`、`CACHE_SIGNING_KEY`、`ADMIN_PASSWORD_HASH`。`DASHEN_SERVER`和`DASHEN_DTS`是普通运行配置。
+首次配置需要这些 Secrets：`DASHEN_ROLE_ID`、`DASHEN_TOKEN`、`DEEPSEEK_KEY`、`PASSWORD_PEPPER`、`CACHE_SIGNING_KEY`、`API_KEY_ENCRYPTION_KEY`、`ADMIN_PASSWORD_HASH`。`DASHEN_SERVER`和`DASHEN_DTS`是普通运行配置。`API_KEY_ENCRYPTION_KEY` 只用于加密账户 API 密钥，部署前必须配置；更换后已生成的密钥无法查看，需要用户在账户页重新生成。
 
 不要把 `.private`、`.dev.vars`、`.wrangler`、npm缓存或本机凭证文件上传到静态目录。`public` 仅由白名单构建生成。
 
-轮换 API 密钥可通过官方 Wrangler `secret put` 隐藏输入完成。不要重复运行首次初始化窗口来轮换 Token：它同时更新 pepper/签名，会使旧密码和缓存失效。
+为已有部署启用 Bot 查询 API 时，只需追加 `API_KEY_ENCRYPTION_KEY`：`node scripts/wrangler.mjs secret put API_KEY_ENCRYPTION_KEY`，按提示隐藏输入。不要为此重复运行首次初始化窗口。
+
+轮换 Cloudflare API 令牌可通过官方 Wrangler `secret put` 隐藏输入完成。不要重复运行首次初始化窗口来轮换 Token：它同时更新 pepper/签名，会使旧密码和缓存失效。
 
 ## 验证边界
 

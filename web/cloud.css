@@ -18,3 +18,15 @@
 #players tr:hover>td{background:var(--team-hover)}
 #players .team-label{color:#aa500b;background:#ffddb7}
 #players .team-label.enemy{color:#68452e;background:#dec8b5}
+.api-key-dialog{width:min(560px,calc(100% - 28px));max-height:86vh;overflow:auto;border:1px solid #e1e3e8;border-top:3px solid #f58220;border-radius:12px;background:#fff;color:#303740;padding:26px}
+.api-key-dialog::backdrop{background:#141f2c99;backdrop-filter:blur(3px)}
+.api-key-dialog h2{margin:0 0 10px;font-size:23px}
+.api-key-dialog p{line-height:1.8}
+.api-key-row{display:flex;gap:8px;align-items:center;margin:16px 0}
+.api-key-row input{flex:1;min-width:0;font-family:ui-monospace,Consolas,monospace;font-size:12px;padding:10px 12px;border:1px solid #e1e3e8;border-radius:6px;background:#f7f7f4;color:#303740}
+.api-key-row button{white-space:nowrap}
+.api-key-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.api-key-doc{margin-top:18px;font-size:12px;color:#69717d}
+.api-key-doc summary{cursor:pointer;color:#303740}
+.api-key-doc code{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:#f2f2ee;padding:2px 5px;border-radius:4px;word-break:break-all}
+@media(max-width:600px){.api-key-row{flex-wrap:wrap}.api-key-row input{flex-basis:100%}.api-key-dialog{padding:20px}}

@@ -1,0 +1,21 @@
+<dialog id="apiKeyDialog" class="api-key-dialog" aria-labelledby="apiKeyTitle">
+  <h2 id="apiKeyTitle">Bot 查询 API</h2>
+  <p class="hint">供你自己的 Bot 后端通过 Bearer 密钥调用，不开放浏览器跨域直连。</p>
+  <p id="apiKeyStatus" class="hint" role="status">正在读取密钥状态…</p>
+  <div class="api-key-row">
+    <input id="apiKeyValue" type="password" readonly autocomplete="off" spellcheck="false" aria-label="API 密钥" placeholder="密钥默认隐藏">
+    <button id="apiKeyReveal" type="button">查看</button>
+    <button id="apiKeyCopy" type="button">复制</button>
+  </div>
+  <p class="hint">重新生成后旧密钥立即失效。每次成功查询扣 1 次查询额度；失败、取消或超时不扣。纯缓存结果同样扣 1 次。</p>
+  <div class="api-key-actions">
+    <button id="apiKeyRegenerate" type="button">生成密钥</button>
+    <button id="apiKeyClose" type="button">关闭</button>
+  </div>
+  <details class="api-key-doc">
+    <summary>接口说明</summary>
+    <p><code>POST /api/v1/query</code>：提交查询，使用 <code>Authorization: Bearer &lt;密钥&gt;</code>，返回任务 ID。</p>
+    <p><code>GET /api/v1/jobs/&lt;任务 ID&gt;</code>：读取状态与结果。完成后返回原始对局数据和分析，并自动写入本账号历史。</p>
+    <p>请求体示例：<code>{"battletag":"昵称#12345","limit":10,"mode":"fast","statisticsRange":"all"}</code></p>
+  </details>
+</dialog>

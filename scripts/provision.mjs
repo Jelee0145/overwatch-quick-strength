@@ -10,7 +10,7 @@ try{
  const script="import sys,json;sys.path.insert(0,sys.argv[1]);from credentials import CredentialStore;from ai_review import KeyStore;from pathlib import Path;p=Path(sys.argv[1])/'.private';c=CredentialStore(p).load();print(json.dumps({'DASHEN_ROLE_ID':c['roleId'],'DASHEN_TOKEN':c['token'],'DEEPSEEK_KEY':KeyStore(p).load()}))";
  const secrets=JSON.parse(execFileSync(python,['-c',script,local],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']}));
  if(!secrets.DASHEN_TOKEN||!secrets.DEEPSEEK_KEY)throw Error('existing secrets missing');
- Object.assign(secrets,{PASSWORD_PEPPER:pepper,CACHE_SIGNING_KEY:token(),ADMIN_PASSWORD_HASH:JSON.stringify(adminHash)});
+ Object.assign(secrets,{PASSWORD_PEPPER:pepper,CACHE_SIGNING_KEY:token(),API_KEY_ENCRYPTION_KEY:token(),ADMIN_PASSWORD_HASH:JSON.stringify(adminHash)});
  // The deployment backup contains hashes and API secrets, never the administrator password.
  const backup=execFileSync(python,['-c',"import sys;sys.path.insert(0,sys.argv[1]);from credentials import crypt;sys.stdout.buffer.write(crypt(sys.stdin.buffer.read()))",local],{input:JSON.stringify(secrets),windowsHide:true,stdio:['pipe','pipe','pipe']});await writeFile(path.join(privateDir,'cloud-secrets.dpapi'),backup);
  const child=spawn(process.execPath,[path.join(base,'node_modules/wrangler/bin/wrangler.js'),'secret','bulk','--name','quick-strength-friends'],{cwd:base,windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false',WRANGLER_LOG_SANITIZE:'true',WRANGLER_LOG_PATH:path.join(base,'.wrangler/logs'),XDG_CONFIG_HOME:path.join(privateDir,'config')}});
