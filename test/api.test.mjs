@@ -112,7 +112,7 @@ test('indexed match data and AI review share the displayed left-to-right window,
   const base='/api/v1/jobs/'+id+'/matches/';
   const left=await (await api(ctx,base+'1',{key})).json(),right=await (await api(ctx,base+'10',{key})).json();
   assert.equal(left.match.mid,'m9');assert.equal(right.match.mid,'m0');assert.equal(left.match.count,10);assert.equal(left.match.players.length,10);assert.equal(left.match.players[0].stats.kill,20);
-  assert.ok(!JSON.stringify(left).includes('private'));assert.equal((await api(ctx,base+'0',{key})).status,400);assert.equal((await api(ctx,base+'11',{key})).status,400);
+  assert.equal(left.match.webView.match.mid,left.match.mid);assert.equal(left.match.webView.match.players.length,10);assert.deepEqual(Object.keys(left.match.webView.raw).sort(),['battletag','queriedAt']);assert.deepEqual(Object.keys(left.match.webView.match.players[0].res),['rankQueriedAt']);assert.ok(!JSON.stringify(left).includes('private'));assert.equal((await api(ctx,base+'0',{key})).status,400);assert.equal((await api(ctx,base+'11',{key})).status,400);
   const other=await approve(ctx,'match-other@example.test'),otherKey=await createKey(ctx,other);
   assert.equal((await api(ctx,base+'1',{key:otherKey})).status,404);
   assert.equal((await api(ctx,base+'1/review',{key:otherKey,method:'POST',body:{requestId:'other'}})).status,404);

@@ -112,11 +112,24 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.plugin.bindings.selection(owner,1),'b'*64)
 
 class DocumentTests(unittest.TestCase):
-    def test_untrusted_names_and_review_text_are_escaped_and_pages_preserve_content(self):
+    def test_website_markup_and_script_safe_payload_preserve_content(self):
+        import json
         documents=importlib.import_module(PACKAGE+'.documents')
-        detail={'index':1,'count':10,'battletag':'<script>user</script>','players':[{'name':'<img src=x>','side':'T','stats':{'kill':0}}]}
+        detail={'index':1,'count':10,'battletag':'</script><script>user</script>','webView':{'raw':{},'options':{},'match':{}}}
         html=documents.data_document(detail)
-        self.assertNotIn('<script>',html);self.assertNotIn('<img src=x>',html);self.assertIn('&lt;img src=x&gt;',html)
+        self.assertIn('id="players"',html)
+        self.assertIn('英雄表现',html)
+        self.assertNotIn('</script><script>user',html)
+        value={'text':'</script><img src=x> & 中文'}
+        encoded=documents.script_json(value)
+        self.assertNotIn('<',encoded)
+        self.assertEqual(json.loads(encoded),value)
         text='锐评 <script> 不执行\n'*400
         pages=documents.review_documents(detail,{'text':text})
-        self.assertGreater(len(pages),1);self.assertTrue(all('<script>' not in p for p in pages))
+        self.assertGreater(len(pages),1)
+        self.assertTrue(all('class="ai-review"' in p for p in pages))
+        self.assertTrue(all('INPUT.review' in p for p in pages))
+
+    def test_missing_website_view_fails_instead_of_drawing_another_style(self):
+        documents=importlib.import_module(PACKAGE+'.documents')
+        with self.assertRaises(ValueError): documents.data_document({})

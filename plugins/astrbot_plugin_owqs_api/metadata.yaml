@@ -1,7 +1,7 @@
 name: astrbot_plugin_owqs_api
 display_name: 狸狸天眼查 API
 desc: 使用网站 API 密钥查询守望先锋快速战绩，支持绑定、查询指令和 LLM 工具。
-version: v1.2.0
+version: v1.3.0
 author: Jelee0145
 repo: https://github.com/Jelee0145/overwatch-quick-strength
 astrbot_version: ">=4.9.2,<5"

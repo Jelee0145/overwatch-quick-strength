@@ -50,11 +50,11 @@ class Renderer:
 
     async def render_data(self, detail):
         from .documents import data_document
-        return await self._render_html(data_document(detail), '.sheet')
+        return await self._render_html(data_document(detail), 'main.capture')
 
     async def render_review(self, detail, review):
         from .documents import review_documents
-        return [await self._render_html(html,'.sheet') for html in review_documents(detail,review)]
+        return [await self._render_html(html,'main.capture') for html in review_documents(detail,review)]
 
     async def _render_html(self, html, selector):
         async with self.lock:
@@ -72,6 +72,8 @@ class Renderer:
                 page = await context.new_page()
                 await page.set_content(html, timeout=15000)
                 await page.evaluate("async () => { await document.fonts.ready; await Promise.all([...document.querySelectorAll('svg image')].map(el => new Promise((resolve,reject) => { const img=new Image();img.onload=resolve;img.onerror=reject;img.src=el.getAttribute('href'); }))); }")
+                if selector == 'main.capture':
+                    await page.evaluate("() => { const main=document.querySelector('main.capture');const table=main.querySelector('table');if(table)main.style.width=Math.max(1440,table.scrollWidth+50)+'px'; }")
                 if await page.locator(selector).evaluate('(el)=>el.getBoundingClientRect().height') > 12000:
                     raise ValueError('Image height limit')
                 await page.locator(selector).screenshot(path=str(target), timeout=30000)

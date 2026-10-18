@@ -55,8 +55,11 @@ apt-get install -y fonts-noto-cjk
 ## 从仓库打包
 
 ```sh
+node scripts/build.mjs
 python scripts/build-api-plugin.py
 python -m unittest discover -s test/api_plugin -v
 ```
 
-输出 `dist/astrbot_plugin_owqs_api-1.2.0.zip` 及 SHA-256。只打包固定白名单源码、依赖声明和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。
+输出 `dist/astrbot_plugin_owqs_api-1.3.0.zip` 及 SHA-256。只打包固定白名单源码、依赖声明和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。
+
+数据图和锐评图复用网页构建产物中的原始 HTML、CSS、逐场玩家渲染函数；网站构建时自动生成 website.json，插件在断网 Chromium 中截图。数据图展示网页原有的完整 14 列、强度依据和评级；锐评保留网页橙色卡片和文字排版。宽表完整出图，长锐评分页。升级需同时更新网站接口和插件。
