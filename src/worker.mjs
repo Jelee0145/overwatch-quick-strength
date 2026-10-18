@@ -2,6 +2,7 @@ import {Fault,json,getCookie,cookie} from './security.mjs';import {authCall} fro
 import {release} from './release.mjs';import {analyzeResult} from './api-analysis.mjs';
 import {renderApiChart,compactAnalysis} from './api-chart.mjs';
 export {AuthDirectory} from './auth.mjs';export {UserTasks} from './tasks.mjs';
+export {EventCenter} from './events.mjs';
 const securityHeaders={'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
 async function body(request){if(Number(request.headers.get('Content-Length'))>3000000)throw new Fault('请求数据过大',413);const s=await request.text();if(new TextEncoder().encode(s).length>3000000)throw new Fault('请求数据过大',413);try{const b=JSON.parse(s);if(!b||typeof b!=='object'||Array.isArray(b))throw 0;return b;}catch{throw new Fault('请求格式错误');}}
 function apiOptions(b){
@@ -85,7 +86,12 @@ export async function route(request,env){
    const value=await authCall(env,internal,i.body,i),headers={};if(value.token){headers['Set-Cookie']=cookie(value.token,path.startsWith('/api/admin/'),value.seconds);delete value.token;delete value.seconds;}
    if(path.endsWith('/logout'))headers['Set-Cookie']=cookie('',path.startsWith('/api/admin/'),0);if(path==='/api/auth/session')value.scope={server:env.DASHEN_SERVER,dts:env.DASHEN_DTS};return json(value,200,headers);
   }
-  const auth=await authCall(env,'/authorize',{},i),task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));let internal,b=i.body;
+  const auth=await authCall(env,'/authorize',{},i);
+  if(path==='/api/events'){
+   if(mutation)throw new Fault('请求方法错误',405);
+   return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/',{headers:{'X-OWQS-Public-Origin':url.origin}});
+  }
+  const task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));let internal,b=i.body;
   if(path==='/api/query'&&mutation)internal='/query';
   else if(path==='/api/ai-review'&&mutation)internal='/ai-review';
   else if(path==='/api/history'&&mutation)internal='/history';
@@ -99,6 +105,7 @@ export async function route(request,env){
  if(path==='/'||path==='/index.html'||path.startsWith('/tools/')){
   try{await authCall(env,'/authorize',{}, {userToken:getCookie(request,'qs_session')});}catch{return Response.redirect(url.origin+'/login'+(path.startsWith('/tools/')?'?next='+encodeURIComponent(path):''),302);}
   const pages={'/':'/index.html','/index.html':'/index.html','/tools/strength':'/tools/strength.html','/tools/strength/':'/tools/strength.html','/tools/draw':'/tools/draw.html','/tools/draw/':'/tools/draw.html'};
+  pages['/tools/events']=pages['/tools/events/']='/tools/events.html';
   url.pathname=pages[path]||path;return env.ASSETS.fetch(new Request(url,request));
  }
  return env.ASSETS.fetch(request);

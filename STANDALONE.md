@@ -5,6 +5,7 @@
 ## 运行与数据
 
 - Node.js 24；进程由 `owqs.service` 管理，监听 `127.0.0.1:8788`，Nginx 提供公网 HTTPS。
+- 赛事中心的 `EVENTS` 缓存使用同一 SQLite 文件内独立的 `events` 命名空间，不改账号或查询额度。赛程请求直接访问 Liquipedia，不占大神接口调度；`PUBLIC_ORIGIN` 默认用作上游 User-Agent 联系地址，也可通过 `EVENTS_CONTACT` 指定公开联系网址／邮箱。HTML 解析器已在构建时打包，不需在服务器安装 npm 依赖。
 - `/opt/owqs/releases/<版本>/` 保存白名单应用包，`/opt/owqs/current` 指向当前版本。更新时创建新版本目录，保留旧版本用于回滚。
 - `/etc/owqs/config.json` 保存运行配置，权限 `root:owqs 0640`。禁止放进应用包、Git、静态目录或日志。
 - `/var/lib/owqs/state.sqlite3` 保存账号、额度、API 密钥加密记录、任务、签名历史及持久化告警。SQLite 开启 WAL 和 FULL 同步；备份使用 SQLite backup API，不能只复制运行中的主文件而遗漏 WAL。

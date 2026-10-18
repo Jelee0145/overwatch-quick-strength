@@ -2,7 +2,7 @@ import {readFile,writeFile,stat} from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 export async function buildAssetPreload({base,media,staticFile}){
- const pages=['index.html','tools/strength.html','tools/draw.html','login.html'];
+ const pages=['index.html','tools/strength.html','tools/draw.html','tools/events.html','login.html'];
  const contents=await Promise.all(pages.map(file=>readFile(path.join(base,'public',file),'utf8')));
  const urls=new Set(contents.flatMap(html=>[...html.matchAll(/(?:src|href)="(\/static\/[^"?]+)"/g)].map(m=>m[1])));
  const heroes=JSON.parse(await readFile(path.join(base,'web/draw/heroes.json'),'utf8'));

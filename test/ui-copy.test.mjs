@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {rewriteCopy} from '../scripts/ui-copy.mjs';
 test('cloud pages use fox branding and plain labels while routes, controls and values remain intact',async()=>{
- for(const page of ['index.html','tools/strength.html','tools/draw.html','login.html','admin.html']){
+ for(const page of ['index.html','tools/strength.html','tools/draw.html','tools/events.html','login.html','admin.html']){
   const html=await readFile(new URL('../public/'+page,import.meta.url),'utf8');assert.match(html,/<title>[^<]*狸狸天眼查/);assert.ok(!html.includes('守望工具箱'));assert.match(html,/rel="icon"/);
  }
  const draw=await readFile(new URL('../public/tools/draw.html',import.meta.url),'utf8');for(const mode of ['wheel','card','slot'])assert.ok(draw.includes('data-mode="'+mode+'"'));assert.ok(draw.includes('>翻牌'));assert.ok(draw.includes('>转盘'));assert.ok(draw.includes('>抽个英雄'));
@@ -8,7 +8,7 @@ test('cloud pages use fox branding and plain labels while routes, controls and v
  assert.equal(rewriteCopy("const mode='wheel';const r='重装';const action='approved';"),"const mode='wheel';const r='重装';const action='approved';");
 });
 test('tool-page logos and back links return to the root homepage',async()=>{
- for(const page of ['strength','draw']){
+ for(const page of ['strength','draw','events']){
   const html=await readFile(new URL('../public/tools/'+page+'.html',import.meta.url),'utf8');
   const logo=html.match(/<a\b[^>]*class="(?:brand|toolkit-brand)"[^>]*>/)?.[0];
   const back=html.match(/<a\b[^>]*class="(?:analysis-back-link|back-link)"[^>]*>/)?.[0];

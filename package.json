@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test test/*.test.mjs && node scripts/native-fetch-check.mjs && node scripts/history-runtime-check.mjs && node scripts/api-analysis-runtime-check.mjs",
+    "test": "node --test test/*.test.mjs && node scripts/native-fetch-check.mjs && node scripts/history-runtime-check.mjs && node scripts/api-analysis-runtime-check.mjs && node scripts/events-runtime-check.mjs",
     "dev": "npm run build && node scripts/wrangler.mjs dev",
     "deploy": "npm run build && node scripts/deploy-retry.mjs",
     "deploy:ci": "node scripts/deploy-retry.mjs",
@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "wrangler": "4.149.0"
+    "wrangler": "4.149.0",
+    "parse5": "8.0.0"
   }
 }

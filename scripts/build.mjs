@@ -17,6 +17,9 @@ const outputDirectory=path.resolve(base,'public');if(path.dirname(outputDirector
 for(const name of ['art.js','data.js','chart.js','style.css','app.js','cloud.css','cloud-client.js','cloud-review.js','login.js','admin.js',...shared]){const target=path.resolve(outputDirectory,name);if(path.dirname(target)!==outputDirectory)throw Error('Unexpected legacy output');await rm(target,{force:true});}
 const legacyAssets=path.resolve(outputDirectory,'assets');if(path.dirname(legacyAssets)!==outputDirectory)throw Error('Unexpected legacy assets');await rm(legacyAssets,{recursive:true,force:true});
 await mkdir(path.join(base,'public/static'),{recursive:true});await mkdir(path.join(base,'src/shared'),{recursive:true});
+// Ship the HTML parser as a self-contained module for both Worker and standalone archives.
+const parserNotices=await Promise.all(['parse5','entities'].map(name=>readFile(path.join(base,'node_modules',name,'LICENSE'),'utf8')));
+await build({stdin:{contents:"export {parseFragment} from 'parse5';",resolveDir:base},bundle:true,format:'esm',platform:'neutral',target:'es2022',minify:true,banner:{js:'/*! Bundled parser notices\n'+parserNotices.join('\n\n')+'\n*/'},outfile:path.join(base,'src/shared/events-html.mjs')});
 const noteConfig=JSON.parse(await readFile(path.join(base,'web/release-notes.json'),'utf8'));
 const releaseNotes=gitNotes(noteConfig.baseline,noteConfig.entries);
 await writeFile(path.join(base,'public/release-notes.json'),JSON.stringify(releaseNotes));

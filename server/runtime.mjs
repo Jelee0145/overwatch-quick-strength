@@ -1,17 +1,19 @@
 import {AuthDirectory} from '../src/auth.mjs';
 import {UserTasks} from '../src/tasks.mjs';
+import {EventCenter} from '../src/events.mjs';
 import {SqliteDatabase} from './storage.mjs';
 import {pacedFetch} from './limiter.mjs';
 
-export function createRuntime(config,{filename,assets,upstreamFetch=fetch,intervalMs=500}={}){
+export function createRuntime(config,{filename,assets,upstreamFetch=fetch,eventsFetch=fetch,intervalMs=500}={}){
  const database=new SqliteDatabase(filename),instances=new Map(),running=new Map();
- const env={...config,ASSETS:assets,UPSTREAM_FETCH:pacedFetch(upstreamFetch,{intervalMs})};
+ const env={...config,ASSETS:assets,EVENTS_FETCH:eventsFetch,UPSTREAM_FETCH:pacedFetch(upstreamFetch,{intervalMs})};
  const instance=ns=>{
-  if(!instances.has(ns)){const Class=ns==='auth'?AuthDirectory:UserTasks;instances.set(ns,new Class({storage:database.store(ns)},env));}
+  if(!instances.has(ns)){const Class=ns==='auth'?AuthDirectory:ns==='events'?EventCenter:UserTasks;instances.set(ns,new Class({storage:database.store(ns)},env));}
   return instances.get(ns);
  };
  env.AUTH={idFromName:()=> 'auth',get:()=>({fetch:(input,init)=>instance('auth').fetch(new Request(input,init))})};
  env.TASKS={idFromName:id=>'tasks:'+id,get:ns=>({fetch:(input,init)=>instance(ns).fetch(new Request(input,init))})};
+ env.EVENTS={idFromName:()=> 'events',get:()=>({fetch:(input,init)=>instance('events').fetch(new Request(input,init))})};
  let closed=false;
  async function tick(){
   if(closed)return;
