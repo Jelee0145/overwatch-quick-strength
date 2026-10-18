@@ -237,16 +237,16 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_natural_language_tool_preserves_user_case_and_accepts_schema_number_variants(self):
-        self.event.get_message_str=lambda:'帮我查询 Siva#51457 的最近战绩'
-        text=await self.plugin.query_tool(self.event,'siva#51457',10.0,'快')
+        self.event.get_message_str=lambda:'帮我查询 Demo#12345 的最近战绩'
+        text=await self.plugin.query_tool(self.event,'demo#12345',10.0,'快')
         self.assertIn('"imageSent": true',text)
         query=self.plugin.manager.query.call_args.args[1]
-        self.assertEqual((query.tag,query.limit,query.mode),('Siva#51457',10,'fast'))
-        self.assertIn('"imageSent": true',await self.plugin.query_tool(self.event,'siva#51457','5','慢'))
+        self.assertEqual((query.tag,query.limit,query.mode),('Demo#12345',10,'fast'))
+        self.assertIn('"imageSent": true',await self.plugin.query_tool(self.event,'demo#12345','5','慢'))
         self.assertEqual(self.plugin.manager.query.call_args.args[1].mode,'slow')
         self.plugin.manager.query.reset_mock()
         for value in (True,10.5,'invalid'):
-            self.assertIn('场数只支持',await self.plugin.query_tool(self.event,'siva#51457',value))
+            self.assertIn('场数只支持',await self.plugin.query_tool(self.event,'demo#12345',value))
         self.plugin.manager.query.assert_not_awaited()
 
     async def test_match_tool_accepts_integral_schema_number_without_requerying(self):
