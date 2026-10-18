@@ -10,7 +10,7 @@
 - `/tools/events`：OWCS 近期赛程与赛果，按北京时间分组，支持日期、赛事、赛区及战队名称／简称筛选，手机底部导航可直接进入。只展示来源当前提供的近期比赛，不保证完整赛季；没有确认结束的过时对阵显示“待更新”。
 - 对阵名称旁显示 Liquipedia 提供的队标，优先浅色背景版本；缺失或加载失败时使用中性占位，不影响名称和赛程显示。
 - `GET /api/events`：仅已授权登录账号可读，不扣战绩或 AI 次数；返回 `matches`、`updatedAt`、`stale`、`source` 与 `coverage`。来源为 [Liquipedia MediaWiki API](https://liquipedia.net/api-terms-of-use)，内容按 CC BY-SA 3.0 标注，服务端将其筛选整理为 JSON，不把上游 HTML 放入页面。
-- 赛事缓存由独立 `EVENTS / EventCenter` 共享持久化，5 分钟刷新一次，合并并发刷新；10 秒超时，失败至少退避 5 分钟并遵守 `Retry-After`。失败时可展示 24 小时内的旧数据并提示；没有可用缓存返回 503。页面可见时每 5 分钟检查，手动刷新也遵守缓存规则。`EVENTS_CONTACT` 可配置为项目公开联系网址／邮箱；默认使用服务端 `PUBLIC_ORIGIN` 或 Worker 当前站点地址作为 API User-Agent 联系信息。
+- 赛事由服务器每天北京时间零点自动同步一次；启动时只在当天尚未同步时补同步，当天失败也不会因访问或重启重复请求上游。网页和机器人只读取服务器缓存，不提供手动刷新或页面轮询；同步失败可展示 48 小时内的旧数据并提示，没有可用数据返回 503。10 秒超时，遵守上游 `Retry-After`。腾讯云使用持久化定时任务，Cloudflare 使用每日 Cron 和 Durable Object 告警。`EVENTS_CONTACT` 或服务器 `PUBLIC_ORIGIN` 提供上游 User-Agent 联系地址。
 - `/login`：邮箱＋密码申请和登录。申请由管理员人工核验邮箱归属。
 - `/admin`：独立管理员密码登录；批准、拒绝、撤销授权、调整额度、处理密码重置申请。
 - `/api/health`：只返回版本、构建时间与提交标识，可核验自动部署是否实际生效，不返回用户或凭证信息。

@@ -4,16 +4,19 @@ import vm from 'node:vm';
 import {readFile,mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {EventCenter,EVENTS_API} from '../src/events.mjs';
+import {EventCenter,EVENTS_API,eventDay,nextEventSync} from '../src/events.mjs';
 import {parseEvents,liquipediaLink,liquipediaLogo} from '../src/events-parser.mjs';
 import worker from '../src/worker.mjs';
 import {createRuntime} from '../server/runtime.mjs';
 import {card,page,response} from './events-fixture.mjs';
+import {filterEvents} from '../src/events-filter.mjs';
 
 class Storage{
  constructor(){this.map=new Map();}
  async get(k){return structuredClone(this.map.get(k));}
  async put(k,v){this.map.set(k,structuredClone(v));}
+ async setAlarm(at){this.alarm=at;}
+ async getAlarm(){return this.alarm;}
 }
 function setup(fetcher=async()=>response(page())){const storage=new Storage(),env={EVENTS_CONTACT:'https://site.test',EVENTS_FETCH:fetcher},center=new EventCenter({storage},env);let now=1792310400000;center.now=()=>now;return {center,storage,env,advance:ms=>{now+=ms;}};}
 const request=()=>new Request('https://events.internal/');
@@ -52,62 +55,76 @@ test('events model filters without requests, sorts results, and uses Beijing mid
  assert.equal(model.select(results,{view:'completed'})[0].startsAt,'2026-10-17T16:00:00.000Z');
 });
 
-test('shared events cache single-flights requests, uses API/contact/gzip and persists freshness through restart',async()=>{
- let calls=0;const ctx=setup(async(url,init)=>{calls++;assert.equal(url,EVENTS_API);assert.equal(init.redirect,'manual');assert.match(init.headers['User-Agent'],/https:\/\/site.test/);assert.equal(init.headers['Accept-Encoding'],'gzip');await new Promise(r=>setTimeout(r,10));return response(page());});
- const values=await Promise.all(Array.from({length:8},()=>ctx.center.fetch(request())));assert.equal(calls,1);const first=await values[0].json();assert.equal(first.stale,false);assert.equal(first.matches.length,2);
- assert.match(values[0].headers.get('Cache-Control'),/private/);
- const restarted=new EventCenter({storage:ctx.storage},ctx.env);restarted.now=ctx.center.now;assert.equal((await restarted.fetch(request())).status,200);assert.equal(calls,1);
- ctx.advance(300001);await restarted.fetch(request());assert.equal(calls,2);
+
+test('visitor GET is cache-only, daily sync single-flights and restart never refetches the same day',async()=>{
+ let calls=0;const ctx=setup(async(url,init)=>{calls++;assert.equal(url,EVENTS_API);assert.equal(init.redirect,'manual');assert.match(init.headers['User-Agent'],/site.test/);await new Promise(r=>setTimeout(r,5));return response(page());});
+ assert.equal((await ctx.center.fetch(request())).status,503);assert.equal(calls,0);
+ await Promise.all(Array.from({length:8},()=>ctx.center.refresh()));assert.equal(calls,1);
+ for(let i=0;i<8;i++)assert.equal((await ctx.center.fetch(request())).status,200);assert.equal(calls,1);
+ ctx.advance(600000);await ctx.center.fetch(request());assert.equal(calls,1);
+ const restarted=new EventCenter({storage:ctx.storage},ctx.env);restarted.now=ctx.center.now;await restarted.alarm();assert.equal(calls,1);assert.equal(await ctx.storage.getAlarm(),nextEventSync(ctx.center.now()));
+ ctx.advance(86400000);await restarted.alarm();assert.equal(calls,2);
 });
 
-test('events failures preserve snapshots, back off, respect Retry-After, and reject data older than 24 hours',async()=>{
- let calls=0,fail=false;const ctx=setup(async()=>{calls++;return fail?new Response('',{status:429,headers:{'Retry-After':'900'}}):response(page());});
- await ctx.center.read();const saved=await ctx.storage.get('snapshot');fail=true;ctx.advance(300001);
- assert.equal((await ctx.center.read()).stale,true);assert.deepEqual(await ctx.storage.get('snapshot'),saved);assert.equal(calls,2);
- ctx.advance(300001);assert.equal((await ctx.center.read()).stale,true);assert.equal(calls,2);
- ctx.advance(600000);await ctx.center.read();assert.equal(calls,3);
- ctx.advance(86400001);assert.equal((await ctx.center.fetch(request())).status,503);
- const cold=setup(async()=>new Response('bad',{status:503}));assert.equal((await cold.center.fetch(request())).status,503);
- const edge=setup();await edge.center.read();edge.advance(86400000-1000);edge.env.EVENTS_FETCH=async()=>{edge.advance(10000);throw Error('timeout');};assert.equal((await edge.center.fetch(request())).status,503);
+test('daily sync uses Beijing midnight, failures retain prior data for 48 hours and never retry on visits',async()=>{
+ assert.equal(eventDay(Date.parse('2026-10-18T16:00:00Z')),'2026-10-19');assert.equal(nextEventSync(Date.parse('2026-10-18T15:59:59Z')),Date.parse('2026-10-18T16:00:00Z'));
+ let calls=0,fail=false;const ctx=setup(async()=>{calls++;if(fail)throw Error('offline');return response(page());});
+ await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');ctx.advance(86400000);fail=true;await ctx.center.alarm();
+ assert.deepEqual(await ctx.storage.get('snapshot'),saved);assert.equal((await ctx.center.read()).stale,true);assert.equal(calls,2);
+ await ctx.center.alarm();await ctx.center.fetch(request());assert.equal(calls,2);
+ ctx.advance(86400001);assert.equal((await ctx.center.fetch(request())).status,503);assert.equal(calls,2);
 });
 
-test('events cooldown starts after failure and honors HTTP-date Retry-After and redirects',async()=>{
- let fail=false,calls=0;const ctx=setup(async()=>{calls++;if(!fail)return response(page());ctx.advance(10000);return new Response('',{status:503});});
- await ctx.center.read();ctx.advance(300001);fail=true;await ctx.center.read();const finished=ctx.center.now();assert.ok(await ctx.storage.get('nextAttempt')>=finished+300000);
- ctx.advance(299999);await ctx.center.read();assert.equal(calls,2);
- ctx.advance(2);const until=ctx.center.now()+1200000;ctx.env.EVENTS_FETCH=async()=>new Response('',{status:429,headers:{'Retry-After':new Date(until).toUTCString()}});await ctx.center.read();assert.ok(await ctx.storage.get('nextAttempt')>=until-1000);
- ctx.advance(1200001);ctx.env.EVENTS_FETCH=async()=>new Response('',{status:302,headers:{Location:'https://evil.test/'}});assert.equal((await ctx.center.read()).stale,true);
+test('daily scheduler honors Retry-After beyond midnight and parse request spacing at a day boundary',async()=>{
+ const ctx=setup();await ctx.center.alarm();ctx.advance(86400000);const until=ctx.center.now()+3*86400000;let calls=0;
+ ctx.env.EVENTS_FETCH=async()=>{calls++;return new Response('',{status:429,headers:{'Retry-After':new Date(until).toUTCString()}});};
+ await ctx.center.alarm();assert.ok(await ctx.storage.getAlarm()>=until-1000);ctx.advance(86400000);await ctx.center.alarm();assert.equal(calls,1);
+ const edge=setup();edge.center.now=()=>Date.parse('2026-10-18T15:59:59Z');await edge.center.alarm();assert.ok(await edge.storage.getAlarm()>=edge.center.now()+30000);
 });
 
-test('events rejects changed upstream structure, HTML errors, oversized bodies and parse errors without replacing cache',async()=>{
- const ctx=setup();await ctx.center.read();const saved=await ctx.storage.get('snapshot');
- const failures=[()=>response('<p>changed</p>'),()=>new Response('challenge',{headers:{'Content-Type':'text/html'}}),()=>new Response('x'.repeat(2*1024*1024+1),{headers:{'Content-Type':'application/json'}}),()=>new Response('bad',{headers:{'Content-Type':'application/json'}}),()=>response(page(card().replace('href="/overwatch/','href="https://evil.test/'))),()=>{throw Error('network');}];
- for(const fail of failures){ctx.advance(300001);ctx.env.EVENTS_FETCH=fail;assert.equal((await ctx.center.read()).stale,true);assert.deepEqual(await ctx.storage.get('snapshot'),saved);}
+test('invalid upstream responses never replace the last valid daily snapshot',async()=>{
+ const failures=[()=>response('<p>changed</p>'),()=>new Response('challenge',{headers:{'Content-Type':'text/html'}}),()=>new Response('x'.repeat(2*1024*1024+1),{headers:{'Content-Type':'application/json'}}),()=>new Response('bad',{headers:{'Content-Type':'application/json'}}),()=>new Response('',{status:302}),()=>{throw Error('network');}];
+ for(const fail of failures){const ctx=setup();await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');ctx.advance(86400000);ctx.env.EVENTS_FETCH=fail;await ctx.center.alarm();assert.deepEqual(await ctx.storage.get('snapshot'),saved);assert.equal((await ctx.center.read()).stale,true);}
 });
 
-test('events timeout aborts upstream after ten seconds and keeps persisted backoff after restart',async()=>{
+test('background sync times out at ten seconds and failed attempts survive process restart',async()=>{
  const ctx=setup((url,{signal})=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('aborted')),{once:true})));
  const original=globalThis.setTimeout;let delay;globalThis.setTimeout=(fn,ms)=>{delay=ms;return original(fn,1);};
- try{assert.equal((await ctx.center.fetch(request())).status,503);assert.equal(delay,10000);}finally{globalThis.setTimeout=original;}
- const restarted=new EventCenter({storage:ctx.storage},{...ctx.env,EVENTS_FETCH:()=>{throw Error('must not fetch');}});restarted.now=ctx.center.now;assert.equal((await restarted.fetch(request())).status,503);
+ try{await ctx.center.alarm();assert.equal(delay,10000);}finally{globalThis.setTimeout=original;}
+ let calls=0;const restarted=new EventCenter({storage:ctx.storage},{...ctx.env,EVENTS_FETCH:()=>{calls++;throw Error('must not fetch');}});restarted.now=ctx.center.now;await restarted.alarm();assert.equal(calls,0);assert.equal((await restarted.fetch(request())).status,503);
 });
 
-test('events endpoint and page require approved login, reject writes and never access task quotas',async()=>{
- let approved=false,calls=0,contact;
- const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>approved?Response.json({user:{id:'user'}}):Response.json({error:'请先登录'},{status:401})})},EVENTS:{idFromName:name=>{assert.equal(name,'global');return name;},get:()=>({fetch:async(url,init)=>{calls++;contact=init.headers['X-OWQS-Public-Origin'];return Response.json({matches:[]});}})},TASKS:{get:()=>{throw Error('must not create tasks');}},ASSETS:{fetch:async request=>new Response(new URL(request.url).pathname)}};
- assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,401);assert.equal(calls,0);
- assert.equal((await worker.fetch(new Request('https://site.test/tools/events'),env)).status,302);
- approved=true;assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,200);assert.equal(contact,'https://site.test');
- assert.equal(await(await worker.fetch(new Request('https://site.test/tools/events/'),env)).text(),'/tools/events.html');
- assert.equal((await worker.fetch(new Request('https://site.test/api/events',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,405);assert.equal(calls,1);
+test('public events access is authenticated and read-only; only the scheduled hook invokes internal sync',async()=>{
+ let approved=false;const calls=[];
+ const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>approved?Response.json({user:{id:'user'}}):Response.json({error:'请先登录'},{status:401})})},EVENTS:{idFromName:()=> 'global',get:()=>({fetch:async(url,init)=>{calls.push({url,method:init?.method||'GET'});return Response.json({matches:[]});}})},TASKS:{get:()=>{throw Error('must not create query tasks');}},ASSETS:{fetch:async request=>new Response(new URL(request.url).pathname)}};
+ assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,401);assert.equal(calls.length,0);
+ approved=true;assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,200);assert.equal(calls[0].method,'GET');
+ assert.equal((await worker.fetch(new Request('https://site.test/api/events',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,405);assert.equal(calls.length,1);
+ let work;await worker.scheduled({},env,{waitUntil:promise=>{work=promise;}});await work;assert.equal(calls[1].url,'https://events.internal/sync');assert.equal(calls[1].method,'POST');
 });
 
-test('standalone EVENTS binding persists the snapshot and does not share the match upstream limiter',async()=>{
- const dir=await mkdtemp(path.join(os.tmpdir(),'owqs-events-'));let calls=0;
- const options={filename:path.join(dir,'state.sqlite3'),eventsFetch:async()=>{calls++;return response(page());},upstreamFetch:()=>{throw Error('not match data');}};
- const config={PUBLIC_ORIGIN:'https://site.test'};let runtime=createRuntime(config,options);
+test('standalone startup synchronizes without visitors, schedules the next day and restart reads the persisted snapshot',async()=>{
+ const dir=await mkdtemp(path.join(os.tmpdir(),'owqs-events-'));let calls=0;const options={filename:path.join(dir,'state.sqlite3'),eventsFetch:async()=>{calls++;return response(page());},upstreamFetch:()=>{throw Error('not match data');}};const config={PUBLIC_ORIGIN:'https://site.test'};let runtime=createRuntime(config,options);
  try{
-  const get=()=>runtime.env.EVENTS.get(runtime.env.EVENTS.idFromName('global')).fetch('https://events.internal/');
-  assert.equal((await get()).status,200);await runtime.close();runtime=createRuntime(config,options);assert.equal((await get()).status,200);assert.equal(calls,1);
+  await runtime.startEvents();assert.equal(calls,1);assert.ok(await runtime.database.store('events').getAlarm()>Date.now());
+  await runtime.close();runtime=createRuntime(config,options);await runtime.startEvents();assert.equal(calls,1);
+  assert.equal((await runtime.env.EVENTS.get().fetch('https://events.internal/')).status,200);assert.equal(calls,1);
+  runtime.instance('events').now=()=>Date.now()+86400000;await runtime.database.store('events').setAlarm(Date.now()-1);await runtime.tick();
+  for(let i=0;i<20&&calls<2;i++)await new Promise(r=>setTimeout(r,5));assert.equal(calls,2);
  }finally{await runtime.close();await rm(dir,{recursive:true,force:true});}
+});
+
+test('events UI offers no manual sync action or polling',async()=>{
+ const html=await readFile(new URL('../web/events.html',import.meta.url),'utf8'),script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');assert.ok(!html.includes('eventsRefresh'));assert.ok(!script.includes('eventsRefresh'));assert.ok(!script.includes('setInterval'));assert.match(html,/每天北京时间零点同步一次/);
+});
+
+test('Bot events API combines filters, preserves Beijing date boundaries and caps results without using query tasks',async()=>{
+ const data={matches:parseEvents(page(card({timestamp:'1792252800'})+card({path:'Overwatch_Champions_Series/2026/China/Stage_3',name:'OWCS China Stage 3',teams:['All Gamers','OU Gaming']}),card({timestamp:'1792166400',scores:[3,0]}))),updatedAt:'2026-10-18T00:00:00Z',stale:false};
+ const filtered=filterEvents(data,new URLSearchParams({region:'KR',team:'CRa',tournament:'stage 3',from:'2026-10-18',to:'2026-10-18',limit:'1'}));assert.equal(filtered.total,1);assert.equal(filtered.matches.length,1);
+ assert.equal(filterEvents(data,new URLSearchParams({region:'CN',team:'All Gamers'})).total,1);assert.equal(filterEvents(data,new URLSearchParams({status:'completed'})).matches[0].scores[1],0);
+ for(const params of [{from:'2026-02-30'},{from:'2026-10-19',to:'2026-10-18'},{limit:'21'},{status:'live'},{refresh:'true'}])assert.throws(()=>filterEvents(data,new URLSearchParams(params)));
+ let calls=0;const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>Response.json({user:{id:'user'},tier:'free'})})},TASKS:{get:()=>{throw Error('must not create query task');}},EVENTS:{idFromName:()=>'',get:()=>({fetch:async()=>{calls++;return Response.json(data);}})}};
+ const api=url=>worker.fetch(new Request('https://site.test/api/v1/events'+url,{headers:{Authorization:'Bearer owqs_'+'a'.repeat(64)}}),env);
+ const response=await api('?region=CN&team=All%20Gamers');assert.equal(response.status,200);assert.equal((await response.json()).total,1);assert.equal(calls,1);
+ assert.equal((await worker.fetch(new Request('https://site.test/api/v1/events'),env)).status,401);
 });

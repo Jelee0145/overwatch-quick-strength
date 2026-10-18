@@ -13,6 +13,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+import shlex
 
 
 class UserError(Exception):
@@ -190,6 +191,65 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def event_filters(from_date='', to_date='', region='', tournament='', team='', status='scheduled', limit=10):
+    values = {'from': from_date, 'to': to_date, 'region': region, 'tournament': tournament, 'team': team}
+    for key, value in values.items():
+        if not isinstance(value, str) or len(value) > 160 or re.search(r'[\x00-\x1f\x7f]', value):
+            raise UserError('赛程筛选条件格式错误')
+        values[key] = value.strip()
+    for key in ('from', 'to'):
+        if values[key]:
+            try:
+                parsed = datetime.strptime(values[key], '%Y-%m-%d')
+                if parsed.strftime('%Y-%m-%d') != values[key]: raise ValueError()
+            except ValueError:
+                raise UserError('日期请使用有效的 YYYY-MM-DD（北京时间）')
+    if values['from'] and values['to'] and values['from'] > values['to']:
+        raise UserError('开始日期不能晚于结束日期')
+    status = {'赛程': 'scheduled', 'upcoming': 'scheduled', '赛果': 'completed', 'results': 'completed', '全部': 'all'}.get(status, status)
+    if status not in ('scheduled', 'completed', 'all'):
+        raise UserError('状态只支持赛程、赛果、全部')
+    if isinstance(limit, bool) or not re.fullmatch(r'[0-9]+(?:\.0+)?', str(limit)) or not 1 <= float(limit) <= 20:
+        raise UserError('条数只支持 1—20')
+    return {**{k: v for k, v in values.items() if v}, 'status': status, 'limit': int(float(limit))}
+
+
+def parse_events(text):
+    names = {'开始': 'from_date', '结束': 'to_date', '赛区': 'region', '赛事': 'tournament', '战队': 'team', '状态': 'status', '条数': 'limit', 'from': 'from_date', 'to': 'to_date'}
+    try: parts = shlex.split(text)
+    except ValueError: raise UserError('含空格的筛选值请用成对双引号包住')
+    values = {}
+    for part in parts:
+        if '=' not in part: raise UserError('用法：/owqs 赛程 赛区=中国 战队="All Gamers" 状态=赛程')
+        key, value = part.split('=', 1); key = names.get(key, key)
+        if key not in ('from_date', 'to_date', 'region', 'tournament', 'team', 'status', 'limit') or key in values:
+            raise UserError('未知或重复的赛程筛选条件')
+        values[key] = value
+    event_filters(**values)
+    return values
+
+
+def format_events(value):
+    def clean(text, limit=80): return re.sub(r'[\r\n]+', ' ', str(text or '')).strip()[:limit]
+    def when(text):
+        try: return datetime.fromisoformat(text.replace('Z', '+00:00')).astimezone(timezone(timedelta(hours=8))).strftime('%m-%d %H:%M')
+        except (ValueError, TypeError, AttributeError): return '待定'
+    lines = ['OWCS 赛程与赛果 · 北京时间', '服务器每日同步一次 · 更新于 ' + when(value.get('updatedAt'))]
+    if value.get('stale'): lines.append('今日同步尚未完成，以下为上次同步数据。')
+    matches = value.get('matches') or []
+    if not matches: lines.append('没有符合条件的近期比赛。')
+    for index, match in enumerate(matches[:20], 1):
+        teams = match.get('teams') or [{}, {}]; scores = match.get('scores') or [None, None]
+        score = ' : '.join(map(str, scores)) if len(scores) == 2 and all(s is not None for s in scores) else 'VS'
+        state = '已结束' if match.get('status') == 'completed' else '赛程／状态以赛事公布为准'
+        lines.append(f"{index}. {when(match.get('startsAt'))} {clean(teams[0].get('name'),32)} {score} {clean(teams[1].get('name'),32)}")
+        lines.append(f"{clean(match.get('region'),12)} · {clean(match.get('tournament'))}" + (f" · BO{match['bestOf']}" if match.get('bestOf') else '') + ' · ' + state)
+    total = value.get('total', len(matches))
+    lines.append(f'共 {total} 场，展示 {len(matches)} 场；可按日期、赛区、赛事、战队继续筛选。')
+    lines.append('来源：Liquipedia · 仅包含来源提供的近期比赛，不保证实时比分。')
+    return '\n'.join(lines)
+
+
 class ApiClient:
     def __init__(self, base_url, api_key, request_timeout=15, sync_history=True):
         self.base = str(base_url).strip().rstrip("/")
@@ -259,6 +319,10 @@ class ApiClient:
 
     async def account(self):
         return await self.request('GET','/api/v1/account')
+
+    async def events(self, **filters):
+        values = event_filters(**filters)
+        return await self.request('GET', '/api/v1/events?' + urllib.parse.urlencode(values))
 
     async def status(self, job):
         return await self.request("GET", "/api/v1/jobs/" + job + "?render=svg&compact=1")

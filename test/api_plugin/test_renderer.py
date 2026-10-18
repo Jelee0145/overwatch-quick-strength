@@ -5,7 +5,7 @@ import sys
 import tempfile
 import types
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = 'owqs_api_handler_test'
@@ -60,6 +60,19 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         messages=[m async for m in self.plugin.owqs(self.event)]
         self.assertEqual(messages[-1],('image','/private/chart.png'))
         self.plugin.manager.query.assert_awaited_once()
+
+    async def test_events_tool_and_command_filter_without_query_or_review_quota(self):
+        data={'matches':[], 'total':0, 'updatedAt':'2026-10-18T00:00:00Z'}
+        self.plugin.client.events=AsyncMock(return_value=data)
+        reserve=Mock(side_effect=AssertionError('events must not spend quota'))
+        self.plugin.bindings.reserve=reserve
+        text=await self.plugin.events_tool(self.event,region='CN',team='AG',status='completed',limit=5)
+        self.assertIn('没有符合条件',text)
+        self.plugin.client.events.assert_awaited_once_with(from_date='',to_date='',region='CN',tournament='',team='AG',status='completed',limit=5)
+        self.plugin.manager.query.assert_not_awaited();reserve.assert_not_called()
+        self.event.get_message_str=lambda:'owqs 赛程 赛区=中国 战队="All Gamers" 状态=赛果 条数=5'
+        messages=[m async for m in self.plugin.owqs(self.event)]
+        self.assertEqual(messages[-1][0],'text');self.assertIn('服务器每日同步一次',messages[-1][1]);self.plugin.manager.query.assert_not_awaited()
 
     async def test_tool_sends_image_and_does_not_return_internal_path(self):
         text=await self.plugin.query_tool(self.event,'Name#123')

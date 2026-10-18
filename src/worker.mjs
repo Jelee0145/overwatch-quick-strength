@@ -1,6 +1,7 @@
 import {Fault,json,getCookie,cookie} from './security.mjs';import {authCall} from './tasks.mjs';
 import {release} from './release.mjs';import {analyzeResult} from './api-analysis.mjs';
 import {renderApiChart,compactAnalysis} from './api-chart.mjs';
+import {filterEvents} from './events-filter.mjs';
 export {AuthDirectory} from './auth.mjs';export {UserTasks} from './tasks.mjs';
 export {EventCenter} from './events.mjs';
 const securityHeaders={'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
@@ -26,7 +27,14 @@ async function apiV1(request,env,url){
  if(!['GET','POST'].includes(request.method))throw new Fault('不支持该请求方法',405);
  const header=request.headers.get('Authorization')||'';if(!header.startsWith('Bearer '))throw new Fault('缺少 Bearer API 密钥',401);
  const key=header.slice(7).trim();if(!/^owqs_[a-f0-9]{64}$/.test(key))throw new Fault('API 密钥无效',401);
- const auth=await authCall(env,'/api-key-auth',{key}),task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));
+ const auth=await authCall(env,'/api-key-auth',{key});
+ if(url.pathname==='/api/v1/events'){
+  if(request.method!=='GET')throw new Fault('请求方法错误',405);
+  const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/');
+  if(!response.ok)return response;
+  return json(filterEvents(await response.json(),url.searchParams),200,{'Cache-Control':'private, no-store'});
+ }
+ const task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));
  const call=async(path,payload={})=>{const r=await task.fetch('https://internal/',{method:'POST',body:JSON.stringify({path,body:payload,user:auth.user.id,version:auth.version})});const v=await r.json();if(!r.ok)throw new Fault(v.error,r.status);return v;};
  if(url.pathname==='/api/v1/account'){
   if(request.method!=='GET')throw new Fault('请求方法错误',405);
@@ -89,7 +97,7 @@ export async function route(request,env){
   const auth=await authCall(env,'/authorize',{},i);
   if(path==='/api/events'){
    if(mutation)throw new Fault('请求方法错误',405);
-   return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/',{headers:{'X-OWQS-Public-Origin':url.origin}});
+   return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/');
   }
   const task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));let internal,b=i.body;
   if(path==='/api/query'&&mutation)internal='/query';
@@ -110,4 +118,4 @@ export async function route(request,env){
  }
  return env.ASSETS.fetch(request);
 }
-export default {async fetch(request,env){let r;try{r=await route(request,env);}catch(e){r=json({error:e instanceof Fault?e.message:'服务暂不可用'},e.status||500);}const response=new Response(r.body,r);for(const [k,v] of Object.entries(securityHeaders))response.headers.set(k,v);if(response.headers.get('Content-Type')?.startsWith('text/html'))response.headers.set('Cache-Control','no-store');return response;}};
+export default {async scheduled(event,env,ctx){ctx.waitUntil(env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/sync',{method:'POST'}));},async fetch(request,env){let r;try{r=await route(request,env);}catch(e){r=json({error:e instanceof Fault?e.message:'服务暂不可用'},e.status||500);}const response=new Response(r.body,r);for(const [k,v] of Object.entries(securityHeaders))response.headers.set(k,v);if(response.headers.get('Content-Type')?.startsWith('text/html'))response.headers.set('Cache-Control','no-store');return response;}};

@@ -654,3 +654,8 @@ node scripts/wrangler.mjs secret put API_KEY_ENCRYPTION_KEY
 - `GET /api/v1/reviews/{id}` 轮询 `{state,message,match,review,quota}`，完成后有锐评正文，不返回签名包或 AI 凭证。AI 在后台仅派发一次，失败按原有规则释放网站 AI 额度。
 
 所有路径均需要原有 Bearer 密钥并隔离账户。无效编号返回 400，其他账户记录／过期查询返回 404，进行中冲突返回 409。Bot 只对发送者最近一次成功查询的窗口操作，重查后编号更新；首次升级须先查询。
+# 赛事缓存查询
+
+`GET /api/v1/events` 使用原有 Bearer Key 鉴权，只读取服务器每天北京时间零点同步的数据，不创建战绩任务、不扣查询／AI 次数。支持 `from`、`to`（北京时间 YYYY-MM-DD）、`region`（中文或 CN/KR/JP/PAC/NA/EMEA/ASIA/GLOBAL）、`tournament` 和 `team`（大小写不敏感关键词，战队同时匹配简称）、`status=scheduled|completed|all`、`limit=1..20`（默认 10）。日期范围含首尾；赛程升序，赛果倒序，未知时间排末尾。
+
+响应包括筛选后的 `matches`、匹配总数 `total`、`limit`、`filters`、`updatedAt`、`stale`、`source` 和 `coverage`。无匹配返回空列表；没有可用服务器缓存返回 503。该接口没有刷新／同步参数，个人和 free 层级 Key 均可读取。

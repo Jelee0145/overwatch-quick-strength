@@ -28,5 +28,9 @@ export function createRuntime(config,{filename,assets,upstreamFetch=fetch,events
   }
  }
  const timer=setInterval(()=>tick().catch(()=>console.error('Task scheduler unavailable')),250);timer.unref();
- return {env,database,instance,tick,async close(){closed=true;clearInterval(timer);await Promise.all(running.values());await database.close();}};
+ return {env,database,instance,tick,async startEvents(){
+  if(running.has('events'))return running.get('events');
+  const work=instance('events').alarm();running.set('events',work);
+  try{await work;}finally{running.delete('events');}
+ },async close(){closed=true;clearInterval(timer);await Promise.all(running.values());await database.close();}};
 }

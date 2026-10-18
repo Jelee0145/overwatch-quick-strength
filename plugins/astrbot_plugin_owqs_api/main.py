@@ -11,12 +11,14 @@ from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from .api_client import ApiClient, Bindings, Query, QueryManager, UserError, compact_result, format_result, owner_key, parse_query, credential_scope, valid_key, BIND_ERROR
 from .renderer import Renderer
+from .api_client import parse_events, format_events
 
 HELP = """狸狸天眼查 · 网站 API
 /owqs 绑定 网站Key（仅私聊）
 /owqs 查询 [昵称#编号] [5|10|20] [快|慢]
 /owqs 数据 n
 /owqs 锐评 n
+/owqs 赛程 [开始=YYYY-MM-DD] [结束=YYYY-MM-DD] [赛区=中国] [赛事=关键词] [战队=简称] [状态=赛程|赛果|全部] [条数=10]
 /owqs 解绑
 /owqs 取消
 /owqs 帮助
@@ -49,6 +51,12 @@ class Main(Star):
     def ensure_idle(self, owner):
         if owner in self.query_pending or owner in self.manager.active or owner in self.review_pending:
             raise UserError('你有正在处理的查询或锐评，请完成或取消后再换绑／解绑')
+
+    async def event_schedule(self, event, **filters):
+        client, scope, free = self.route(owner_key(event))
+        if free and (await client.account()).get('tier') != 'free':
+            raise UserError('免费服务配置错误，请管理员配置独立 free 层级的 free_api_key')
+        return format_events(await client.events(**filters))
 
     async def bind_key(self, event, key):
         owner=owner_key(event);self.ensure_idle(owner)
@@ -147,6 +155,8 @@ class Main(Star):
             arguments = tail[1] if len(tail) > 1 else ""
             if action in ("帮助", "help"):
                 yield event.plain_result(HELP)
+            elif action in ('赛程', '赛事'):
+                yield event.plain_result(await self.event_schedule(event, **parse_events(arguments)))
             elif action == "绑定":
                 yield event.plain_result(await self.bind_key(event, arguments))
             elif action == "解绑" and not arguments:
@@ -183,7 +193,7 @@ class Main(Star):
 
     @filter.llm_tool(name="owqs_query")
     async def query_tool(self, event: AstrMessageEvent, battletag: str = "", limit: int = 10, mode: str = "fast") -> str:
-        """用户用自然语言要求查询守望先锋战绩时调用，直接发送图片。必须逐字保留游戏 ID 大小写，禁止将昵称改成全小写。未绑定且没有完整 ID 时先询问用户，不能把缺少 ID 说成系统故障。已绑定 Key 可省略 ID。不要重复调用失败查询。用户要已查图中第 n 场数据或锐评时分别调用 owqs_match_data / owqs_match_review，避免重新查询扣费。默认快查询，规则评分不代表官方 MMR。
+        """用户用自然语言要求查询守望先锋玩家战绩时调用，直接发送图片。赛事赛程或赛果请调用 owqs_events，无需游戏 ID。必须逐字保留游戏 ID 大小写，禁止将昵称改成全小写。未绑定且没有完整 ID 时先询问用户，不能把缺少 ID 说成系统故障。已绑定 Key 可省略 ID。不要重复调用失败查询。用户要已查图中第 n 场数据或锐评时分别调用 owqs_match_data / owqs_match_review，避免重新查询扣费。默认快查询，规则评分不代表官方 MMR。
 
         Args:
             battletag(string): 完整战网昵称，如昵称#12345。为空时仅允许已绑定 Key 的发送者使用上一次查询 ID。
@@ -221,6 +231,26 @@ class Main(Star):
     async def bind_tool(self, event: AstrMessageEvent) -> str:
         """用户要求绑定网站 Key 时，提示在私聊中使用绑定指令；不接收密钥参数，不复述密钥。"""
         return '请私聊 Bot 使用 /owqs 绑定 网站Key。绑定后使用个人网站额度；不要在群聊发送密钥。'
+
+    @filter.llm_tool(name="owqs_events")
+    async def events_tool(self, event: AstrMessageEvent, from_date: str = '', to_date: str = '', region: str = '', tournament: str = '', team: str = '', status: str = 'scheduled', limit: int = 10) -> str:
+        """查询守望先锋 OWCS 近期赛事赛程或赛果，按用户要求筛选；与玩家战绩查询无关，不需要游戏 ID。只读取服务器每天同步一次的数据，不触发同步，不扣战绩／AI 次数。没有结果时如实说明，不推测未公布对阵或实时比分。
+
+        Args:
+            from_date(string): 开始日期 YYYY-MM-DD，按北京时间，留空不限；相对日期需先换算。
+            to_date(string): 结束日期 YYYY-MM-DD，按北京时间，留空不限。
+            region(string): 赛区，例如中国、韩国、日本、太平洋、北美、EMEA、国际赛，也支持 CN、KR、JP、NA；留空不限。
+            tournament(string): 赛事名称关键词，例如 Stage 3；留空不限。
+            team(string): 战队名称或简称关键词，例如 Crazy Raccoon、CR、AG；留空不限。
+            status(string): scheduled 为赛程，completed 为赛果，all 为全部；默认 scheduled。
+            limit(number): 返回条数，1—20，默认 10；结果多时应缩小筛选条件。
+        """
+        try:
+            return await self.event_schedule(event, from_date=from_date, to_date=to_date, region=region, tournament=tournament, team=team, status=status, limit=limit)
+        except UserError as error:
+            return str(error)
+        except Exception:
+            return '服务器赛程读取失败，请稍后再试'
 
     @filter.llm_tool(name="owqs_match_data")
     async def match_data_tool(self,event: AstrMessageEvent,n:int)->str:

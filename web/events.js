@@ -20,7 +20,7 @@
   if(!snapshot)return;
   const f=filters(),invalid=f.from&&f.to&&f.from>f.to,matches=invalid?[]:model.select(snapshot.matches,f),list=$('eventsList');
   list.replaceChildren();$('eventsCount').textContent=`${matches.length} 场比赛`;
-  $('eventsUpdated').textContent='更新于 '+dateTime.format(new Date(snapshot.updatedAt));
+  $('eventsUpdated').textContent='每日同步 · '+dateTime.format(new Date(snapshot.updatedAt));
   if(invalid){list.append(element('p','events-empty','开始日期不能晚于结束日期。'));return;}
   if(!matches.length){const hasFilters=f.from||f.to||f.tournament||f.region||f.team.trim();list.append(element('p','events-empty',hasFilters?'没有符合筛选条件的比赛，试试调整筛选。':view==='completed'?'数据源暂未提供近期 OWCS 赛果。':'数据源暂未提供近期 OWCS 赛程。'));return;}
   let currentDay='',group;
@@ -39,16 +39,16 @@
   }
  }
  async function refresh(){
-  if(busy)return;busy=true;$('eventsRefresh').disabled=true;$('eventsRefresh').textContent='正在刷新…';$('eventsList').setAttribute('aria-busy','true');
+  if(busy)return;busy=true;$('eventsList').setAttribute('aria-busy','true');
   try{
    const next=await Cloud.api('/api/events');snapshot=next;
    fillOptions('eventsTournament',next.matches.map(m=>m.tournament),'全部赛事');fillOptions('eventsRegion',next.matches.map(m=>m.region),'全部赛区');
-   notice(next.stale?'暂时无法更新，正在显示上次获取的数据，赛程或比分可能已变化。':'');render();
-  }catch(error){notice((snapshot?'刷新失败，保留当前内容。':'')+error.message);if(!snapshot){$('eventsCount').textContent='获取失败';$('eventsList').replaceChildren(element('p','events-empty','暂时无法获取比赛，请点击“刷新赛程”重试。'));}}
-  finally{busy=false;$('eventsRefresh').disabled=false;$('eventsRefresh').textContent='刷新赛程 ↻';$('eventsList').setAttribute('aria-busy','false');}
+   notice(next.stale?'服务器今日同步尚未完成，正在显示上次同步的数据，赛程或比分可能已变化。':'');render();
+  }catch(error){notice(error.message);if(!snapshot){$('eventsCount').textContent='暂无赛程';$('eventsList').replaceChildren(element('p','events-empty','服务器赛程暂未就绪，请稍后再来。'));}}
+  finally{busy=false;$('eventsList').setAttribute('aria-busy','false');}
  }
  $('eventsFilters').onsubmit=e=>e.preventDefault();$('eventsFilters').addEventListener('input',render);$('eventsFilters').addEventListener('change',render);
- $('eventsClear').onclick=()=>{$('eventsFilters').reset();render();};$('eventsRefresh').onclick=refresh;
+ $('eventsClear').onclick=()=>{$('eventsFilters').reset();render();};
  document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>{view=button.dataset.view;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));render();});
- Cloud.boot().then(()=>{refresh();setInterval(()=>{if(!document.hidden)refresh();},5*60*1000);}).catch(()=>{});
+ Cloud.boot().then(refresh).catch(()=>{});
 })();
