@@ -45,9 +45,14 @@ const favicon=logo.replace(' class="mark"','').replace('width="42" height="42"',
 const faviconURL='/static/logo.'+createHash('sha256').update(favicon).digest('hex').slice(0,16)+'.svg';
 await writeFile(path.join(base,'public',faviconURL.slice(1)),favicon);
 const brandPage=page=>page.replace(/<title>([^<]+)<\/title>/,(_,title)=>'<title>'+(/^(守望工具箱|快速强度图)/.test(title)?(/英雄抽取/.test(title)?'随机英雄 · ':'快速强度图'===title||title.includes('Quick Strength')?'对局分析 · ':'')+'狸狸天眼查':title.replace(/快速强度图|守望工具箱/g,'狸狸天眼查'))+'</title>').replace(/<link\b[^>]*rel="(?:shortcut )?icon"[^>]*>/g,'').replace('</head>',`<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"></head>`);
+const installHead='<link rel="manifest" href="/manifest.json"><script defer src="/install.js"></script>';
+await writeFile(path.join(base,'public/app-icon.svg'),await readFile(path.join(base,'web/app-icon.svg')));
+await writeFile(path.join(base,'public/install.js'),await readFile(path.join(base,'web/install.js')));
+await writeFile(path.join(base,'public/manifest.json'),JSON.stringify({id:'/',name:'狸狸天眼查',short_name:'天眼查',description:'守望先锋对局分析、英雄抽取与赛事中心',lang:'zh-CN',start_url:'/',scope:'/',display:'standalone',background_color:'#ffffff',theme_color:'#f58220',icons:[{src:'/app-icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]}));
+const withInstall=page=>page.replace('</head>',installHead+'</head>');
 html=html.replace('<span>快速强度图</span>','<span>狸狸天眼查</span>').replace('快速强度图首页','狸狸天眼查首页');
 html=html.replace('<a class="brand" href="./index.html"','<a class="brand" href="/"');
-html=brandPage(html).replace('<title>快速强度图 · Quick Strength</title>','<title>快速强度图</title>');
+ html=withInstall(brandPage(html)).replace('<title>快速强度图 · Quick Strength</title>','<title>快速强度图</title>');
 html=html.replace('width=device-width,initial-scale=1','width=device-width,initial-scale=1,viewport-fit=cover');
 html=html.replace(/<details id="credentials">[\s\S]*?<\/details>/,'');
 html=html.replace(/<dialog id="aiKeyDialog"[\s\S]*?<\/dialog>/,'');
@@ -145,12 +150,12 @@ const services=await build({entryPoints:[path.join(base,'web/services.js')],bund
 runtime.push(services.outputFiles[0].text);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
 const main=await staticFile(rewriteCopy(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile-shell.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
-html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script></head>`);
+html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="/install.js"></script></head>`);
 await mkdir(path.join(base,'public/tools'),{recursive:true});
 await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDecorativeEnglish(html)));
 await buildApiCapture({base,html:rewriteCopy(cleanDecorativeEnglish(html)),app:rewriteCopy(app),css});
-await buildToolkit({base,brandPage,logo,staticFile,releaseNotes,rewriteCopy,cleanDecorativeEnglish});
-for(const page of ['login','admin']){let content=brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8'));const js=await staticFile(rewriteCopy(await readFile(path.join(base,'web',page+'.js'),'utf8')),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),rewriteCopy(cleanDecorativeEnglish(content)));}
+await buildToolkit({base,brandPage:page=>withInstall(brandPage(page)),logo,staticFile,releaseNotes,rewriteCopy,cleanDecorativeEnglish});
+for(const page of ['login','admin']){let content=withInstall(brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8')));const js=await staticFile(rewriteCopy(await readFile(path.join(base,'web',page+'.js'),'utf8')),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script><script defer src="/install.js"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),rewriteCopy(cleanDecorativeEnglish(content)));}
 await writeFile(path.join(base,'public/_headers'),`/release-notes.json\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
 await buildAssetPreload({base,media,staticFile});
 console.log('Cloud build complete: hashed scripts, lazy CDN media, idle browser prewarming; original local tool preserved.');
