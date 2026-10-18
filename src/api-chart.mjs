@@ -1,7 +1,7 @@
 import {createChartService} from './services/chart.mjs';
 import {analysisService,dataService} from './services/runtime.mjs';
 import {maps} from './shared/data.mjs';
-import media from '../source/media/manifest.json' with {type:'json'};
+import media from './shared/media.mjs';
 
 export function compactAnalysis(analysis){
  const fields=['version','options','summary','confidence','statisticsRange','statisticsLabel','windowOffset','displayLimit'];

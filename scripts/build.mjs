@@ -28,6 +28,8 @@ const ai=await readFile(path.join(local,'ai_review.py'),'utf8'), prompt=ai.match
 const knowledge=await readFile(path.join(local,'AI锐评-游戏常识.md'),'utf8');
 await writeFile(path.join(base,'src/prompt.mjs'),'export const prompt='+JSON.stringify(prompt+'\n\n'+knowledge)+';export const version="1.6-cloud.1";');
 const media=JSON.parse(await readFile(path.join(local,'media/manifest.json'),'utf8'));
+await writeFile(path.join(base,'src/shared/media.mjs'),'export default '+JSON.stringify(media)+';');
+await writeFile(path.join(base,'src/shared/chart.mjs'),await readFile(path.join(local,'chart.js'),'utf8'));
 for(const dir of ['maps','icons'])await cp(path.join(local,'media',dir),path.join(base,'public/media',dir),{recursive:true});
 let html=await readFile(path.join(local,'index.html'),'utf8');
 const oldLogo=html.match(/<svg class="mark"[\s\S]*?<\/svg>/)?.[0];
