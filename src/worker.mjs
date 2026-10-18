@@ -59,7 +59,7 @@ async function apiV1(request,env,url){
   const rendering=url.searchParams.get('render');if(rendering!==null&&rendering!=='svg')throw new Fault('图片格式仅支持 svg');
   const status=await call('/status',{id,compact:false});if(status.kind!=='query')throw new Fault('任务不存在',404);
   const out={id:status.id,state:status.state,message:status.message,progress:status.progress||null,createdAt:status.createdAt||null,finishedAt:status.finishedAt||null,options:status.apiOptions||null};
-  if(status.state==='done'){out.quota='charged';out.archiveWarning=status.archiveWarning||null;out.result=status.result;try{out.analysis=analyzeResult(status.result,status.apiOptions||{});}catch(e){out.analysis=null;out.analysisError='分析生成失败';}}
+  if(status.state==='done'){out.quota='charged';out.battletag=status.result.battletag;out.archiveWarning=status.archiveWarning||null;out.result=status.result;try{out.analysis=analyzeResult(status.result,status.apiOptions||{});}catch(e){out.analysis=null;out.analysisError='分析生成失败';}}
   else out.quota=['failed','cancelled'].includes(status.state)?'released':'reserved';
   if(status.state==='done'&&rendering==='svg'){
    try{out.chart=await renderApiChart(status.result,status.apiOptions||{},env.ASSETS);}catch{out.chart=null;out.chartError='图表生成失败，可使用已有分析结果';}

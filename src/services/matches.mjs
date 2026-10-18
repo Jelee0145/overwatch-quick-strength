@@ -152,8 +152,12 @@ async function advance(s){
  }
 }
 function operation(kind,target,path,params,body){return {kind,target,path,params,body,key:kind+':'+(target.key||target.mid||target.name||'main')};}
+function accountNames(tag){
+ const at=tag.lastIndexOf('#'),name=tag.slice(0,at),suffix=tag.slice(at);
+ return [...new Set([tag,name.replace(/[a-z]/,v=>v.toUpperCase())+suffix,name.toLowerCase()+suffix,name.toUpperCase()+suffix])];
+}
 function operations(s,env){
- if(s.phase==='account')return [operation('account',{name:s.tag},'/searchBnetAccount',null,search(env,s.tag))];
+ if(s.phase==='account')return [operation('account',{name:s.tag},'/searchBnetAccount',null,search(env,accountNames(s.tag)[s.accountCaseAttempt||0]))];
  if(s.phase==='list')return [operation('list',{key:String(s.page)},'/customer/queryMatchList',{token:s.mainToken,gameMode:'leisure',page:s.page,season:''})];
  if(s.phase==='details')return s.selected.filter(m=>!s.mainDone[m.mid]).map(m=>operation('detail',m,'/customer/queryMatchInfo',{token:s.mainToken,matchId:m.mid,season:''}));
  if(s.phase==='ranks'||s.phase==='history-ranks'){
@@ -178,6 +182,16 @@ function operations(s,env){
 }
 async function apply(s,o,v,env){const t=o.target;
  if(['account','rank-account','history-account'].includes(o.kind)){
+  if(o.kind==='account'){
+   const attempt=s.accountCaseAttempt||0,canonical=typeof v?.name==='string'&&tagOK(v.name)&&v.name.toLowerCase()===s.tag.toLowerCase()?v.name:null;
+   // A fallback is accepted only when the provider confirms the entire same ID,
+   // including its numeric discriminator. Never select a similarly named player.
+   if(!v?.customerToken||(attempt>0&&!canonical)){
+    if(attempt+1<accountNames(s.tag).length){s.accountCaseAttempt=attempt+1;return;}
+    throw new Fault('未找到可查询玩家');
+   }
+   if(canonical)s.tag=canonical;
+  }
   if(!v?.customerToken)throw new Fault('未找到可查询玩家');touchToken(s,t.name,v.customerToken);
   if(o.kind==='account'){s.mainToken=v.customerToken;s.phase='list';}else if(o.kind==='rank-account')t.ct=v.customerToken;else s.actors[t.name].phase='list';return;
  }

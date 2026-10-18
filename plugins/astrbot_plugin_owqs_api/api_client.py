@@ -327,6 +327,8 @@ class QueryManager:
                         return result
                     if state in ("failed", "cancelled"):
                         terminal = True
+                        if state=='failed' and result.get('message')=='未找到可查询玩家':
+                            raise UserError('未找到这个游戏 ID，请核对完整昵称#编号及大小写，并确认大神能查询该玩家；本次额度已释放。不要直接重复相同查询。')
                         raise UserError("查询已取消" if state == "cancelled" else "网站查询失败，额度已释放，请稍后重试")
                     if state not in ("running", "paused", "awaiting-cache"):
                         raise UserError("网站返回了未知任务状态", uncertain=True)

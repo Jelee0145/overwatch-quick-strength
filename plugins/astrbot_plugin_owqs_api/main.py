@@ -77,6 +77,9 @@ class Main(Star):
             query=parse_query(arguments,default)
             if free:reservation=self.bindings.reserve(owner,'query',self.config.get('free_daily_limit',10))
             result=await self.manager.query(owner,query,client=client)
+            canonical=result.get('battletag')
+            if isinstance(canonical,str) and canonical.casefold()==query.tag.casefold():
+                query=Query(canonical,query.limit,query.mode)
             if not free:self.bindings.save_last(owner,scope,query.tag)
             return result,query,scope
         except UserError as error:
@@ -85,6 +88,7 @@ class Main(Star):
         finally:self.query_pending.discard(owner)
 
     async def selected_images(self, event, n, review=False):
+        if type(n) is float and n.is_integer():n=int(n)
         if isinstance(n,bool) or not re.fullmatch(r"[0-9]{1,2}",str(n)):
             raise UserError("请填写图中从左到右的编号，例如 /owqs 数据 1 或 /owqs 锐评 10")
         n=int(n);owner=owner_key(event);client,scope,free=self.route(owner)
@@ -179,7 +183,7 @@ class Main(Star):
 
     @filter.llm_tool(name="owqs_query")
     async def query_tool(self, event: AstrMessageEvent, battletag: str = "", limit: int = 10, mode: str = "fast") -> str:
-        """通过网站 API 查询守望先锋战绩，并直接向当前会话发送最近十场强度图片。成功后无需再次用文字复述整份结果。未绑定者必须提供完整游戏 ID；已绑定 Key 者可使用其上次查询 ID，不能编造编号。绑定者消耗其网站额度，未绑定者消耗本地免费次数，默认快模式，只有用户要求补采时用 slow。规则评分不代表官方 MMR。
+        """用户用自然语言要求查询守望先锋战绩时调用，直接发送图片。必须逐字保留游戏 ID 大小写，禁止将昵称改成全小写。未绑定且没有完整 ID 时先询问用户，不能把缺少 ID 说成系统故障。已绑定 Key 可省略 ID。不要重复调用失败查询。用户要已查图中第 n 场数据或锐评时分别调用 owqs_match_data / owqs_match_review，避免重新查询扣费。默认快查询，规则评分不代表官方 MMR。
 
         Args:
             battletag(string): 完整战网昵称，如昵称#12345。为空时仅允许已绑定 Key 的发送者使用上一次查询 ID。
@@ -188,10 +192,18 @@ class Main(Star):
         """
         try:
             owner = owner_key(event)
-            # Query validates types before the optional ID is resolved.
-            if type(limit) is not int or limit not in (5,10,20) or mode not in ('fast','slow'):
+            # JSON-schema number parameters can arrive as integral floats/strings.
+            if isinstance(limit,bool) or not re.fullmatch(r'(5|10|20)(\.0+)?',str(limit).strip()):
                 raise UserError('查询场数只支持 5、10、20；模式只支持 fast/slow')
-            result,query,scope = await self.run_query(owner, f'{battletag.strip()} {limit} {mode}')
+            limit=int(float(limit));mode={'快':'fast','慢':'slow'}.get(str(mode).strip().lower(),str(mode).strip().lower())
+            if mode not in ('fast','slow'):raise UserError('查询模式只支持 fast/slow（快/慢）')
+            if battletag is None:battletag=''
+            if not isinstance(battletag,str):raise UserError('请提供完整游戏 ID（昵称#编号）')
+            tag=battletag.strip().replace('＃','#')
+            if tag:
+                original=re.search(re.escape(tag)+r'(?!\d)',event.get_message_str().replace('＃','#'),re.IGNORECASE)
+                if original:tag=original.group(0)
+            result,query,scope = await self.run_query(owner, f'{tag} {limit} {mode}')
             try:
                 image = await self.renderer.render(result.get("chart"))
                 await event.send(event.image_result(image))

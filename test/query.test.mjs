@@ -64,3 +64,27 @@ test('successful empty rank objects are cached; unknown shapes and network failu
  const mock=service({dense:false,historyEmpty:true}),raw=mock.call;mock.call=async(e,path,p,b)=>{if(path==='/customer/queryCountInfo')throw new Fault('network failure',502);return raw(e,path,p,b);};
  const s=createQuery('Main#100',10);await finish(s,mock);assert.ok(s.result.matches[0].players[0].res.error);
 });
+
+
+test('main account lookup repairs ASCII case only after provider confirms the complete canonical ID, and survives restart',async()=>{
+ const mock=service({newGames:5}),original=mock.call,lookups=[];
+ mock.call=async(e,p,q,b)=>{
+  if(p==='/searchBnetAccount' && b.name.toLowerCase()==='main#100'){
+   lookups.push(b.name);return b.name==='Main#100'?{name:'Main#100',customerToken:'main-private'}:null;
+  }
+  return original(e,p,q,b);
+ };
+ const s=createQuery('main#100',5);s.minIntervalMs=0;await queryStep(s,{},mock.call);
+ assert.equal(s.accountCaseAttempt,1);assert.equal(s.phase,'account');
+ const resumed=restoreQuery(queryCheckpoint(s),s.prior);resumed.minIntervalMs=0;resumed.nextStartAt=0;
+ const result=await finish(resumed,mock);
+ assert.equal(result.battletag,'Main#100');assert.deepEqual(lookups,['main#100','Main#100']);assert.equal(result.matches.length,5);
+});
+
+test('case fallback rejects a different discriminator and bounds requests for unknown players',async()=>{
+ const s=createQuery('wrong#100',5),lookups=[];
+ const call=async(e,p,q,b)=>{lookups.push(b.name);return b.name==='wrong#100'?null:{name:'Wrong#101',customerToken:'wrong-player-private'};};
+ await assert.rejects(finish(s,{call}),/未找到可查询玩家/);
+ assert.equal(s.phase,'account');assert.ok(lookups.length<=4);assert.ok(lookups.every(n=>n.endsWith('#100')));
+ assert.equal(s.mainToken,undefined);
+});

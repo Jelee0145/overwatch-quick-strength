@@ -191,6 +191,12 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(api.cancels)
         self.assertEqual(manager.active, {})
 
+    async def test_player_not_found_reports_actionable_reason_and_does_not_retry(self):
+        api=FakeClient([{'state':'failed','message':'未找到可查询玩家'}]);manager=client.QueryManager(api)
+        with self.assertRaisesRegex(client.UserError,'核对完整昵称'):
+            await manager.query('a',client.Query('Missing#123'))
+        self.assertEqual(api.creates,1);self.assertEqual(api.cancels,[])
+
     async def test_jobs_capture_each_users_client_for_polling_and_cancellation(self):
         original=FakeClient([{'state':'running'}]);other=FakeClient([{'state':'running'}])
         manager=client.QueryManager(original,poll_interval=0.01)
