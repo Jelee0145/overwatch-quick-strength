@@ -67,7 +67,7 @@ export class AuthDirectory{
    const key=await digest(b.key),userId=await this.storage.get('apikey:'+key);if(!userId)throw new Fault('API 密钥无效',401);
    const u=await this.storage.get('user:'+userId);if(!u||u.apiKey?.digest!==key)throw new Fault('API 密钥无效',401);
    if(u.status!=='approved')throw new Fault('账号尚未授权或授权已撤销',403);
-   return {user:this.view(u),version:u.version};
+   return {user:this.view(u),version:u.version,tier:u.tier==='free'?'free':'standard'};
   }
   if(i.path.startsWith('/admin/')){
    await this.authorize(i,true);if(i.path==='/admin/session')return {csrf:await mac({csrf:i.adminToken,admin:true},this.env.PASSWORD_PEPPER)};

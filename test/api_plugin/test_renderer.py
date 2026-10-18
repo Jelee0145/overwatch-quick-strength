@@ -46,8 +46,9 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         modules={'astrbot.api':api_module,'astrbot.api.event':event_module,'astrbot.api.star':star_module,'astrbot.core.utils.astrbot_path':path_module}
         with patch.dict(sys.modules,modules):
             main=importlib.import_module(PACKAGE+'.main')
-        self.plugin=main.Main(None,{'api_base':'https://test.example','api_key':'owqs_'+'a'*64})
+        self.plugin=main.Main(None,{'api_base':'https://test.example','free_api_key':'owqs_'+'a'*64})
         self.result={'id':'a'*64,'chart':CHART,'analysis':{'matches':[{'mid':'left'},{'mid':'right'}],'summary':{}}}
+        self.plugin.client.account=AsyncMock(return_value={'valid':True,'tier':'free'})
         self.plugin.manager.query=AsyncMock(return_value=self.result)
         self.plugin.renderer.render=AsyncMock(return_value='/private/chart.png')
         self.event=types.SimpleNamespace(get_platform_id=lambda:'test',get_self_id=lambda:'bot',get_sender_id=lambda:'user',is_private_chat=lambda:True,get_message_str=lambda:'owqs 查询 Name#123 快',should_call_llm=lambda value:None,plain_result=lambda text:('text',text),image_result=lambda path:('image',path),send=AsyncMock())
@@ -213,6 +214,26 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.plugin.bindings.key('["test","bot","user"]'),key)
         validate.assert_awaited_once()
         self.assertIn('私聊',await self.plugin.bind_tool(self.event))
+
+
+    async def test_free_service_rejects_personal_key_and_never_falls_back_to_legacy_config(self):
+        self.plugin.client.account=AsyncMock(return_value={'valid':True,'tier':'standard'})
+        text=await self.plugin.query_tool(self.event,'Name#123')
+        self.assertIn('free 层级',text);self.plugin.manager.query.assert_not_awaited()
+        self.assertEqual(self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0],0)
+        main=self.plugin.route.__globals__
+        old=main['ApiClient']
+        with patch.dict(main,{'ApiClient':lambda *a,**kw:old(*a,**kw)}):
+            self.plugin.client=old('https://test.example','')
+            self.plugin.config['api_key']='owqs_'+'a'*64
+            self.assertIn('free_api_key',await self.plugin.query_tool(self.event,'Name#123'))
+
+    async def test_free_tier_key_cannot_be_bound_as_personal(self):
+        with patch.object(self.plugin.client.__class__,'account',AsyncMock(return_value={'valid':True,'tier':'free'})):
+            self.event.get_message_str=lambda:'owqs 绑定 owqs_'+'b'*64
+            messages=[m async for m in self.plugin.owqs(self.event)]
+        self.assertIn('只能由管理员单独配置',messages[-1][1])
+        self.assertIsNone(self.plugin.bindings.key('["test","bot","user"]'))
 
 
 class DocumentTests(unittest.TestCase):

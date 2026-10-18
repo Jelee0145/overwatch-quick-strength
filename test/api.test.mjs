@@ -180,7 +180,7 @@ test('API pause keeps the reservation and retries without charging again',async(
 test('account validates Keys without charging; history opt-out leaves no synchronized history or default ID',async()=>{
  const ctx=await setup(),user=await approve(ctx),key=await createKey(ctx,user),task=taskFor(ctx,user.user.id),original=globalThis.fetch;
  assert.equal((await api(ctx,'/api/v1/account')).status,401);
- assert.deepEqual(await(await api(ctx,'/api/v1/account',{key})).json(),{valid:true,lastBattletag:null});
+ assert.deepEqual(await(await api(ctx,'/api/v1/account',{key})).json(),{valid:true,lastBattletag:null,tier:'standard'});
  assert.equal((await api(ctx,'/api/v1/account',{key,method:'POST'})).status,405);
  assert.equal((await api(ctx,'/api/v1/query',{key,method:'POST',body:{battletag:'Free#100',limit:5,syncHistory:'false'}})).status,400);
  const mock=service({newGames:5});
@@ -196,4 +196,24 @@ test('account validates Keys without charging; history opt-out leaves no synchro
   assert.equal((await(await api(ctx,'/api/v1/account',{key})).json()).lastBattletag,'Bound#100');
   assert.equal((await ctx.storage.get('usage:'+user.user.id)).query,2);
  }finally{globalThis.fetch=original;}
+});
+
+
+test('dedicated free-tier provisioning isolates personal quota and forces history opt-out',async()=>{
+ const {provisionFree}=await import('../server/provision-free.mjs');
+ const ctx=await setup(),personal=await approve(ctx),personalKey=await createKey(ctx,personal);
+ const original=await ctx.storage.get('user:'+personal.user.id);
+ const free=await provisionFree(ctx.storage,ctx.env),again=await provisionFree(ctx.storage,ctx.env);
+ assert.equal(free.key,again.key);assert.notEqual(free.key,personalKey);assert.notEqual(free.id,personal.user.id);
+ assert.ok(!JSON.stringify(await ctx.storage.get('user:'+free.id)).includes(free.key));
+ assert.deepEqual(await(await api(ctx,'/api/v1/account',{key:free.key})).json(),{valid:true,lastBattletag:null,tier:'free'});
+ const id=await start(ctx,free.key,{battletag:'Free#100',limit:5,syncHistory:true});
+ assert.equal((await taskFor(ctx,free.id).storage.get('job:'+id)).apiOptions.syncHistory,false);
+ assert.equal((await ctx.storage.get('usage:'+free.id)).query,1);
+ assert.equal(await ctx.storage.get('usage:'+personal.user.id),undefined);
+ assert.deepEqual(await ctx.storage.get('user:'+personal.user.id),original);
+ assert.equal((await(await api(ctx,'/api/v1/account',{key:personalKey})).json()).tier,'standard');
+ const conflicting=await setup();const {digest}=await import('../src/security.mjs');
+ await conflicting.storage.put('user:'+await digest('bot-free@owqs.invalid'),{tier:'standard'});
+ await assert.rejects(provisionFree(conflicting.storage,conflicting.env),/another tier/);
 });

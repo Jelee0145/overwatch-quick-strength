@@ -33,7 +33,7 @@ class Main(Star):
         directory = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_owqs_api"
         self.bindings = Bindings(directory)
         self.renderer = Renderer(directory)
-        self.client = ApiClient(config.get("api_base", ""), config.get("api_key", ""), sync_history=False)
+        self.client = ApiClient(config.get("api_base", ""), config.get("free_api_key", ""), sync_history=False)
         self.manager = QueryManager(self.client, timeout=config.get("query_timeout", 600), max_pending=config.get("max_pending", 5))
         self.review_pending = set()
         self.query_pending = set()
@@ -42,7 +42,7 @@ class Main(Star):
     def route(self, owner):
         key=self.bindings.key(owner)
         client=ApiClient(self.config.get('api_base',''),key) if key else self.client
-        if not key and not client.key:raise UserError('请管理员配置免费服务 API Key，或先私聊绑定个人网站 Key')
+        if not key and not client.key:raise UserError('请管理员配置独立的 free_api_key，或先私聊绑定个人网站 Key')
         client.validate()
         return client, ('bound:' if key else 'free:')+credential_scope(client.key), not bool(key)
 
@@ -58,6 +58,7 @@ class Main(Star):
         client=ApiClient(self.config.get('api_base',''),key)
         account=await client.account()
         if account.get('valid') is not True:raise UserError(BIND_ERROR)
+        if account.get('tier')=='free':raise UserError('绑定错误，请上网页版确认。免费服务 Key 只能由管理员单独配置。')
         self.bindings.bind_key(owner,key)
         return '网站 Key 绑定成功。查询将使用该 Key 所属账号额度；可 /owqs 查询 昵称#编号，之后可省略 ID。'
 
@@ -68,6 +69,8 @@ class Main(Star):
         reservation=None
         try:
             client,scope,free=self.route(owner)
+            if free and (await client.account()).get('tier')!='free':
+                raise UserError('免费服务配置错误：请管理员单独配置 free 层级的 free_api_key，不能使用个人账号 Key')
             default=None if free else self.bindings.last_tag(owner,scope)
             if not free and not default and '#' not in arguments:
                 account=await client.account();default=account.get('lastBattletag')

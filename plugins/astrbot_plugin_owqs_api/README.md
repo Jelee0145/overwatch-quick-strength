@@ -12,7 +12,7 @@ apt-get install -y fonts-noto-cjk
 
 生产 Docker 请把这些步骤加入自己的镜像构建，容器重建后也需要具备依赖；仅重启容器不影响已安装依赖。
 
-在 AstrBot 插件页上传 ZIP，在配置中填写 `api_base` 和 `api_key`。默认地址为 `https://106.55.47.68:8443`。密钥从网站账户的 API 面板获得，插件安装包不包含密钥。换密钥后保存插件配置并重载。该配置 Key 只为未绑定者提供免费服务，仍受所属网站账户总额度限制。已绑定者使用自己的 Key，并扣除其所属网站账户额度。`free_daily_limit` 和 `free_review_daily_limit` 分别配置每位发送者每天免费查询／锐评次数，默认各 10 次，支持 0—1000，0 为禁用；按北京时间零点重置。
+在 AstrBot 插件页上传 ZIP，在配置中填写 `api_base` 和独立 free 层级的 `free_api_key`。默认地址为 `https://106.55.47.68:8443`。密钥从网站账户的 API 面板获得，插件安装包不包含密钥。换密钥后保存插件配置并重载。该配置 Key 只为未绑定者提供免费服务，必须属于独立 free 层级账号，与个人／管理员账号的额度完全分开；服务账号总额度默认查询／锐评各 1000 次/天。旧 `api_key` 字段不会作为免费服务回退。已绑定者使用自己的 Key，并扣除其所属网站账户额度。`free_daily_limit` 和 `free_review_daily_limit` 分别配置每位发送者每天免费查询／锐评次数，默认各 10 次，支持 0—1000，0 为禁用；按北京时间零点重置。
 
 ## 查询指令
 
@@ -60,7 +60,7 @@ python scripts/build-api-plugin.py
 python -m unittest discover -s test/api_plugin -v
 ```
 
-输出 `dist/astrbot_plugin_owqs_api-1.4.0.zip` 及 SHA-256。只打包固定白名单源码、依赖声明和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。
+输出 `dist/astrbot_plugin_owqs_api-1.4.1.zip` 及 SHA-256。只打包固定白名单源码、依赖声明和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。
 
 数据图和锐评图复用网页构建产物中的原始 HTML、CSS、逐场玩家渲染函数；网站构建时自动生成 website.json，插件在断网 Chromium 中截图。数据图展示网页原有的完整 14 列、强度依据和评级；锐评保留网页橙色卡片和文字排版。宽表完整出图，长锐评分页。升级需同时更新网站接口和插件。
 
@@ -72,3 +72,5 @@ python -m unittest discover -s test/api_plugin -v
 免费查询发送 `syncHistory:false`：不读写云端同步历史、不更新网站默认游戏 ID，也不读写跨查询的账号缓存。网站仍保留约一小时的私有临时任务和签名结果，用于数据图和锐评；正常的有界锐评缓存用于避免重复 AI 消耗。绑定者正常同步至 Key 所属网站账号。Bot 本地绑定与免费次数从不参与该同步。
 
 免费次数先原子预留；明确失败或被网站拒绝时释放，已完成查询即使出图失败仍算一次。网络中断或超时导致远端结果不明时保留预留，避免通过反复重试绕过次数限制；不会自动重复创建付费任务。已有免费锐评可在次数用完后继续读取，不重复扣次数。数据图不占查询或 AI 次数。
+
+独立服务器管理员可停服后运行 `node server/provision-free.mjs /绝对路径/astrbot_plugin_owqs_api_config.json`，创建或复用 `bot-free@owqs.invalid` 服务账号并私密写入配置。命令不打印 Key，不修改个人账号。服务端强制 free 层级 Key 的查询不写云端历史；插件也拒绝将其绑定为个人 Key。完成后启动网站并重载插件。

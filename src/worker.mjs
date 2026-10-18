@@ -29,12 +29,14 @@ async function apiV1(request,env,url){
  const call=async(path,payload={})=>{const r=await task.fetch('https://internal/',{method:'POST',body:JSON.stringify({path,body:payload,user:auth.user.id,version:auth.version})});const v=await r.json();if(!r.ok)throw new Fault(v.error,r.status);return v;};
  if(url.pathname==='/api/v1/account'){
   if(request.method!=='GET')throw new Fault('请求方法错误',405);
-  return json(await call('/api-profile'));
+  return json({...await call('/api-profile'),tier:auth.tier||'standard'});
  }
  if(url.pathname==='/api/v1/query'){
   if(request.method!=='POST')throw new Fault('请求方法错误',405);
   if(!request.headers.get('Content-Type')?.startsWith('application/json'))throw new Fault('Content-Type 必须为 application/json',415);
-  const created=await call('/api-query',apiOptions(await body(request)));
+  const options=apiOptions(await body(request));
+  if(auth.tier==='free')options.syncHistory=false;
+  const created=await call('/api-query',options);
   return json({id:created.id,state:created.state,status:'/api/v1/jobs/'+created.id});
  }
  const selected=/^\/api\/v1\/jobs\/([a-f0-9]{64})\/matches\/([0-9]+)(\/review)?$/.exec(url.pathname);

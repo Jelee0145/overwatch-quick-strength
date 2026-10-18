@@ -5,13 +5,6 @@
     "default": "https://106.55.47.68:8443",
     "hint": "只填 HTTPS 网站地址及端口，不加 /api/v1；域名更换后在这里更新"
   },
-  "api_key": {
-    "type": "string",
-    "description": "免费服务 API Key（管理员配置）",
-    "default": "",
-    "hint": "未绑定者通过此 Key 查询，消耗此网站账号额度；绑定者使用个人 Key。不要公开真实 Key。",
-    "obvious_hint": true
-  },
   "query_timeout": {
     "type": "int",
     "description": "单次查询等待超时（秒，不含排队）",
@@ -35,5 +28,12 @@
     "description": "每位发送者每天免费锐评次数",
     "default": 10,
     "hint": "0—1000；与查询分别计数，复用已有锐评不扣次数，数据图不扣次数。"
+  },
+  "free_api_key": {
+    "type": "string",
+    "description": "独立 free 层级服务 Key",
+    "default": "",
+    "hint": "必须填写独立 free 层级账号的 Key，严禁填写个人／管理员 Key。未绑定者扣此独立账号额度，且不云同步。",
+    "obvious_hint": true
   }
 }
