@@ -72,7 +72,7 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.plugin.manager.query.assert_not_awaited();reserve.assert_not_called()
         self.event.get_message_str=lambda:'owqs 赛程 赛区=中国 战队="All Gamers" 状态=赛果 条数=5'
         messages=[m async for m in self.plugin.owqs(self.event)]
-        self.assertEqual(messages[-1][0],'text');self.assertIn('服务器每日同步一次',messages[-1][1]);self.plugin.manager.query.assert_not_awaited()
+        self.assertEqual(messages[-1][0],'text');self.assertIn('服务器每小时同步一次',messages[-1][1]);self.plugin.manager.query.assert_not_awaited()
 
     async def test_tool_sends_image_and_does_not_return_internal_path(self):
         text=await self.plugin.query_tool(self.event,'Name#123')

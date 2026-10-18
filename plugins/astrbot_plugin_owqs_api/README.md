@@ -36,7 +36,7 @@ apt-get install -y fonts-noto-cjk
 
 ## LLM 工具
 
-- `owqs_events(from_date="", to_date="", region="", tournament="", team="", status="scheduled", limit=10)`：查询 OWCS 服务器缓存，支持北京时间日期范围、赛区、赛事关键词、战队名称／简称、赛程／赛果筛选，最多 20 场。无需游戏 ID，不扣查询／AI 或本地免费次数，不触发同步。返回文字赛程，明确提示每日更新，不能当作实时比分。
+- `owqs_events(from_date="", to_date="", region="", tournament="", team="", status="scheduled", limit=10)`：查询 OWCS 服务器缓存，支持北京时间日期范围、赛区、赛事关键词、战队名称／简称、赛程／赛果筛选，最多 20 场。无需游戏 ID，不扣查询／AI 或本地免费次数，不触发同步。返回文字赛程，明确提示每小时更新，不能当作实时比分。
 - 指令示例：`/owqs 赛程 赛区=中国 战队="All Gamers" 开始=2026-10-18 结束=2026-10-20 状态=赛果 条数=5`。所有条件可省略，状态可选赛程／赛果／全部，含空格的值用双引号包住。
 
 - `owqs_query(battletag="", limit=10, mode="fast")`：创建网站查询、等待结果，直接向当前会话发送强度图，并向模型报告已发送；未提供昵称时仅已绑定 Key 者可以使用上一次查询 ID。出图失败时发送文字摘要。

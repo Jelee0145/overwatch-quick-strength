@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {readFile,mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {EventCenter,EVENTS_API,eventDay,nextEventSync} from '../src/events.mjs';
+import {EventCenter,EVENTS_API,nextEventSync} from '../src/events.mjs';
 import {parseEvents,liquipediaLink,liquipediaLogo} from '../src/events-parser.mjs';
 import worker from '../src/worker.mjs';
 import {createRuntime} from '../server/runtime.mjs';
@@ -56,33 +56,33 @@ test('events model filters without requests, sorts results, and uses Beijing mid
 });
 
 
-test('visitor GET is cache-only, daily sync single-flights and restart never refetches the same day',async()=>{
+test('visitor GET is cache-only, hourly sync single-flights and restart reuses this hour',async()=>{
  let calls=0;const ctx=setup(async(url,init)=>{calls++;assert.equal(url,EVENTS_API);assert.equal(init.redirect,'manual');assert.match(init.headers['User-Agent'],/site.test/);await new Promise(r=>setTimeout(r,5));return response(page());});
  assert.equal((await ctx.center.fetch(request())).status,503);assert.equal(calls,0);
  await Promise.all(Array.from({length:8},()=>ctx.center.refresh()));assert.equal(calls,1);
  for(let i=0;i<8;i++)assert.equal((await ctx.center.fetch(request())).status,200);assert.equal(calls,1);
  ctx.advance(600000);await ctx.center.fetch(request());assert.equal(calls,1);
  const restarted=new EventCenter({storage:ctx.storage},ctx.env);restarted.now=ctx.center.now;await restarted.alarm();assert.equal(calls,1);assert.equal(await ctx.storage.getAlarm(),nextEventSync(ctx.center.now()));
- ctx.advance(86400000);await restarted.alarm();assert.equal(calls,2);
+ ctx.advance(3600000);await restarted.alarm();assert.equal(calls,2);
 });
 
-test('daily sync uses Beijing midnight, failures retain prior data for 48 hours and never retry on visits',async()=>{
- assert.equal(eventDay(Date.parse('2026-10-18T16:00:00Z')),'2026-10-19');assert.equal(nextEventSync(Date.parse('2026-10-18T15:59:59Z')),Date.parse('2026-10-18T16:00:00Z'));
+test('hourly sync boundaries, failures retain prior data for 48 hours and GET never retries',async()=>{
+assert.equal(nextEventSync(Date.parse('2026-10-18T15:59:59Z')),Date.parse('2026-10-18T16:00:00Z'));
  let calls=0,fail=false;const ctx=setup(async()=>{calls++;if(fail)throw Error('offline');return response(page());});
- await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');ctx.advance(86400000);fail=true;await ctx.center.alarm();
+ await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');ctx.advance(3600000);fail=true;await ctx.center.alarm();
  assert.deepEqual(await ctx.storage.get('snapshot'),saved);assert.equal((await ctx.center.read()).stale,true);assert.equal(calls,2);
  await ctx.center.alarm();await ctx.center.fetch(request());assert.equal(calls,2);
- ctx.advance(86400001);assert.equal((await ctx.center.fetch(request())).status,503);assert.equal(calls,2);
+ ctx.advance(48*3600000);assert.equal((await ctx.center.fetch(request())).status,503);assert.equal(calls,2);
 });
 
-test('daily scheduler honors Retry-After beyond midnight and parse request spacing at a day boundary',async()=>{
+test('hourly scheduler honors Retry-After beyond an hour and parse spacing at an hour boundary',async()=>{
  const ctx=setup();await ctx.center.alarm();ctx.advance(86400000);const until=ctx.center.now()+3*86400000;let calls=0;
  ctx.env.EVENTS_FETCH=async()=>{calls++;return new Response('',{status:429,headers:{'Retry-After':new Date(until).toUTCString()}});};
  await ctx.center.alarm();assert.ok(await ctx.storage.getAlarm()>=until-1000);ctx.advance(86400000);await ctx.center.alarm();assert.equal(calls,1);
  const edge=setup();edge.center.now=()=>Date.parse('2026-10-18T15:59:59Z');await edge.center.alarm();assert.ok(await edge.storage.getAlarm()>=edge.center.now()+30000);
 });
 
-test('invalid upstream responses never replace the last valid daily snapshot',async()=>{
+test('invalid upstream responses never replace the last valid hourly snapshot',async()=>{
  const failures=[()=>response('<p>changed</p>'),()=>new Response('challenge',{headers:{'Content-Type':'text/html'}}),()=>new Response('x'.repeat(2*1024*1024+1),{headers:{'Content-Type':'application/json'}}),()=>new Response('bad',{headers:{'Content-Type':'application/json'}}),()=>new Response('',{status:302}),()=>{throw Error('network');}];
  for(const fail of failures){const ctx=setup();await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');ctx.advance(86400000);ctx.env.EVENTS_FETCH=fail;await ctx.center.alarm();assert.deepEqual(await ctx.storage.get('snapshot'),saved);assert.equal((await ctx.center.read()).stale,true);}
 });
@@ -94,28 +94,50 @@ test('background sync times out at ten seconds and failed attempts survive proce
  let calls=0;const restarted=new EventCenter({storage:ctx.storage},{...ctx.env,EVENTS_FETCH:()=>{calls++;throw Error('must not fetch');}});restarted.now=ctx.center.now;await restarted.alarm();assert.equal(calls,0);assert.equal((await restarted.fetch(request())).status,503);
 });
 
-test('public events access is authenticated and read-only; only the scheduled hook invokes internal sync',async()=>{
+test('website refresh is authenticated and origin protected; scheduled and manual sync never create tasks',async()=>{
  let approved=false;const calls=[];
  const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>approved?Response.json({user:{id:'user'}}):Response.json({error:'请先登录'},{status:401})})},EVENTS:{idFromName:()=> 'global',get:()=>({fetch:async(url,init)=>{calls.push({url,method:init?.method||'GET'});return Response.json({matches:[]});}})},TASKS:{get:()=>{throw Error('must not create query tasks');}},ASSETS:{fetch:async request=>new Response(new URL(request.url).pathname)}};
  assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,401);assert.equal(calls.length,0);
  approved=true;assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,200);assert.equal(calls[0].method,'GET');
- assert.equal((await worker.fetch(new Request('https://site.test/api/events',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,405);assert.equal(calls.length,1);
- let work;await worker.scheduled({},env,{waitUntil:promise=>{work=promise;}});await work;assert.equal(calls[1].url,'https://events.internal/sync');assert.equal(calls[1].method,'POST');
+ assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'}),env)).status,403);assert.equal(calls.length,1);
+ assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,200);assert.equal(calls[1].url,'https://events.internal/refresh');assert.equal(calls[1].method,'POST');
+ let work;await worker.scheduled({},env,{waitUntil:promise=>{work=promise;}});await work;assert.equal(calls[2].url,'https://events.internal/sync');assert.equal(calls[2].method,'POST');
 });
 
-test('standalone startup synchronizes without visitors, schedules the next day and restart reads the persisted snapshot',async()=>{
+test('standalone startup synchronizes without visitors, schedules the next hour and restart reads the persisted snapshot',async()=>{
  const dir=await mkdtemp(path.join(os.tmpdir(),'owqs-events-'));let calls=0;const options={filename:path.join(dir,'state.sqlite3'),eventsFetch:async()=>{calls++;return response(page());},upstreamFetch:()=>{throw Error('not match data');}};const config={PUBLIC_ORIGIN:'https://site.test'};let runtime=createRuntime(config,options);
  try{
   await runtime.startEvents();assert.equal(calls,1);assert.ok(await runtime.database.store('events').getAlarm()>Date.now());
   await runtime.close();runtime=createRuntime(config,options);await runtime.startEvents();assert.equal(calls,1);
   assert.equal((await runtime.env.EVENTS.get().fetch('https://events.internal/')).status,200);assert.equal(calls,1);
-  runtime.instance('events').now=()=>Date.now()+86400000;await runtime.database.store('events').setAlarm(Date.now()-1);await runtime.tick();
+  runtime.instance('events').now=()=>Date.now()+3600000;await runtime.database.store('events').setAlarm(Date.now()-1);await runtime.tick();
   for(let i=0;i<20&&calls<2;i++)await new Promise(r=>setTimeout(r,5));assert.equal(calls,2);
  }finally{await runtime.close();await rm(dir,{recursive:true,force:true});}
 });
 
-test('events UI offers no manual sync action or polling',async()=>{
- const html=await readFile(new URL('../web/events.html',import.meta.url),'utf8'),script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');assert.ok(!html.includes('eventsRefresh'));assert.ok(!script.includes('eventsRefresh'));assert.ok(!script.includes('setInterval'));assert.match(html,/每天北京时间零点同步一次/);
+test('manual sync coalesces, persists minimum spacing and ignores the obsolete daily gate',async()=>{
+ let calls=0;const ctx=setup(async()=>{calls++;await new Promise(r=>setTimeout(r,5));return response(page());});
+ await ctx.storage.put('nextAttempt',ctx.center.now()+86400000);await ctx.storage.put('lastAttemptDay','2026-10-18');
+ await ctx.center.alarm();assert.equal(calls,1);
+ ctx.advance(30000);const manual=()=>ctx.center.fetch(new Request('https://events.internal/refresh',{method:'POST'}));
+ await Promise.all(Array.from({length:8},manual));assert.equal(calls,2);
+ await manual();assert.equal(calls,2);
+ const restarted=new EventCenter({storage:ctx.storage},ctx.env);restarted.now=ctx.center.now;await restarted.refresh(true);assert.equal(calls,2);
+ ctx.advance(30000);await restarted.refresh(true);assert.equal(calls,3);
+});
+
+test('failed manual refresh retains data with an explicit notice and five-minute persistent backoff',async()=>{
+ let calls=0,fail=false;const ctx=setup(async()=>{calls++;if(fail)throw Error('offline');return response(page());});
+ await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');ctx.advance(30000);fail=true;
+ const manual=()=>ctx.center.fetch(new Request('https://events.internal/refresh',{method:'POST'}));
+ const failed=await manual();assert.equal(failed.status,200);assert.match((await failed.json()).refreshError,/更新失败/);assert.deepEqual(await ctx.storage.get('snapshot'),saved);
+ ctx.advance(299999);await manual();assert.equal(calls,2);
+ ctx.advance(1);fail=false;assert.equal((await (await manual()).json()).refreshError,undefined);assert.equal(calls,3);
+});
+
+test('events UI has a manual action, refreshes once on entry and explains pending results',async()=>{
+ const html=await readFile(new URL('../web/events.html',import.meta.url),'utf8'),script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');
+ assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\);await refresh\(\)/);assert.ok(!script.includes('setInterval'));assert.match(html,/每小时自动同步/);assert.match(html,/赛果待公布/);
 });
 
 test('Bot events API combines filters, preserves Beijing date boundaries and caps results without using query tasks',async()=>{

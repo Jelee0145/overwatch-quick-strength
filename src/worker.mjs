@@ -95,9 +95,9 @@ export async function route(request,env){
    if(path.endsWith('/logout'))headers['Set-Cookie']=cookie('',path.startsWith('/api/admin/'),0);if(path==='/api/auth/session')value.scope={server:env.DASHEN_SERVER,dts:env.DASHEN_DTS};return json(value,200,headers);
   }
   const auth=await authCall(env,'/authorize',{},i);
-  if(path==='/api/events'){
-   if(mutation)throw new Fault('请求方法错误',405);
-   return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/');
+  if(path==='/api/events'||path==='/api/events/refresh'){
+   if(path.endsWith('/refresh')?!mutation:mutation)throw new Fault('请求方法错误',405);
+   return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/'+(mutation?'refresh':''),{method:mutation?'POST':'GET'});
   }
   const task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));let internal,b=i.body;
   if(path==='/api/query'&&mutation)internal='/query';

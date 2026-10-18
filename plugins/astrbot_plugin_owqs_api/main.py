@@ -234,7 +234,7 @@ class Main(Star):
 
     @filter.llm_tool(name="owqs_events")
     async def events_tool(self, event: AstrMessageEvent, from_date: str = '', to_date: str = '', region: str = '', tournament: str = '', team: str = '', status: str = 'scheduled', limit: int = 10) -> str:
-        """查询守望先锋 OWCS 近期赛事赛程或赛果，按用户要求筛选；与玩家战绩查询无关，不需要游戏 ID。只读取服务器每天同步一次的数据，不触发同步，不扣战绩／AI 次数。没有结果时如实说明，不推测未公布对阵或实时比分。
+        """查询守望先锋 OWCS 近期赛事赛程或赛果，按用户要求筛选；与玩家战绩查询无关，不需要游戏 ID。只读取服务器每小时同步一次的数据，不触发同步，不扣战绩／AI 次数。没有结果时如实说明，不推测未公布对阵或实时比分。
 
         Args:
             from_date(string): 开始日期 YYYY-MM-DD，按北京时间，留空不限；相对日期需先换算。

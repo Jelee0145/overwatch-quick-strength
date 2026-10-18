@@ -234,7 +234,7 @@ def format_events(value):
     def when(text):
         try: return datetime.fromisoformat(text.replace('Z', '+00:00')).astimezone(timezone(timedelta(hours=8))).strftime('%m-%d %H:%M')
         except (ValueError, TypeError, AttributeError): return '待定'
-    lines = ['OWCS 赛程与赛果 · 北京时间', '服务器每日同步一次 · 更新于 ' + when(value.get('updatedAt'))]
+    lines = ['OWCS 赛程与赛果 · 北京时间', '服务器每小时同步一次 · 更新于 ' + when(value.get('updatedAt'))]
     if value.get('stale'): lines.append('今日同步尚未完成，以下为上次同步数据。')
     matches = value.get('matches') or []
     if not matches: lines.append('没有符合条件的近期比赛。')

@@ -5,7 +5,7 @@
 <p id="sessionError" class="session-error" role="alert" hidden></p>
 <main class="toolkit-main events-main">
 <a class="back-link" href="/">← 返回工具箱</a>
-<section class="events-heading"><div><p class="eyebrow">OWCS</p><h1>赛事中心<span class="events-heading-dot" aria-hidden="true"></span></h1><p>下一场精彩，几点开始？<span>赛程与赛果，一起看。</span></p></div></section>
+<section class="events-heading"><div><p class="eyebrow">OWCS</p><h1>赛事中心<span class="events-heading-dot" aria-hidden="true"></span></h1><p>下一场精彩，几点开始？<span>赛程与赛果，一起看。</span></p></div><button id="eventsRefresh" type="button">刷新赛程</button></section>
 <div class="events-tabs" role="group" aria-label="比赛类型"><button type="button" data-view="scheduled" aria-pressed="true">近期赛程</button><button type="button" data-view="completed" aria-pressed="false">近期赛果</button><span>北京时间 UTC+8</span></div>
 <form id="eventsFilters" class="events-filters" aria-label="筛选比赛">
 <fieldset class="events-dates"><legend>比赛日期</legend><label><span class="events-sr-only">开始日期</span><input id="eventsFrom" type="date" aria-label="开始日期"></label><span aria-hidden="true">—</span><label><span class="events-sr-only">结束日期</span><input id="eventsTo" type="date" aria-label="结束日期"></label></fieldset>
@@ -15,7 +15,7 @@
 <button id="eventsClear" type="button">重置筛选</button>
 </form>
 <p id="eventsNotice" class="events-notice" role="status" hidden></p>
-<div class="events-summary"><span id="eventsCount" aria-live="polite">正在读取赛程…</span><span id="eventsUpdated">服务器每日同步一次</span></div>
+<div class="events-summary"><span id="eventsCount" aria-live="polite">正在读取赛程…</span><span id="eventsUpdated">服务器每小时同步</span></div>
 <section id="eventsList" class="events-list" aria-label="比赛列表" aria-busy="true"><p class="events-empty">正在获取赛程…</p></section>
-<footer class="events-source"><p>服务器每天北京时间零点同步一次。仅包含数据源当前提供的 OWCS 近期比赛，不代表完整赛季，比分可能尚未更新。</p><p>数据来源：<a href="https://liquipedia.net/overwatch/Liquipedia:Matches" target="_blank" rel="noopener noreferrer">Liquipedia ↗</a> · <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0</a> · 数据经筛选与整理</p></footer>
+<footer class="events-source"><p>服务器每小时自动同步，进入页面时自动刷新，也可手动刷新；多人请求合并，短时间内共用最新结果。仅包含数据源当前提供的 OWCS 近期比赛，不代表完整赛季。“赛果待公布”表示预定时间已过，但数据源尚未确认最终赛果。</p><p>数据来源：<a href="https://liquipedia.net/overwatch/Liquipedia:Matches" target="_blank" rel="noopener noreferrer">Liquipedia ↗</a> · <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0</a> · 数据经筛选与整理</p></footer>
 </main>{{CHANGELOG}}</body></html>
