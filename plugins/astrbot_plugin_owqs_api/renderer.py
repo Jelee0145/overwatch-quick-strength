@@ -46,6 +46,17 @@ class Renderer:
 
     async def render(self, chart):
         svg = chart_svg(chart)
+        return await self._render_html('<!doctype html><meta charset="utf-8"><style>body{margin:0}svg{font-family:"Noto Sans CJK SC",sans-serif!important}</style>' + svg, 'svg')
+
+    async def render_data(self, detail):
+        from .documents import data_document
+        return await self._render_html(data_document(detail), '.sheet')
+
+    async def render_review(self, detail, review):
+        from .documents import review_documents
+        return [await self._render_html(html,'.sheet') for html in review_documents(detail,review)]
+
+    async def _render_html(self, html, selector):
         async with self.lock:
             self.cleanup()
             target = self.directory / (uuid.uuid4().hex + ".png")
@@ -59,9 +70,11 @@ class Renderer:
                 context = await self.browser.new_context(viewport={"width":1440,"height":1100}, device_scale_factor=1, offline=True, service_workers="block", accept_downloads=False)
                 await context.route("**/*", lambda route: route.abort())
                 page = await context.new_page()
-                await page.set_content('<!doctype html><meta charset="utf-8"><style>body{margin:0}svg{font-family:"Noto Sans CJK SC",sans-serif!important}</style>' + svg, timeout=15000)
+                await page.set_content(html, timeout=15000)
                 await page.evaluate("async () => { await document.fonts.ready; await Promise.all([...document.querySelectorAll('svg image')].map(el => new Promise((resolve,reject) => { const img=new Image();img.onload=resolve;img.onerror=reject;img.src=el.getAttribute('href'); }))); }")
-                await page.locator("svg").screenshot(path=str(target), timeout=30000)
+                if await page.locator(selector).evaluate('(el)=>el.getBoundingClientRect().height') > 12000:
+                    raise ValueError('Image height limit')
+                await page.locator(selector).screenshot(path=str(target), timeout=30000)
                 target.chmod(0o600)
                 return str(target)
             except asyncio.CancelledError:

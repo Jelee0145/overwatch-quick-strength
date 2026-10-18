@@ -6,6 +6,7 @@ import {readFile} from 'node:fs/promises';
 const baseline=JSON.parse(await readFile(new URL('../test/services-baseline.json',import.meta.url),'utf8'));
 const entry=`import {analyzeResult} from './api-analysis.mjs';
 import {renderApiChart} from './api-chart.mjs';
+import {selectApiMatch} from './api-match.mjs';
 import {analysisService} from './services/runtime.mjs';
 import {digest,canonical} from './security.mjs';
 import {analysisFixture,archiveFixture} from '../test/services-fixture.mjs';
@@ -15,6 +16,7 @@ export default {async fetch(){
  const analysis=analyzeResult(data,{statisticsRange:'all'});
  const picture=await renderApiChart(data,{statisticsRange:'10'},{fetch:async()=>new Response('',{status:404})});
  if(picture.displayed!==10||picture.width!==1440||!picture.svg.startsWith('<svg'))throw Error('Native chart rendering failed');
+ if(selectApiMatch(data,1).detail.mid!=='m2'||selectApiMatch(data,10).detail.mid!=='m11')throw Error('Native match selection order failed');
  const hashes=await Promise.all(${JSON.stringify(baseline.cases.map(c=>c.options))}.map(options=>digest(JSON.stringify(analyzeResult(analysisFixture(),options)))));
  const history=analysisService.analyzeHistory(archiveFixture()),summary=analysisService.summarize(history.raw,history.matches,{}, {records:history.personalRecords,excluded:history.personalExcluded});
  return Response.json({display:analysis.matches.length,stats:analysis.statsMatches.length,total:analysis.summary.total,displayLimit:analysis.displayLimit,range:analysis.statisticsRange,version:analysis.version,personal:!!analysis.personalPrediction,hashes,history:await digest(JSON.stringify(history)),historySummary:await digest(JSON.stringify(canonical(summary)))});

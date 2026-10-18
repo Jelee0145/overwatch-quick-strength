@@ -32,6 +32,18 @@ async function apiV1(request,env,url){
   const created=await call('/api-query',apiOptions(await body(request)));
   return json({id:created.id,state:created.state,status:'/api/v1/jobs/'+created.id});
  }
+ const selected=/^\/api\/v1\/jobs\/([a-f0-9]{64})\/matches\/([0-9]+)(\/review)?$/.exec(url.pathname);
+ if(selected){
+  const review=!!selected[3];if(request.method!==(review?'POST':'GET'))throw new Fault('请求方法错误',405);
+  let input={};if(review){if(!request.headers.get('Content-Type')?.startsWith('application/json'))throw new Fault('Content-Type 必须为 application/json',415);input=await body(request);}
+  return json(await call(review?'/api-match-review':'/api-match',{id:selected[1],index:Number(selected[2]),requestId:input.requestId}));
+ }
+ const reviewId=/^\/api\/v1\/reviews\/([a-f0-9]{64})$/.exec(url.pathname);
+ if(reviewId){
+  if(request.method!=='GET')throw new Fault('请求方法错误',405);
+  const status=await call('/status',{id:reviewId[1]});if(status.kind!=='ai'||!status.reviewMatch)throw new Fault('锐评任务不存在',404);
+  return json({id:status.id,state:status.state,message:status.message,match:status.reviewMatch,review:status.state==='done'?status.review:undefined,quota:status.state==='done'?'charged':status.state==='failed'?'released':'reserved'});
+ }
  const match=/^\/api\/v1\/jobs\/([a-f0-9]{64})(\/cancel)?$/.exec(url.pathname);
  if(match){
   const id=match[1];

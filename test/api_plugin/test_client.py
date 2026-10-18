@@ -70,6 +70,16 @@ class ParserTests(unittest.TestCase):
             self.assertIsNone(store.get("sender-a"))
             store.close()
 
+    def test_recent_query_window_survives_reload_and_isolates_senders(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=client.Bindings(directory)
+            store.remember('a',{'id':'a'*64,'analysis':{'matches':[{'mid':'old'},{'mid':'new'}]}})
+            store.close();store=client.Bindings(directory)
+            self.assertEqual(store.selection('a',1),'a'*64)
+            self.assertEqual(store.selection('a',2),'a'*64)
+            for owner,index in [('a',3),('a',0),('a',11),('a',True),('b',1)]:
+                with self.assertRaises(client.UserError):store.selection(owner,index)
+            store.close()
     def test_summary_is_bounded_and_does_not_expose_raw_rosters(self):
         query = client.Query("昵称#123")
         response = result()

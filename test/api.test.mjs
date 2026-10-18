@@ -100,6 +100,37 @@ test('API result contains raw matches plus analysis with a fixed ten-match windo
   assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,1);
  }finally{globalThis.fetch=original;}
 });
+test('indexed match data and AI review share the displayed left-to-right window, isolate owners and reuse signed reviews',async()=>{
+ const ctx=await setup(),register=await approve(ctx),key=await createKey(ctx,register),task=taskFor(ctx,register.user.id),original=globalThis.fetch;
+ ctx.env.DEEPSEEK_KEY='test-only-ai-key';const mock=service({newGames:12});let requests=0,failAI=false;
+ globalThis.fetch=async(url,init)=>{
+  const u=new URL(url);if(u.hostname==='api.deepseek.com'){requests++;const payload=JSON.parse(init.body);assert.ok(!payload.messages[1].content.includes('T1#100'));return failAI?Response.json({error:'unavailable'},{status:503}):Response.json({choices:[{message:{content:'测试复盘：这局可以更注意站位。'}}]});}
+  const p=u.pathname.replace('/v1/a19ld5tool',''),b=init?.body?JSON.parse(init.body):undefined;return Response.json({code:0,data:await mock.call(ctx.env,p,Object.fromEntries(u.searchParams),b)});
+ };
+ try{
+  const id=await start(ctx,key,{battletag:'Main#100',limit:20});await speed(task,id);await finish(task,id);
+  const base='/api/v1/jobs/'+id+'/matches/';
+  const left=await (await api(ctx,base+'1',{key})).json(),right=await (await api(ctx,base+'10',{key})).json();
+  assert.equal(left.match.mid,'m9');assert.equal(right.match.mid,'m0');assert.equal(left.match.count,10);assert.equal(left.match.players.length,10);assert.equal(left.match.players[0].stats.kill,20);
+  assert.ok(!JSON.stringify(left).includes('private'));assert.equal((await api(ctx,base+'0',{key})).status,400);assert.equal((await api(ctx,base+'11',{key})).status,400);
+  const other=await approve(ctx,'match-other@example.test'),otherKey=await createKey(ctx,other);
+  assert.equal((await api(ctx,base+'1',{key:otherKey})).status,404);
+  assert.equal((await api(ctx,base+'1/review',{key:otherKey,method:'POST',body:{requestId:'other'}})).status,404);
+  const first=await api(ctx,base+'1/review',{key,method:'POST',body:{requestId:'review-first'}}),created=await first.json();assert.equal(first.status,200);
+  await finish(task,created.id);const status=await api(ctx,'/api/v1/reviews/'+created.id,{key}),report=await status.json();
+  assert.equal(report.state,'done');assert.equal(report.match.mid,'m9');assert.equal(report.review.text,'测试复盘：这局可以更注意站位。');assert.equal(report.reviewEnvelope,undefined);assert.equal(requests,1);
+  const cached=await (await api(ctx,base+'1/review',{key,method:'POST',body:{requestId:'review-again'}})).json();assert.equal(cached.cached,true);assert.equal(cached.review.cached,true);assert.equal(requests,1);
+  assert.equal((await api(ctx,'/api/v1/reviews/'+created.id,{key:otherKey})).status,404);
+  let usage=await ctx.storage.get('usage:'+register.user.id);assert.equal(usage.query,1);assert.equal(usage.ai,1);
+  failAI=true;const failed=await(await api(ctx,base+'2/review',{key,method:'POST',body:{requestId:'review-fail'}})).json();await finish(task,failed.id);
+  assert.equal((await (await api(ctx,'/api/v1/reviews/'+failed.id,{key})).json()).state,'failed');usage=await ctx.storage.get('usage:'+register.user.id);assert.equal(usage.ai,1);
+  const shortTask=taskFor(ctx,other.user.id),short=await start(ctx,otherKey,{battletag:'Main#100',limit:5});await speed(shortTask,short);await finish(shortTask,short);
+  assert.equal((await api(ctx,'/api/v1/jobs/'+short+'/matches/6',{key:otherKey})).status,400);
+  assert.equal((await api(ctx,'/api/v1/jobs/'+short+'/matches/6/review',{key:otherKey,method:'POST',body:{requestId:'out-of-window'}})).status,400);assert.equal(requests,2);
+  const expired=await shortTask.storage.get('job:'+short);expired.until=Date.now()-1;await shortTask.storage.put('job:'+short,expired);
+  assert.equal((await api(ctx,'/api/v1/jobs/'+short+'/matches/1',{key:otherKey})).status,404);
+ }finally{globalThis.fetch=original;}
+});
 test('API warm query reuses archived history while still charging one query',async()=>{
  const ctx=await setup(),register=await approve(ctx),key=await createKey(ctx,register),task=taskFor(ctx,register.user.id),original=globalThis.fetch;
  const mock=service({newGames:5});globalThis.fetch=async(url,init)=>{const u=new URL(url),path=u.pathname.replace('/v1/a19ld5tool',''),body=init?.body?JSON.parse(init.body):undefined;return Response.json({code:0,data:await mock.call(ctx.env,path,Object.fromEntries(u.searchParams),body)});};

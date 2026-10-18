@@ -646,3 +646,11 @@ node scripts/wrangler.mjs secret put API_KEY_ENCRYPTION_KEY
 - 该 Secret 只用于加密账户 API 密钥。
 - 更换 Secret 后，已有密钥仍可用于鉴权，但无法再查看明文；用户可在账户页重新生成。
 - 不要把密钥、`.dev.vars` 或 `.private` 目录提交或上传到静态资源。
+
+## 单局数据与锐评
+
+- `GET /api/v1/jobs/{queryId}/matches/{n}` 返回 `{match}`，包含单局元信息及双方脱敏凭证后的战斗数据。n 是该查询最近十场窗口从左到右的 1—10；不足十场按实际数量校验。不会重新请求上游或扣查询额度。
+- `POST /api/v1/jobs/{queryId}/matches/{n}/review`，JSON `{requestId:"一次显式请求的唯一标识"}`，复用网站签名来源和 AI 额度。返回 `{id,state,status,match}`；已缓存时直接返回 `{cached:true,review,match}`。同一内容最多保留 50 份签名锐评缓存，读取有效期 30 天；不额外消耗查询额度。
+- `GET /api/v1/reviews/{id}` 轮询 `{state,message,match,review,quota}`，完成后有锐评正文，不返回签名包或 AI 凭证。AI 在后台仅派发一次，失败按原有规则释放网站 AI 额度。
+
+所有路径均需要原有 Bearer 密钥并隔离账户。无效编号返回 400，其他账户记录／过期查询返回 404，进行中冲突返回 409。Bot 只对发送者最近一次成功查询的窗口操作，重查后编号更新；首次升级须先查询。

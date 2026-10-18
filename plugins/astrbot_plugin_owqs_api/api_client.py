@@ -74,6 +74,7 @@ class Bindings:
         self.db = sqlite3.connect(self.directory / "bindings.sqlite3")
         (self.directory / "bindings.sqlite3").chmod(0o600)
         self.db.execute("CREATE TABLE IF NOT EXISTS bindings(owner TEXT PRIMARY KEY, tag TEXT NOT NULL)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS recent(owner TEXT PRIMARY KEY, payload TEXT NOT NULL)")
 
     def get(self, owner):
         row = self.db.execute("SELECT tag FROM bindings WHERE owner=?", (owner,)).fetchone()
@@ -91,6 +92,26 @@ class Bindings:
 
     def close(self):
         self.db.close()
+
+    def remember(self, owner, result):
+        job = result.get("id", "")
+        matches = (result.get("analysis") or {}).get("matches") or []
+        if not re.fullmatch(r"[a-f0-9]{64}", job) or len(matches) > 10:
+            raise UserError("网站未返回有效的查询定位信息")
+        payload = {"job":job,"matches":[str(m.get("mid", "")) for m in matches]}
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO recent VALUES(?,?)",(owner,json.dumps(payload)))
+
+    def selection(self, owner, index):
+        if type(index) is not int or not 1 <= index <= 10:
+            raise UserError("编号只能是图中从左到右的 1—10，例如 /owqs 数据 1")
+        row = self.db.execute("SELECT payload FROM recent WHERE owner=?",(owner,)).fetchone()
+        if not row:
+            raise UserError("请先 /owqs 查询，数据和锐评使用你最近一次查询图的编号")
+        value = json.loads(row[0]); count = len(value["matches"])
+        if index > count:
+            raise UserError(f"本次图中只有 {count} 场，请选择 1—{count}" if count else "本次查询没有可展示的对局")
+        return value["job"]
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -137,6 +158,12 @@ class ApiClient:
                 raise UserError("网站 API 密钥无效或所属账号未授权，请管理员检查插件配置") from None
             if error.code == 429:
                 raise UserError("网站额度或未完成任务已达上限，请稍后再试") from None
+            if error.code == 404:
+                raise UserError("查询记录不存在或已过期，请先重新 /owqs 查询") from None
+            if error.code == 400:
+                raise UserError("本场数据不足或参数无效，请检查图中的编号；缺少本人战斗数据时无法锐评") from None
+            if error.code == 409:
+                raise UserError("网站已有任务进行中或查询尚未完成，请稍后再试") from None
             if 300 <= error.code < 400:
                 raise UserError("网站返回了重定向，已拒绝转发 API 密钥；请配置最终 HTTPS 地址") from None
             raise UserError(f"网站接口暂不可用（HTTP {error.code}）") from None
@@ -163,6 +190,17 @@ class ApiClient:
 
     async def cancel(self, job):
         return await self.request("POST", "/api/v1/jobs/" + job + "/cancel", {})
+
+    async def match(self, job, index):
+        return await self.request("GET", f"/api/v1/jobs/{job}/matches/{index}")
+
+    async def review(self, job, index, request_id):
+        return await self.request("POST", f"/api/v1/jobs/{job}/matches/{index}/review", {"requestId":request_id})
+
+    async def review_status(self, job):
+        if not isinstance(job,str) or not re.fullmatch(r"[a-f0-9]{64}",job):
+            raise UserError("网站没有返回有效的锐评任务 ID")
+        return await self.request("GET", "/api/v1/reviews/" + job)
 
 
 @dataclass
