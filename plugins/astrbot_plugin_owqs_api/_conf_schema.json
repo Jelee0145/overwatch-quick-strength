@@ -1,6 +1,39 @@
 {
-  "api_base": {"type": "string", "description": "网站 API 基础地址", "default": "https://106.55.47.68:8443", "hint": "只填 HTTPS 网站地址及端口，不加 /api/v1；域名更换后在这里更新"},
-  "api_key": {"type": "string", "description": "网站账户 API 密钥（保密）", "default": "", "hint": "登录网站，在账户的 API 面板查看或生成 owqs_ 开头的密钥；不要在群聊里发送", "obvious_hint": true},
-  "query_timeout": {"type": "int", "description": "单次查询等待超时（秒，不含排队）", "default": 600, "hint": "超时后会请求网站取消任务，不自动重复创建查询"},
-  "max_pending": {"type": "int", "description": "本插件最多未完成查询数", "default": 5, "hint": "范围 1—5；每位发送者最多一个未完成查询，共用密钥所属账户的额度"}
+  "api_base": {
+    "type": "string",
+    "description": "网站 API 基础地址",
+    "default": "https://106.55.47.68:8443",
+    "hint": "只填 HTTPS 网站地址及端口，不加 /api/v1；域名更换后在这里更新"
+  },
+  "api_key": {
+    "type": "string",
+    "description": "免费服务 API Key（管理员配置）",
+    "default": "",
+    "hint": "未绑定者通过此 Key 查询，消耗此网站账号额度；绑定者使用个人 Key。不要公开真实 Key。",
+    "obvious_hint": true
+  },
+  "query_timeout": {
+    "type": "int",
+    "description": "单次查询等待超时（秒，不含排队）",
+    "default": 600,
+    "hint": "超时后会请求网站取消任务，不自动重复创建查询"
+  },
+  "max_pending": {
+    "type": "int",
+    "description": "本插件最多未完成查询数",
+    "default": 5,
+    "hint": "范围 1—5；每位发送者最多一个未完成查询，共用密钥所属账户的额度"
+  },
+  "free_daily_limit": {
+    "type": "int",
+    "description": "每位发送者每天免费查询次数",
+    "default": 10,
+    "hint": "0—1000，北京时间零点重置；本地记录，不参与云端同步。0 为关闭免费查询。"
+  },
+  "free_review_daily_limit": {
+    "type": "int",
+    "description": "每位发送者每天免费锐评次数",
+    "default": 10,
+    "hint": "0—1000；与查询分别计数，复用已有锐评不扣次数，数据图不扣次数。"
+  }
 }

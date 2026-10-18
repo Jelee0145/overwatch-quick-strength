@@ -93,6 +93,39 @@ class ParserTests(unittest.TestCase):
         self.assertIn("10-17 13:20 胜", text)
 
 
+class PolicyTests(unittest.TestCase):
+    def test_key_last_id_and_recent_scope_persist_without_reusing_old_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=client.Bindings(directory);key='owqs_'+'1'*64
+            store.bind_key('a',key);store.save_last('a','bound:one','Name#123')
+            store.remember('a',{'id':'a'*64,'analysis':{'matches':[{'mid':'one'}]}},'bound:one')
+            store.close();store=client.Bindings(directory)
+            self.assertEqual(store.key('a'),key);self.assertIsNone(store.key('b'))
+            self.assertEqual(store.last_tag('a','bound:one'),'Name#123');self.assertIsNone(store.last_tag('a','bound:two'))
+            with self.assertRaises(client.UserError):store.selection('a',1,'bound:two')
+            store.bind_key('a','owqs_'+'2'*64)
+            self.assertIsNone(store.last_tag('a','bound:one'))
+            with self.assertRaises(client.UserError):store.selection('a',1)
+            store.unbind('a');self.assertIsNone(store.key('a'));store.close()
+
+    def test_free_query_and_review_quotas_are_local_separate_persistent_and_reset_in_beijing(self):
+        from datetime import datetime,timezone
+        before=datetime(2026,10,18,15,59,tzinfo=timezone.utc)
+        after=datetime(2026,10,18,16,0,tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as directory:
+            store=client.Bindings(directory)
+            token=store.reserve('a','query',1,before)
+            store.reserve('a','review',1,before);store.reserve('b','query',1,before)
+            store.close();store=client.Bindings(directory)
+            with self.assertRaises(client.UserError):store.reserve('a','query',1,before)
+            with self.assertRaises(client.UserError):store.reserve('a','review',1,before)
+            store.release(token);store.reserve('a','query',1,before)
+            store.reserve('a','query',1,after)
+            with self.assertRaises(client.UserError):store.reserve('a','query',1,after)
+            with self.assertRaises(client.UserError):store.reserve('a','query',0,after)
+            store.close()
+
+
 class HttpTests(unittest.TestCase):
     def setUp(self):
         self.key = "owqs_" + "b" * 64
@@ -157,6 +190,15 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(api.creates, 1)
         self.assertTrue(api.cancels)
         self.assertEqual(manager.active, {})
+
+    async def test_jobs_capture_each_users_client_for_polling_and_cancellation(self):
+        original=FakeClient([{'state':'running'}]);other=FakeClient([{'state':'running'}])
+        manager=client.QueryManager(original,poll_interval=0.01)
+        task=asyncio.create_task(manager.query('b',client.Query('Other#123'),client=other))
+        await other.created.wait();await manager.cancel('b')
+        with self.assertRaises(client.UserError):await task
+        self.assertEqual(original.creates,0);self.assertEqual(original.cancels,[])
+        self.assertEqual(other.creates,1);self.assertTrue(other.cancels)
 
     async def test_timeout_and_handler_cancellation_release_remote_task(self):
         api = FakeClient([{"state": "running"}])

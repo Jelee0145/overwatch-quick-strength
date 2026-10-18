@@ -175,3 +175,25 @@ test('API pause keeps the reservation and retries without charging again',async(
  try{const done=await finish(task,id);assert.equal(done.state,'done');}finally{globalThis.fetch=original;}
  assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,1);
 });
+
+
+test('account validates Keys without charging; history opt-out leaves no synchronized history or default ID',async()=>{
+ const ctx=await setup(),user=await approve(ctx),key=await createKey(ctx,user),task=taskFor(ctx,user.user.id),original=globalThis.fetch;
+ assert.equal((await api(ctx,'/api/v1/account')).status,401);
+ assert.deepEqual(await(await api(ctx,'/api/v1/account',{key})).json(),{valid:true,lastBattletag:null});
+ assert.equal((await api(ctx,'/api/v1/account',{key,method:'POST'})).status,405);
+ assert.equal((await api(ctx,'/api/v1/query',{key,method:'POST',body:{battletag:'Free#100',limit:5,syncHistory:'false'}})).status,400);
+ const mock=service({newGames:5});
+ globalThis.fetch=async(url,init)=>{const u=new URL(url),p=u.pathname.replace('/v1/a19ld5tool',''),b=init?.body?JSON.parse(init.body):undefined;return Response.json({code:0,data:await mock.call(ctx.env,p,Object.fromEntries(u.searchParams),b)});};
+ try{
+  const first=await start(ctx,key,{battletag:'Bound#100',limit:5});await speed(task,first);await finish(task,first);
+  assert.equal((await(await api(ctx,'/api/v1/account',{key})).json()).lastBattletag,'Bound#100');
+  const history=await internal(task,'/history',{action:'list'},{user:user.user.id,version:1});
+  const spy=task.priorFromHistory.bind(task);task.priorFromHistory=()=>{throw Error('Opt-out must not read synchronized history');};
+  const free=await start(ctx,key,{battletag:'Free#100',limit:5,syncHistory:false});await speed(task,free);await finish(task,free);task.priorFromHistory=spy;
+  assert.equal((await(await api(ctx,'/api/v1/jobs/'+free+'/matches/1',{key})).json()).match.battletag,'Free#100');
+  assert.deepEqual((await internal(task,'/history',{action:'list'},{user:user.user.id,version:1})).v,history.v);
+  assert.equal((await(await api(ctx,'/api/v1/account',{key})).json()).lastBattletag,'Bound#100');
+  assert.equal((await ctx.storage.get('usage:'+user.user.id)).query,2);
+ }finally{globalThis.fetch=original;}
+});

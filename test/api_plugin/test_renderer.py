@@ -50,7 +50,7 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.result={'id':'a'*64,'chart':CHART,'analysis':{'matches':[{'mid':'left'},{'mid':'right'}],'summary':{}}}
         self.plugin.manager.query=AsyncMock(return_value=self.result)
         self.plugin.renderer.render=AsyncMock(return_value='/private/chart.png')
-        self.event=types.SimpleNamespace(get_platform_id=lambda:'test',get_self_id=lambda:'bot',get_sender_id=lambda:'user',get_message_str=lambda:'owqs 查询 Name#123 快',should_call_llm=lambda value:None,plain_result=lambda text:('text',text),image_result=lambda path:('image',path),send=AsyncMock())
+        self.event=types.SimpleNamespace(get_platform_id=lambda:'test',get_self_id=lambda:'bot',get_sender_id=lambda:'user',is_private_chat=lambda:True,get_message_str=lambda:'owqs 查询 Name#123 快',should_call_llm=lambda value:None,plain_result=lambda text:('text',text),image_result=lambda path:('image',path),send=AsyncMock())
 
     async def asyncTearDown(self):
         await self.plugin.terminate();self.temp.cleanup()
@@ -96,7 +96,8 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('请先',text);self.plugin.client.review.assert_not_awaited()
 
     async def test_cached_review_tool_sends_all_image_pages(self):
-        self.plugin.bindings.remember('["test","bot","user"]',self.result)
+        self.plugin.bindings.remember('["test","bot","user"]',self.result,self.plugin.route('["test","bot","user"]')[1])
+        self.plugin.client.match=AsyncMock(return_value={'match':{}})
         self.plugin.client.review=AsyncMock(return_value={'cached':True,'match':{'index':1},'review':{'text':'复盘','cached':True}})
         self.plugin.client.review_status=AsyncMock()
         self.plugin.renderer.render_review=AsyncMock(return_value=['/private/one.png','/private/two.png'])
@@ -110,6 +111,109 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.plugin.renderer.render.side_effect=RuntimeError('render failed')
         await self.plugin.query_tool(self.event,'Name#123')
         self.assertEqual(self.plugin.bindings.selection(owner,1),'b'*64)
+
+    async def test_guest_requires_explicit_id_every_time_and_daily_query_limit_persists(self):
+        owner='["test","bot","user"]'
+        self.plugin.config['free_daily_limit']=1
+        self.assertIn('"imageSent": true',await self.plugin.query_tool(self.event,'Name#123'))
+        self.assertIn('完整游戏 ID',await self.plugin.query_tool(self.event))
+        self.assertIn('次数已用完',await self.plugin.query_tool(self.event,'Name#123'))
+        self.assertEqual(self.plugin.manager.query.await_count,1)
+        self.assertIsNone(self.plugin.bindings.last_tag(owner,self.plugin.route(owner)[1]))
+        self.assertFalse(self.plugin.manager.query.call_args.kwargs['client'].sync_history)
+
+    async def test_bound_key_routes_to_its_owner_and_reuses_last_game_id(self):
+        owner='["test","bot","user"]';key='owqs_'+'b'*64
+        self.plugin.bindings.bind_key(owner,key)
+        text=await self.plugin.query_tool(self.event,'Bound#123')
+        self.assertIn('"imageSent": true',text)
+        api=self.plugin.manager.query.call_args.kwargs['client']
+        self.assertEqual(api.key,key);self.assertTrue(api.sync_history)
+        self.assertIn('"imageSent": true',await self.plugin.query_tool(self.event))
+        self.assertEqual(self.plugin.manager.query.call_args.args[1].tag,'Bound#123')
+        self.assertEqual(self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0],0)
+
+    async def test_account_default_is_used_only_for_bound_sender(self):
+        owner='["test","bot","user"]'
+        self.plugin.bindings.bind_key(owner,'owqs_'+'b'*64)
+        with patch.object(self.plugin.client.__class__,'account',AsyncMock(return_value={'valid':True,'lastBattletag':'Website#123'})):
+            text=await self.plugin.query_tool(self.event)
+        self.assertIn('"imageSent": true',text)
+        self.assertEqual(self.plugin.manager.query.call_args.args[1].tag,'Website#123')
+
+    async def test_invalid_binding_never_echoes_key_or_overwrites_previous_binding(self):
+        owner='["test","bot","user"]';key='owqs_'+'b'*64
+        self.plugin.bindings.bind_key(owner,key)
+        for candidate in ('invalid','owqs_'+'c'*64):
+            self.event.get_message_str=lambda:'owqs 绑定 '+candidate
+            with patch.object(self.plugin.client.__class__,'account',AsyncMock(side_effect=renderer.UserError('绑定错误，请上网页版确认。'))):
+                messages=[m async for m in self.plugin.owqs(self.event)]
+            self.assertIn('绑定错误',messages[-1][1]);self.assertNotIn(candidate,messages[-1][1])
+            self.assertEqual(self.plugin.bindings.key(owner),key)
+        self.event.is_private_chat=lambda:False
+        messages=[m async for m in self.plugin.owqs(self.event)]
+        self.assertIn('私聊',messages[-1][1])
+
+    async def test_revoked_bound_key_does_not_use_free_sponsor(self):
+        owner='["test","bot","user"]';self.plugin.bindings.bind_key(owner,'owqs_'+'b'*64)
+        self.plugin.manager.query.side_effect=renderer.UserError('绑定错误，请上网页版确认。')
+        text=await self.plugin.query_tool(self.event,'Name#123')
+        self.assertIn('绑定错误',text)
+        self.assertEqual(self.plugin.manager.query.await_count,1)
+        self.assertEqual(self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0],0)
+
+    async def test_free_review_cache_is_usable_at_zero_remaining_and_data_does_not_charge(self):
+        owner='["test","bot","user"]';await self.plugin.query_tool(self.event,'Name#123')
+        self.plugin.config['free_review_daily_limit']=1
+        self.plugin.client.match=AsyncMock(return_value={'match':{'index':1}})
+        self.plugin.client.review=AsyncMock(return_value={'id':'b'*64})
+        self.plugin.client.review_status=AsyncMock(return_value={'state':'done','match':{'index':1},'review':{'text':'已有锐评'}})
+        self.plugin.renderer.render_review=AsyncMock(return_value=['/private/review.png'])
+        self.plugin.renderer.render_data=AsyncMock(return_value='/private/data.png')
+        self.assertIn('"imageSent": true',await self.plugin.match_review_tool(self.event,1))
+        self.assertIn('"imageSent": true',await self.plugin.match_review_tool(self.event,1))
+        self.assertEqual(self.plugin.client.review.await_count,1)
+        self.assertIn('次数已用完',await self.plugin.match_review_tool(self.event,2))
+        before=self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0]
+        self.assertIn('"imageSent": true',await self.plugin.match_data_tool(self.event,2))
+        self.assertEqual(self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0],before)
+
+    async def test_definite_failure_refunds_free_reservation_but_unknown_remote_outcome_keeps_it(self):
+        self.plugin.manager.query.side_effect=renderer.UserError('已失败')
+        await self.plugin.query_tool(self.event,'Name#123')
+        self.assertEqual(self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0],0)
+        self.plugin.manager.query.side_effect=renderer.UserError('网络中断',uncertain=True)
+        await self.plugin.query_tool(self.event,'Name#123')
+        self.assertEqual(self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0],1)
+
+
+    async def test_bound_data_and_review_keep_the_query_key_and_do_not_charge_free_counts(self):
+        from unittest.mock import Mock
+        main=self.plugin.route.__globals__;owner='["test","bot","user"]';key='owqs_'+'b'*64
+        self.plugin.bindings.bind_key(owner,key)
+        bound=types.SimpleNamespace(key=key,validate=Mock(),match=AsyncMock(return_value={'match':{'index':1}}),review=AsyncMock(return_value={'cached':True,'match':{'index':1},'review':{'text':'复用'}}))
+        with patch.dict(main,{'ApiClient':Mock(return_value=bound)}):
+            scope=self.plugin.route(owner)[1]
+            self.plugin.bindings.remember(owner,self.result,scope)
+            self.plugin.renderer.render_data=AsyncMock(return_value='/private/data.png')
+            self.plugin.renderer.render_review=AsyncMock(return_value=['/private/review.png'])
+            self.assertIn('"imageSent": true',await self.plugin.match_data_tool(self.event,1))
+            self.assertIn('"imageSent": true',await self.plugin.match_review_tool(self.event,1))
+        bound.match.assert_awaited_once_with('a'*64,1);bound.review.assert_awaited_once()
+        self.assertEqual(self.plugin.bindings.db.execute('SELECT count(*) FROM free_usage').fetchone()[0],0)
+        self.plugin.bindings.unbind(owner)
+        self.assertIn('请先',await self.plugin.match_data_tool(self.event,1))
+
+    async def test_private_binding_validates_without_echo_and_saves_only_success(self):
+        key='owqs_'+'b'*64
+        with patch.object(self.plugin.client.__class__,'account',AsyncMock(return_value={'valid':True})) as validate:
+            self.event.get_message_str=lambda:'owqs 绑定 '+key
+            messages=[m async for m in self.plugin.owqs(self.event)]
+        self.assertIn('绑定成功',messages[-1][1]);self.assertNotIn(key,messages[-1][1])
+        self.assertEqual(self.plugin.bindings.key('["test","bot","user"]'),key)
+        validate.assert_awaited_once()
+        self.assertIn('私聊',await self.plugin.bind_tool(self.event))
+
 
 class DocumentTests(unittest.TestCase):
     def test_website_markup_and_script_safe_payload_preserve_content(self):

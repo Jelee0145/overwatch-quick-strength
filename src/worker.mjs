@@ -17,7 +17,8 @@ function apiOptions(b){
  const side=b.side===undefined?'all':String(b.side);if(!['all','T','E'].includes(side))throw new Fault('玩家范围只能是 all、T 或 E');
  const strategy=b.strategy===undefined?'legacy':String(b.strategy);if(!['legacy','role','highest'].includes(strategy))throw new Fault('段位选取方式无效');
  if(b.estimate!==undefined&&typeof b.estimate!=='boolean')throw new Fault('估算选项格式错误');
- return {battletag,limit,supplementOtherMatches:slow,mode:slow?'slow':'fast',statisticsRange,side,strategy,estimate:b.estimate!==false};
+ if(b.syncHistory!==undefined&&typeof b.syncHistory!=='boolean')throw new Fault('历史同步选项格式错误');
+ return {battletag,limit,supplementOtherMatches:slow,mode:slow?'slow':'fast',statisticsRange,side,strategy,estimate:b.estimate!==false,syncHistory:b.syncHistory!==false};
 }
 async function apiV1(request,env,url){
  if(request.method==='OPTIONS')throw new Fault('接口不开放浏览器跨域调用',405);
@@ -26,6 +27,10 @@ async function apiV1(request,env,url){
  const key=header.slice(7).trim();if(!/^owqs_[a-f0-9]{64}$/.test(key))throw new Fault('API 密钥无效',401);
  const auth=await authCall(env,'/api-key-auth',{key}),task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));
  const call=async(path,payload={})=>{const r=await task.fetch('https://internal/',{method:'POST',body:JSON.stringify({path,body:payload,user:auth.user.id,version:auth.version})});const v=await r.json();if(!r.ok)throw new Fault(v.error,r.status);return v;};
+ if(url.pathname==='/api/v1/account'){
+  if(request.method!=='GET')throw new Fault('请求方法错误',405);
+  return json(await call('/api-profile'));
+ }
  if(url.pathname==='/api/v1/query'){
   if(request.method!=='POST')throw new Fault('请求方法错误',405);
   if(!request.headers.get('Content-Type')?.startsWith('application/json'))throw new Fault('Content-Type 必须为 application/json',415);

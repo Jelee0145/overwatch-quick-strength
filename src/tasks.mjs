@@ -26,6 +26,11 @@ export class UserTasks{
  async refundApi(job){if(job.kind!=='query'||!job.api||job.quotaRefunded||job.state==='done')return false;try{await authCall(this.env,'/quota',{user:job.user,kind:'query',job:job.id,refund:true});job.quotaRefunded=true;return true;}catch{return false;}}
  async handle(i){const {user,version,path,body:b={}}=i;await authCall(this.env,'/check-user',{user,version});
   if(path==='/history')return this.history.handle(user,b);
+  if(path==='/api-profile'){
+   const catalog=await this.history.handle(user,{action:'list'}),last=await this.storage.get('last-api-query');
+   const records=[...catalog.accounts.map(a=>({tag:a.tag,updatedAt:a.updatedAt})),...(last?[last]:[])].sort((a,b)=>Date.parse(b.updatedAt)-Date.parse(a.updatedAt));
+   return {valid:true,lastBattletag:records[0]?.tag||null};
+  }
   if(path==='/api-match'||path==='/api-match-review'){
    const query=await this.job(b.id);if(query.user!==user||query.kind!=='query')throw new Fault('查询记录不存在',404);
    if(query.state!=='done')throw new Fault('请等待查询完成',409);
@@ -44,7 +49,8 @@ export class UserTasks{
    const options={battletag:tag,limit,mode:b.mode==='slow'?'slow':'fast',supplementOtherMatches:!!b.supplementOtherMatches,statisticsRange:['all','5','10','20'].includes(String(b.statisticsRange))?String(b.statisticsRange):'all',side:['all','T','E'].includes(String(b.side))?String(b.side):'all',strategy:['legacy','role','highest'].includes(String(b.strategy))?String(b.strategy):'legacy',estimate:b.estimate!==false};
    const jobs=[...await this.storage.list({prefix:'job:'})].map(([,j])=>j),cutoff=Date.now();
    if(jobs.filter(j=>j.user===user&&j.kind==='query'&&j.api&&j.until>cutoff&&active(j)).length>=5)throw new Fault('当前 API 密钥的未完成查询已达 5 个，请稍后再试',429);
-   const data=createQuery(tag,limit,await this.priorFromHistory(user,tag)||{matches:[]},await this.readAccounts(),{supplementOtherMatches:options.supplementOtherMatches});
+   options.syncHistory=b.syncHistory!==false;
+   const data=createQuery(tag,limit,options.syncHistory?(await this.priorFromHistory(user,tag)||{matches:[]}):{matches:[]},options.syncHistory?await this.readAccounts():[],{supplementOtherMatches:options.supplementOtherMatches});
    const id=token(),job={id,user,version,kind:'query',api:true,apiOptions:options,state:'running',message:'查询已建立',createdAt:cutoff,until:cutoff+3600000};
    await authCall(this.env,'/quota',{user,kind:'query',job:id});
    try{await putBlob(this.storage,'prior:'+id,data.prior);await putBlob(this.storage,'data:'+id,queryCheckpoint(data));await this.storage.put('job:'+id,job);}
@@ -106,10 +112,10 @@ export class UserTasks{
       if(data.version!==2){data=upgradeQuery(data);await putBlob(this.storage,'prior:'+job.id,data.prior);}else data=restoreQuery(data,await getBlob(this.storage,'prior:'+job.id)||{matches:[]});
       if(job.reducedConcurrency){data.concurrency=1;data.minIntervalMs=1000;}
       let persisted=-1;
-      const checkpoint=async s=>{if(s.checkpointRevision===persisted)return;const revision=s.checkpointRevision;await putBlob(this.storage,'data:'+job.id,queryCheckpoint(s));await this.saveAccounts(s);const latest=await this.storage.get('job:'+job.id);if(!latest)return;job.progress=queryProgress(s);await this.storage.put('job:'+job.id,{...latest,progress:job.progress,message:(s.phase==='done'?'正在完成查询…':job.progress.phaseLabel+' '+job.progress.completed+'/'+job.progress.total)+' · 请求 '+job.progress.requests+' · 缓存 '+job.progress.cacheHits});persisted=revision;};
+      const checkpoint=async s=>{if(s.checkpointRevision===persisted)return;const revision=s.checkpointRevision;await putBlob(this.storage,'data:'+job.id,queryCheckpoint(s));if(job.apiOptions?.syncHistory!==false)await this.saveAccounts(s);const latest=await this.storage.get('job:'+job.id);if(!latest)return;job.progress=queryProgress(s);await this.storage.put('job:'+job.id,{...latest,progress:job.progress,message:(s.phase==='done'?'正在完成查询…':job.progress.phaseLabel+' '+job.progress.completed+'/'+job.progress.total)+' · 请求 '+job.progress.requests+' · 缓存 '+job.progress.cacheHits});persisted=revision;};
       job.message=await runQuery(data,this.env,{checkpoint,shouldStop:async()=>!!(await this.storage.get('job:'+job.id))?.cancel});
       if(data.cacheRequest){job.state='awaiting-cache';job.cacheRequest=data.cacheRequest;job.message='正在复用浏览器缓存…';}
-      if(data.phase==='done'){await putBlob(this.storage,'query-index:'+job.id,await mintQueryIndex(job.user,data.result,this.env));await putBlob(this.storage,'cache-result:'+job.id,await mintCacheRecords(job.user,data.result,this.env));const envelope=await signSnapshot(job.user,data.result,this.env);await putBlob(this.storage,'result:'+job.id,envelope);try{await this.history.handle(job.user,{action:'push',envelopes:[envelope]});job.archiveWarning=null;}catch(e){job.archiveWarning=e instanceof Fault?e.message:'云端历史归档暂不可用，已保留查询结果，可稍后补传';}if(!job.api&&!data.result.syncStatus.fetchedMatches&&!data.result.syncStatus.rankFetches&&!data.result.historyStatus.requests)await authCall(this.env,'/quota',{user:job.user,kind:'query',job:job.id,refund:true});job.state='done';}
+      if(data.phase==='done'){await putBlob(this.storage,'query-index:'+job.id,await mintQueryIndex(job.user,data.result,this.env));await putBlob(this.storage,'cache-result:'+job.id,await mintCacheRecords(job.user,data.result,this.env));const envelope=await signSnapshot(job.user,data.result,this.env);await putBlob(this.storage,'result:'+job.id,envelope);try{if(job.apiOptions?.syncHistory!==false){await this.history.handle(job.user,{action:'push',envelopes:[envelope]});if(job.api)await this.storage.put('last-api-query',{tag:data.result.battletag,updatedAt:data.result.queriedAt});}job.archiveWarning=null;}catch(e){job.archiveWarning=e instanceof Fault?e.message:'云端历史归档暂不可用，已保留查询结果，可稍后补传';}if(!job.api&&!data.result.syncStatus.fetchedMatches&&!data.result.syncStatus.rankFetches&&!data.result.historyStatus.requests)await authCall(this.env,'/quota',{user:job.user,kind:'query',job:job.id,refund:true});job.state='done';}
      }else{
       // Alarms may be delivered again after interruption: never resend a dispatched AI request.
       if(job.dispatched)throw new Fault('上次 AI 请求中断，未自动重发；请手动重新锐评',504);

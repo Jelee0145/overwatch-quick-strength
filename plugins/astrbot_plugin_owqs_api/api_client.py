@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 import json
 import math
+import hashlib
+import uuid
 from pathlib import Path
 import re
 import sqlite3
@@ -14,7 +16,23 @@ import urllib.request
 
 
 class UserError(Exception):
-    pass
+    def __init__(self, message, uncertain=False):
+        super().__init__(message)
+        self.uncertain = uncertain
+
+
+BIND_ERROR = '绑定错误，请上网页版确认。'
+
+
+def valid_key(value):
+    value = str(value).strip()
+    if not re.fullmatch(r'owqs_[a-f0-9]{64}', value):
+        raise UserError(BIND_ERROR)
+    return value
+
+
+def credential_scope(key):
+    return hashlib.sha256(str(key).encode()).hexdigest()
 
 
 def battle_tag(value):
@@ -62,7 +80,7 @@ def parse_query(text, binding=None):
             mode = "slow" if value in ("慢", "slow") else "fast"
     tag = " ".join(parts) if parts else binding
     if not tag:
-        raise UserError("请先 /owqs 绑定 昵称#编号，或在查询时填写完整昵称")
+        raise UserError("请在查询时填写完整游戏 ID（昵称#编号）；绑定 Key 后可使用上次查询的 ID")
     return Query(tag, limit, mode)
 
 
@@ -75,6 +93,54 @@ class Bindings:
         (self.directory / "bindings.sqlite3").chmod(0o600)
         self.db.execute("CREATE TABLE IF NOT EXISTS bindings(owner TEXT PRIMARY KEY, tag TEXT NOT NULL)")
         self.db.execute("CREATE TABLE IF NOT EXISTS recent(owner TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+        self.db.executescript('''CREATE TABLE IF NOT EXISTS api_bindings(owner TEXT PRIMARY KEY, secret TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS last_queries(owner TEXT PRIMARY KEY, scope TEXT NOT NULL, tag TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS free_usage(token TEXT PRIMARY KEY, owner TEXT NOT NULL, day TEXT NOT NULL, kind TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS usage_owner_day ON free_usage(owner,day,kind);
+        CREATE TABLE IF NOT EXISTS local_reviews(owner TEXT NOT NULL, job TEXT NOT NULL, idx INTEGER NOT NULL, scope TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(owner,job,idx,scope));''')
+
+    def key(self, owner):
+        row=self.db.execute('SELECT secret FROM api_bindings WHERE owner=?',(owner,)).fetchone()
+        return row[0] if row else None
+
+    def bind_key(self, owner, key):
+        key=valid_key(key)
+        with self.db:
+            if self.key(owner)!=key:self.clear_context(owner)
+            self.db.execute('INSERT OR REPLACE INTO api_bindings VALUES(?,?)',(owner,key))
+
+    def clear_context(self, owner):
+        for table in ('recent','last_queries','local_reviews'):
+            self.db.execute('DELETE FROM '+table+' WHERE owner=?',(owner,))
+
+    def last_tag(self, owner, scope):
+        row=self.db.execute('SELECT tag FROM last_queries WHERE owner=? AND scope=?',(owner,scope)).fetchone()
+        return row[0] if row else None
+
+    def save_last(self, owner, scope, tag):
+        with self.db:self.db.execute('INSERT OR REPLACE INTO last_queries VALUES(?,?,?)',(owner,scope,battle_tag(tag)))
+
+    def reserve(self, owner, kind, limit, now=None):
+        if type(limit) is not int or not 0<=limit<=1000:raise UserError('请管理员将免费次数配置为 0—1000 的整数')
+        now=now or datetime.now(timezone(timedelta(hours=8)))
+        day=now.astimezone(timezone(timedelta(hours=8))).strftime('%Y-%m-%d')
+        token=uuid.uuid4().hex
+        with self.db:
+            self.db.execute('DELETE FROM free_usage WHERE day<?',(day,))
+            count=self.db.execute('SELECT count(*) FROM free_usage WHERE owner=? AND day=? AND kind=?',(owner,day,kind)).fetchone()[0]
+            if count>=limit:raise UserError('今日免费'+('锐评' if kind=='review' else '查询')+f'次数已用完（每天 {limit} 次），可绑定网站 Key 使用个人额度')
+            self.db.execute('INSERT INTO free_usage VALUES(?,?,?,?)',(token,owner,day,kind))
+        return token
+
+    def release(self, token):
+        with self.db:self.db.execute('DELETE FROM free_usage WHERE token=?',(token,))
+
+    def cached_review(self, owner, job, index, scope):
+        row=self.db.execute('SELECT payload FROM local_reviews WHERE owner=? AND job=? AND idx=? AND scope=?',(owner,job,index,scope)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def cache_review(self, owner, job, index, scope, value):
+        with self.db:self.db.execute('INSERT OR REPLACE INTO local_reviews VALUES(?,?,?,?,?)',(owner,job,index,scope,json.dumps(value)))
 
     def get(self, owner):
         row = self.db.execute("SELECT tag FROM bindings WHERE owner=?", (owner,)).fetchone()
@@ -89,26 +155,31 @@ class Bindings:
     def unbind(self, owner):
         with self.db:
             self.db.execute("DELETE FROM bindings WHERE owner=?", (owner,))
+            self.db.execute('DELETE FROM api_bindings WHERE owner=?',(owner,))
+            self.clear_context(owner)
 
     def close(self):
         self.db.close()
 
-    def remember(self, owner, result):
+    def remember(self, owner, result, scope=None):
         job = result.get("id", "")
         matches = (result.get("analysis") or {}).get("matches") or []
         if not re.fullmatch(r"[a-f0-9]{64}", job) or len(matches) > 10:
             raise UserError("网站未返回有效的查询定位信息")
-        payload = {"job":job,"matches":[str(m.get("mid", "")) for m in matches]}
+        payload = {"job":job,"matches":[str(m.get("mid", "")) for m in matches],"scope":scope}
         with self.db:
+            self.db.execute('DELETE FROM local_reviews WHERE owner=?',(owner,))
             self.db.execute("INSERT OR REPLACE INTO recent VALUES(?,?)",(owner,json.dumps(payload)))
 
-    def selection(self, owner, index):
+    def selection(self, owner, index, scope=None):
         if type(index) is not int or not 1 <= index <= 10:
             raise UserError("编号只能是图中从左到右的 1—10，例如 /owqs 数据 1")
         row = self.db.execute("SELECT payload FROM recent WHERE owner=?",(owner,)).fetchone()
         if not row:
             raise UserError("请先 /owqs 查询，数据和锐评使用你最近一次查询图的编号")
         value = json.loads(row[0]); count = len(value["matches"])
+        if scope is not None and value.get('scope')!=scope:
+            raise UserError('绑定或免费服务 Key 已变化，请先重新 /owqs 查询')
         if index > count:
             raise UserError(f"本次图中只有 {count} 场，请选择 1—{count}" if count else "本次查询没有可展示的对局")
         return value["job"]
@@ -120,11 +191,12 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class ApiClient:
-    def __init__(self, base_url, api_key, request_timeout=15):
+    def __init__(self, base_url, api_key, request_timeout=15, sync_history=True):
         self.base = str(base_url).strip().rstrip("/")
         self.key = str(api_key).strip()
         self.request_timeout = request_timeout
         self.opener = urllib.request.build_opener(NoRedirect())
+        self.sync_history = sync_history
 
     def validate(self):
         try:
@@ -135,8 +207,7 @@ class ApiClient:
             valid = False
         if not valid:
             raise UserError("请管理员配置正确的 HTTPS 网站地址（包含端口，不包含 /api 路径）")
-        if not re.fullmatch(r"owqs_[a-f0-9]{64}", self.key):
-            raise UserError("请管理员在插件配置中填写网站账户的 API 密钥")
+        valid_key(self.key)
 
     def _request(self, method, route, body=None):
         self.validate()
@@ -148,14 +219,14 @@ class ApiClient:
             with self.opener.open(request, timeout=self.request_timeout) as response:
                 raw = response.read(8 * 1024 * 1024 + 1)
                 if len(raw) > 8 * 1024 * 1024:
-                    raise UserError("网站返回的数据过大，请联系管理员")
+                    raise UserError("网站返回的数据过大，请联系管理员", uncertain=True)
                 value = json.loads(raw)
                 if not isinstance(value, dict):
                     raise ValueError()
                 return value
         except urllib.error.HTTPError as error:
             if error.code in (401, 403):
-                raise UserError("网站 API 密钥无效或所属账号未授权，请管理员检查插件配置") from None
+                raise UserError(BIND_ERROR) from None
             if error.code == 429:
                 raise UserError("网站额度或未完成任务已达上限，请稍后再试") from None
             if error.code == 404:
@@ -166,11 +237,11 @@ class ApiClient:
                 raise UserError("网站已有任务进行中或查询尚未完成，请稍后再试") from None
             if 300 <= error.code < 400:
                 raise UserError("网站返回了重定向，已拒绝转发 API 密钥；请配置最终 HTTPS 地址") from None
-            raise UserError(f"网站接口暂不可用（HTTP {error.code}）") from None
+            raise UserError(f"网站接口暂不可用（HTTP {error.code}）", uncertain=error.code>=500) from None
         except (urllib.error.URLError, TimeoutError, OSError):
-            raise UserError("网站连接失败或超时；未自动重复创建查询，请稍后再试") from None
+            raise UserError("网站连接失败或超时；未自动重复创建查询，请稍后再试", uncertain=True) from None
         except (ValueError, UnicodeError):
-            raise UserError("网站返回格式异常，请管理员检查 API 地址") from None
+            raise UserError("网站返回格式异常，请管理员检查 API 地址", uncertain=True) from None
 
     async def request(self, method, route, body=None):
         return await asyncio.to_thread(self._request, method, route, body)
@@ -179,11 +250,15 @@ class ApiClient:
         value = await self.request("POST", "/api/v1/query", {
             "battletag": query.tag, "limit": query.limit, "mode": query.mode,
             "statisticsRange": "10", "side": "all", "strategy": "legacy", "estimate": True,
+            "syncHistory": self.sync_history,
         })
         job = value.get("id")
         if not isinstance(job, str) or not re.fullmatch(r"[a-f0-9]{64}", job):
-            raise UserError("网站没有返回有效任务 ID，未自动重试")
+            raise UserError("网站没有返回有效任务 ID，未自动重试", uncertain=True)
         return job
+
+    async def account(self):
+        return await self.request('GET','/api/v1/account')
 
     async def status(self, job):
         return await self.request("GET", "/api/v1/jobs/" + job + "?render=svg&compact=1")
@@ -209,6 +284,7 @@ class Job:
     query: Query
     id: str = ""
     cancelled: asyncio.Event = field(default_factory=asyncio.Event)
+    client: object = field(default=None, repr=False)
 
 
 class QueryManager:
@@ -221,15 +297,16 @@ class QueryManager:
         self.semaphore = asyncio.Semaphore(min(3, self.max_pending))
         self.closed = False
 
-    async def query(self, owner, query):
-        self.client.validate()
+    async def query(self, owner, query, client=None):
+        client=client or self.client
+        client.validate()
         if self.closed:
             raise UserError("插件正在重载，请稍后再试")
         if owner in self.active:
             raise UserError("你已有排队或运行中的查询，请等待完成或 /owqs 取消")
         if len(self.active) >= self.max_pending:
             raise UserError("插件查询队列已满，请稍后再试")
-        job = Job(owner, query)
+        job = Job(owner, query, client=client)
         self.active[owner] = job
         terminal = False
         try:
@@ -237,31 +314,34 @@ class QueryManager:
                 if job.cancelled.is_set():
                     raise UserError("查询已取消")
                 deadline = asyncio.get_running_loop().time() + self.timeout
-                job.id = await self.client.create(query)
+                job.id = await client.create(query)
                 while asyncio.get_running_loop().time() < deadline:
                     if job.cancelled.is_set():
                         raise UserError("查询已取消")
-                    result = await self.client.status(job.id)
+                    result = await client.status(job.id)
                     state = result.get("state")
                     if state == "done":
                         terminal = True
                         if not isinstance(result.get("analysis"), dict):
-                            raise UserError("查询已完成，但网站分析生成失败，请在网页中查看原始结果")
+                            raise UserError("查询已完成，但网站分析生成失败，请在网页中查看原始结果", uncertain=True)
                         return result
                     if state in ("failed", "cancelled"):
                         terminal = True
                         raise UserError("查询已取消" if state == "cancelled" else "网站查询失败，额度已释放，请稍后重试")
                     if state not in ("running", "paused", "awaiting-cache"):
-                        raise UserError("网站返回了未知任务状态")
+                        raise UserError("网站返回了未知任务状态", uncertain=True)
                     try:
                         await asyncio.wait_for(job.cancelled.wait(), timeout=min(self.poll_interval, max(0.01, deadline - asyncio.get_running_loop().time())))
                     except asyncio.TimeoutError:
                         pass
-                raise UserError("查询等待超时，已请求网站取消任务")
+                raise UserError("查询等待超时，已请求网站取消任务", uncertain=True)
+        except UserError as error:
+            if job.id and not terminal:error.uncertain=True
+            raise
         finally:
             if job.id and not terminal:
                 try:
-                    await asyncio.shield(self.client.cancel(job.id))
+                    await asyncio.shield(client.cancel(job.id))
                 except Exception:
                     pass
             if self.active.get(owner) is job:
@@ -273,7 +353,7 @@ class QueryManager:
             return False
         job.cancelled.set()
         if job.id:
-            await self.client.cancel(job.id)
+            await job.client.cancel(job.id)
         return True
 
     async def close(self):
