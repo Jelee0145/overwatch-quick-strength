@@ -38,6 +38,7 @@ function paintTimeline(){
  $('timelineOlder').disabled=!w.start;$('timelineNewer').disabled=w.end>=timeline.all.length;
  ['png','svg','json'].forEach(id=>$(id).disabled=!view.matches.length||!!timeline.exporting);
  $('chartZoom').disabled=!view.matches.length;applyChartZoom();
+ queueMicrotask(()=>window.dispatchEvent(new CustomEvent('owqs:analysis-updated',{detail:{model,raw,index:selected}})));
 }
 function timelineImages(){const images=new Map();$('chart').querySelectorAll('image[data-map-art]').forEach(n=>{const href=n.getAttribute('href');if(href?.startsWith('data:image/'))images.set(QS_MEDIA.maps[n.dataset.mapArt]?.preview||n.dataset.mapArt,href);});return images;}
 function restoreTimelineImages(svg,images){svg?.querySelectorAll('image[data-map-art]').forEach(n=>{const href=images.get(QS_MEDIA.maps[n.dataset.mapArt]?.preview||n.dataset.mapArt);if(href)n.setAttribute('href',href);});}

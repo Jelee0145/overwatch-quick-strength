@@ -45,6 +45,7 @@ const brandPage=page=>page.replace(/<title>([^<]+)<\/title>/,(_,title)=>'<title>
 html=html.replace('<span>快速强度图</span>','<span>狸狸天眼查</span>').replace('快速强度图首页','狸狸天眼查首页');
 html=html.replace('<a class="brand" href="./index.html"','<a class="brand" href="/"');
 html=brandPage(html).replace('<title>快速强度图 · Quick Strength</title>','<title>快速强度图</title>');
+html=html.replace('width=device-width,initial-scale=1','width=device-width,initial-scale=1,viewport-fit=cover');
 html=html.replace(/<details id="credentials">[\s\S]*?<\/details>/,'');
 html=html.replace(/<dialog id="aiKeyDialog"[\s\S]*?<\/dialog>/,'');
 html=html.replace(/<button[^>]*id="aiReviewSettings"[^>]*>[\s\S]*?<\/button>/,'');
@@ -100,7 +101,8 @@ if(generateStart<0||personalStart<0)throw Error('Chart generation adapter change
 app=app.slice(0,generateStart)+await readFile(path.join(base,'web/cloud-timeline.js'),'utf8')+'\n'+app.slice(personalStart);
 const zoomStart=app.indexOf('function applyChartZoom(){'),playersStart=app.indexOf('function showPlayers(',zoomStart);
 app=app.slice(0,zoomStart)+"function applyChartZoom(){$('chart').style.minWidth='';$('chartZoom').textContent='回到最新';$('chartZoom').removeAttribute('aria-pressed');$('zoomHint').textContent='按住图表左右拖动 · 点击场次看依据';}\n$('chartZoom').onclick=()=>{timeline.start=Math.max(0,timeline.all.length-TIMELINE_WINDOW);generate();};\n"+app.slice(playersStart);
-app=app.replace('function showPlayers(index){','function showPlayers(index){timeline.detailMatch=model.matches[index];');
+app=app.replace('function showPlayers(index){','function showPlayers(index){timeline.detailMatch=model.matches[index];queueMicrotask(()=>window.dispatchEvent(new CustomEvent("owqs:analysis-updated",{detail:{model,raw,index}})));');
+app=app.replace('function showPerformance(p){','function showPerformance(p,embedded=false){').replace("$('performancePanel').scrollIntoView({block:'nearest'});","if(!embedded)$('performancePanel').scrollIntoView({block:'nearest'});");
 const jsonStart=app.indexOf("$('json').onclick="),jsonEnd=app.indexOf("['limit','side','strategy','estimate','art']",jsonStart);
 app=app.slice(0,jsonStart)+"$('json').onclick=()=>{const data={...raw,historyExport:{retained:raw.matches.length,statisticsRange:$('statisticsRange').value,visibleMatchIds:model.matches.map(m=>m.mid)},visualization:{summary:model.summary,personalPrediction:model.personalPrediction,points:timeline.all.map(m=>({mid:m.mid,mean:m.mean,observedMean:m.observedMean,confidenceEvidence:m.confidenceEvidence,estimateDetails:m.estimateDetails,estimateRange:m.estimateRange,performances:m.players.map(p=>({name:p.name,...p.performance}))}))}};download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),fileName('json'));status('已导出当前账号全部保留历史 JSON（不含凭据和签名包）');};\n"+app.slice(jsonEnd);
 const mapStart=app.indexOf('const mapAttempts=new Set()'),mapEnd=app.indexOf('\ngenerate();',mapStart);
@@ -132,14 +134,14 @@ chart=chart.replace('data-chart-version="${QS_CHART_VERSION}"','data-chart-versi
 chart=chart.replace("String(i+1).padStart", "String((model.windowOffset||0)+i+1).padStart");
 const hash=value=>createHash('sha256').update(value).digest('hex').slice(0,16);
 async function staticFile(source,extension,name){const out=(await transform(source,{loader:extension==='css'?'css':'js',minify:true,target:'es2022',...(extension==='css'?{}:{format:'iife'})})).code;const url='/static/'+name+'.'+hash(out)+'.'+extension;await writeFile(path.join(base,'public',url.slice(1)),out);return url;}
-const css=await staticFile(await readFile(path.join(local,'style.css'),'utf8')+'\n'+await readFile(path.join(base,'web/cloud.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile.css'),'utf8'),'css','app');
+const css=await staticFile(await readFile(path.join(local,'style.css'),'utf8')+'\n'+await readFile(path.join(base,'web/cloud.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile-shell.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile.css'),'utf8'),'css','app');
 const files=async names=>Promise.all(names.map(name=>readFile(path.join(local,name),'utf8')));
 const browserData=await readFile(path.join(local,'data.js'),'utf8');
 const runtime=await files(shared);
 const services=await build({entryPoints:[path.join(base,'web/services.js')],bundle:true,format:'iife',platform:'browser',target:'es2022',write:false});
 runtime.push(services.outputFiles[0].text);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
-const main=await staticFile(rewriteCopy(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
+const main=await staticFile(rewriteCopy(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile-shell.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script></head>`);
 await mkdir(path.join(base,'public/tools'),{recursive:true});
 await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDecorativeEnglish(html)));
