@@ -1,5 +1,6 @@
 import {Fault,json,getCookie,cookie} from './security.mjs';import {authCall} from './tasks.mjs';
 import {release} from './release.mjs';import {analyzeResult} from './api-analysis.mjs';
+import {renderApiChart,compactAnalysis} from './api-chart.mjs';
 export {AuthDirectory} from './auth.mjs';export {UserTasks} from './tasks.mjs';
 const securityHeaders={'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
 async function body(request){if(Number(request.headers.get('Content-Length'))>3000000)throw new Fault('请求数据过大',413);const s=await request.text();if(new TextEncoder().encode(s).length>3000000)throw new Fault('请求数据过大',413);try{const b=JSON.parse(s);if(!b||typeof b!=='object'||Array.isArray(b))throw 0;return b;}catch{throw new Fault('请求格式错误');}}
@@ -36,10 +37,17 @@ async function apiV1(request,env,url){
   const id=match[1];
   if(match[2]){if(request.method!=='POST')throw new Fault('请求方法错误',405);return json(await call('/cancel',{id}));}
   if(request.method!=='GET')throw new Fault('请求方法错误',405);
+  const rendering=url.searchParams.get('render');if(rendering!==null&&rendering!=='svg')throw new Fault('图片格式仅支持 svg');
   const status=await call('/status',{id,compact:false});if(status.kind!=='query')throw new Fault('任务不存在',404);
   const out={id:status.id,state:status.state,message:status.message,progress:status.progress||null,createdAt:status.createdAt||null,finishedAt:status.finishedAt||null,options:status.apiOptions||null};
   if(status.state==='done'){out.quota='charged';out.archiveWarning=status.archiveWarning||null;out.result=status.result;try{out.analysis=analyzeResult(status.result,status.apiOptions||{});}catch(e){out.analysis=null;out.analysisError='分析生成失败';}}
   else out.quota=['failed','cancelled'].includes(status.state)?'released':'reserved';
+  if(status.state==='done'&&rendering==='svg'){
+   try{out.chart=await renderApiChart(status.result,status.apiOptions||{},env.ASSETS);}catch{out.chart=null;out.chartError='图表生成失败，可使用已有分析结果';}
+  }
+  if(status.state==='done'&&url.searchParams.get('compact')==='1'){
+   delete out.result;if(out.analysis)out.analysis=compactAnalysis(out.analysis);
+  }
   return json(out);
  }
  throw new Fault('接口不存在',404);

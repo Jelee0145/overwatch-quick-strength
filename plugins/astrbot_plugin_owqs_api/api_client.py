@@ -159,7 +159,7 @@ class ApiClient:
         return job
 
     async def status(self, job):
-        return await self.request("GET", "/api/v1/jobs/" + job)
+        return await self.request("GET", "/api/v1/jobs/" + job + "?render=svg&compact=1")
 
     async def cancel(self, job):
         return await self.request("POST", "/api/v1/jobs/" + job + "/cancel", {})

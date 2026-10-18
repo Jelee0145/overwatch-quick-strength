@@ -1,7 +1,7 @@
 # OWQS Bot 查询 API 说明
 
 版本：v1  
-生产环境：`https://quick-strength-friends.wenlangjian79.workers.dev`  
+腾讯云生产环境：`https://106.55.47.68:8443`
 适用对象：已获授权账户的 Bot 后端服务器。接口不开放浏览器跨域直连。
 
 > 如果项目部署在其他域名，请把下文示例中的 `BASE_URL` 替换为实际地址。
@@ -15,7 +15,7 @@
 3. 轮询任务状态，完成后读取原始对局数据和分析结果。
 
 ```bash
-BASE_URL="https://quick-strength-friends.wenlangjian79.workers.dev"
+BASE_URL="https://106.55.47.68:8443"
 OWQS_API_KEY="owqs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 curl -sS -X POST "$BASE_URL/api/v1/query" \
@@ -35,6 +35,10 @@ curl -sS -X POST "$BASE_URL/api/v1/query" \
 ```
 
 随后轮询：
+
+Bot 图片回复可使用 `GET /api/v1/jobs/<任务ID>?render=svg&compact=1`。任务完成后增加 `chart`：`{version:1, format:"svg", mimeType:"image/svg+xml", width:1440, height:1100, displayed:10, statisticsRange:"10", missingAssets:0, svg:"<svg ...>"}`。素材内嵌为 data URI，可断网转 PNG；图片始终展示并统计最近最多 10 场，不改变查询范围。没有可展示对局时 `chart` 为 null；出图失败返回 `chartError`，原分析仍可用。图片与结果使用相同 Bearer 认证和账号隔离，不提供公开图片链接，也不额外扣查询额度。
+
+`compact=1` 省略原始 `result`、`analysis.statsMatches`、玩家完整阵容及完整个人预测过程，只保留摘要、所选个人预测和逐局主要字段。`render` 仅接受 `svg`，参数非法返回 400。不带这些参数时，v1 原有返回结构保持不变。AstrBot API 插件会在 Bot 本机渲染 PNG，并默认发送图片；AI 查询工具也会直接发送图片。
 
 ```bash
 curl -sS "$BASE_URL/api/v1/jobs/<任务ID>" \

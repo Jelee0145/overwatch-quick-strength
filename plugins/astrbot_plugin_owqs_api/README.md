@@ -1,6 +1,16 @@
 # 狸狸天眼查 API · AstrBot 插件
 
-这是网站 API 客户端，使用网站账户密钥，无需大神凭证、Node.js、浏览器或额外 Python 依赖。支持 AstrBot 4.9.2—4.x / Python 3.10+。
+这是网站 API 客户端，使用网站账户密钥，无需大神凭证或 Node.js。支持 AstrBot 4.9.2—4.x / Python 3.10+。默认发送图片，需要本机 Playwright Chromium 和中文字体；不使用外部出图服务。
+
+Linux／Docker 安装依赖（Docker 在 AstrBot 容器内执行）：
+
+```sh
+python -m pip install 'playwright>=1.49,<2'
+python -m playwright install --with-deps chromium
+apt-get install -y fonts-noto-cjk
+```
+
+生产 Docker 请把这些步骤加入自己的镜像构建，容器重建后也需要具备依赖；仅重启容器不影响已安装依赖。
 
 在 AstrBot 插件页上传 ZIP，在配置中填写 `api_base` 和 `api_key`。默认地址为 `https://106.55.47.68:8443`。密钥从网站账户的 API 面板获得，插件安装包不包含密钥。换密钥后保存插件配置并重载。所有 Bot 用户共用该密钥所属账户的网站查询额度；请使用 AstrBot 自带的访问控制限定使用范围。
 
@@ -16,11 +26,11 @@
 /owqs 取消
 ```
 
-昵称可含空格，场数和快慢模式放在昵称后。默认查 10 场、快模式，摘要与逐局列表取最近 10 场。统计采用网站已有评分，不在 Bot 重算。绑定按平台适配器、机器人和发送者隔离；同一机器人的群聊和私聊共用该发送者绑定。绑定仅作默认查询，不验证战网账号所有权。输出为文字摘要与逐局强度。
+昵称可含空格，场数和快慢模式放在昵称后。默认查 10 场、快模式，发送最近 10 场强度图。统计采用网站已有评分，不在 Bot 重算。绑定按平台适配器、机器人和发送者隔离；同一机器人的群聊和私聊共用该发送者绑定。绑定仅作默认查询，不验证战网账号所有权。出图失败时使用同次查询的文字摘要，不重新查询或重复扣额度。
 
 ## LLM 工具
 
-- `owqs_query(battletag="", limit=10, mode="fast")`：创建网站查询、等待结果，返回有限的结构化分析摘要；未提供昵称时使用当前发送者的绑定。
+- `owqs_query(battletag="", limit=10, mode="fast")`：创建网站查询、等待结果，直接向当前会话发送强度图，并向模型报告已发送；未提供昵称时使用当前发送者的绑定。出图失败时发送文字摘要。
 - `owqs_bind(battletag)`：用户明确要求时绑定完整战网昵称。
 - `owqs_cancel()`：取消当前发送者的查询。
 
@@ -32,6 +42,8 @@
 
 网站返回 401/403 时检查密钥和账号授权；429 时检查额度或未完成查询。API 仅允许 HTTPS，拒绝自动跟随重定向，避免将密钥转发到其他地址。配置文件和 `data/plugin_data/astrbot_plugin_owqs_api/bindings.sqlite3` 仅供管理员访问，不要提交或公开。
 
+插件轮询 `/api/v1/jobs/{id}?render=svg&compact=1`，获取内嵌公开素材的 SVG 和精简分析，不传输原始阵容、签名历史或密钥给出图浏览器。浏览器断网渲染，拒绝脚本、外部链接和超大 SVG。PNG 保存在私有 `plugin_data/astrbot_plugin_owqs_api/images` 目录，下次出图时清理超过 24 小时的图片。
+
 ## 从仓库打包
 
 ```sh
@@ -39,4 +51,4 @@ python scripts/build-api-plugin.py
 python -m unittest discover -s test/api_plugin -v
 ```
 
-输出 `dist/astrbot_plugin_owqs_api-1.0.0.zip` 及 SHA-256。只打包固定白名单源码和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。
+输出 `dist/astrbot_plugin_owqs_api-1.1.0.zip` 及 SHA-256。只打包固定白名单源码、依赖声明和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。

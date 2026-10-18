@@ -5,8 +5,8 @@ import zipfile
 
 root = Path(__file__).resolve().parent.parent
 source = root / "plugins" / "astrbot_plugin_owqs_api"
-files = ("main.py", "api_client.py", "metadata.yaml", "_conf_schema.json", "README.md")
-output = root / "dist" / "astrbot_plugin_owqs_api-1.0.0.zip"
+files = ("main.py", "api_client.py", "renderer.py", "requirements.txt", "metadata.yaml", "_conf_schema.json", "README.md")
+output = root / "dist" / "astrbot_plugin_owqs_api-1.1.0.zip"
 output.parent.mkdir(exist_ok=True)
 with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     for filename in files:

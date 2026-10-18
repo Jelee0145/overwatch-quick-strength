@@ -1,5 +1,8 @@
 'use strict';
 const QS_CHART_VERSION='3.4.1';
+// The renderer owns no DOM, network or mutable global dependencies.
+function createChartService({core:QS,maps={},avatar='',rankArt={}}){
+ const QS_DATA={maps},QS_AVATAR=avatar,QS_RANK_ART=rankArt;
 function renderChart(model,art,showArt,title){
  const {esc,rank,bands}=QS,s=model.summary,matches=model.matches,n=matches.length;
  const W=Math.max(1440,n*120+220),H=1100,left=136,right=W-72,top=256,bottom=698,cw=(right-left)/Math.max(1,n);
@@ -103,4 +106,11 @@ function renderChart(model,art,showArt,title){
  text(65,1023,'实测是可查竞技段位的样本均值；融合估算补充稀疏场次，未知玩家不分配段位。',14,muted);
  text(65,1049,`${model.source.slice(0,30)} · 非真实快速 MMR · 按时间从早到晚`,12,'#8593a4');text(W-65,1049,`展示 v${QS_CHART_VERSION}  /  估算 v${model.algorithmVersion}  /  战斗修正 ±35% · 个人预测 v1.0`,12,'#8593a4','text-anchor="end"');
  z.push('</svg>');return z.join('');
+}
+ return Object.freeze({render(model,{art={},showArt=true,title='快速强度图'}={}){return renderChart(model,art,showArt,title);}});
+}
+globalThis.OWQS_CREATE_CHART_SERVICE=createChartService;
+// Preserve the browser's existing four-argument entry point.
+function renderChart(model,art,showArt,title){
+ return createChartService({core:QS,maps:QS_DATA.maps,avatar:typeof QS_AVATAR==='undefined'?'':QS_AVATAR,rankArt:typeof QS_RANK_ART==='undefined'?{}:QS_RANK_ART}).render(model,{art,showArt,title});
 }

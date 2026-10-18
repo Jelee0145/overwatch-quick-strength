@@ -7,6 +7,7 @@ from astrbot.api.star import Context, Star
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from .api_client import ApiClient, Bindings, Query, QueryManager, UserError, compact_result, format_result, owner_key, parse_query
+from .renderer import Renderer
 
 HELP = """狸狸天眼查 · 网站 API
 /owqs 绑定 昵称#编号
@@ -15,7 +16,7 @@ HELP = """狸狸天眼查 · 网站 API
 /owqs 取消
 /owqs 帮助
 默认搜索最近 10 场、快模式；不填昵称时使用绑定。
-分析与逐局摘要展示最近 10 场。查询消耗插件 API 密钥所属账号的网站额度。
+默认发送最近 10 场强度图，出图失败时回复文字摘要。查询消耗插件 API 密钥所属账号的网站额度。
 也可直接对 Bot 说“查询 某人#12345 的守望先锋战绩”，由 owqs_query 工具查询。"""
 
 
@@ -25,6 +26,7 @@ class Main(Star):
         self.config = config
         directory = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_owqs_api"
         self.bindings = Bindings(directory)
+        self.renderer = Renderer(directory)
         self.client = ApiClient(config.get("api_base", ""), config.get("api_key", ""))
         self.manager = QueryManager(self.client, timeout=config.get("query_timeout", 600), max_pending=config.get("max_pending", 5))
 
@@ -53,7 +55,11 @@ class Main(Star):
                 self.client.validate()
                 yield event.plain_result(f"正在通过网站查询 {query.tag}，请稍候；可 /owqs 取消。")
                 result = await self.manager.query(owner, query)
-                yield event.plain_result(format_result(result, query))
+                try:
+                    image = await self.renderer.render(result.get("chart"))
+                    yield event.image_result(image)
+                except Exception:
+                    yield event.plain_result("本次图片生成失败，改用文字结果（不会重复查询）。\n" + format_result(result, query))
             else:
                 yield event.plain_result(HELP)
         except UserError as error:
@@ -63,7 +69,7 @@ class Main(Star):
 
     @filter.llm_tool(name="owqs_query")
     async def query_tool(self, event: AstrMessageEvent, battletag: str = "", limit: int = 10, mode: str = "fast") -> str:
-        """通过狸狸天眼查网站 API 获取守望先锋快速对局、强度和个人段位参考。用户请求查询战绩时使用；必须提供完整战网昵称或使用用户已有绑定，不能编造编号。此工具消耗网站查询额度，默认快模式，只有用户要求补采时用 slow。规则评分不代表官方 MMR。
+        """通过网站 API 查询守望先锋战绩，并直接向当前会话发送最近十场强度图片。成功后无需再次用文字复述整份结果。必须提供完整战网昵称或使用用户绑定，不能编造编号。消耗网站额度，默认快模式，只有用户要求补采时用 slow。规则评分不代表官方 MMR。
 
         Args:
             battletag(string): 完整战网昵称，如昵称#12345。为空时仅使用当前发送者的已有绑定。
@@ -77,7 +83,13 @@ class Main(Star):
                 raise UserError("当前用户尚未绑定，请先询问完整战网昵称（昵称#编号）")
             query = Query(tag, limit, mode)
             result = await self.manager.query(owner, query)
-            return json.dumps(compact_result(result, query), ensure_ascii=False)
+            try:
+                image = await self.renderer.render(result.get("chart"))
+                await event.send(event.image_result(image))
+                return json.dumps({"battletag":query.tag,"imageSent":True,"displayed":len((result.get("analysis") or {}).get("matches") or []),"message":"强度图片已发送，无需重复展示详细文字"},ensure_ascii=False)
+            except Exception:
+                await event.send(event.plain_result("本次图片生成失败，改用文字结果（不会重复查询）。\n" + format_result(result, query)))
+                return json.dumps({"battletag":query.tag,"imageSent":False,"textSent":True,"summary":compact_result(result, query)},ensure_ascii=False)
         except UserError as error:
             return str(error)
         except Exception:
@@ -105,4 +117,5 @@ class Main(Star):
 
     async def terminate(self):
         await self.manager.close()
+        await self.renderer.close()
         self.bindings.close()

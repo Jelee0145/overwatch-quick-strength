@@ -87,6 +87,14 @@ test('API result contains raw matches plus analysis with a fixed ten-match windo
   assert.equal(value.analysis.statsMatches.length,12);assert.equal(value.analysis.displayLimit,10);
   assert.equal(value.analysis.statisticsRange,'all');assert.ok(value.analysis.summary.total>0);
   assert.ok(value.analysis.personalPrediction);assert.equal(value.analysisError,undefined);
+  assert.equal(value.chart,undefined);
+  const picture=await api(ctx,'/api/v1/jobs/'+id+'?render=svg&compact=1',{key}),image=await picture.json();
+  assert.equal(picture.status,200);assert.equal(image.result,undefined);assert.equal(image.chart.format,'svg');assert.equal(image.chart.displayed,10);
+  assert.equal(image.chart.statisticsRange,'10');assert.match(image.chart.svg,/<svg[^>]*width="1440"/);
+  assert.equal(image.analysis.statsMatches,undefined);assert.ok(image.analysis.matches.every(m=>!('players' in m)));
+  assert.equal((await api(ctx,'/api/v1/jobs/'+id+'?render=png',{key})).status,400);
+  const other=await approve(ctx,'other-picture@example.test'),otherKey=await createKey(ctx,other);
+  assert.equal((await api(ctx,'/api/v1/jobs/'+id+'?render=svg&compact=1',{key:otherKey})).status,404);
   const history=await internal(task,'/history',{action:'list'},{user:register.user.id,version:1});
   assert.ok(history.v.accounts.some(account=>account.tag==='Main#100'));
   assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,1);
