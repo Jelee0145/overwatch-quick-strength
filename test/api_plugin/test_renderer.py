@@ -104,6 +104,13 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"pages": 2',report);self.assertEqual(self.event.send.await_count,2)
         self.plugin.client.review_status.assert_not_awaited()
 
+    async def test_failed_new_chart_keeps_previous_visible_numbering(self):
+        owner='["test","bot","user"]'
+        self.plugin.bindings.remember(owner,{'id':'b'*64,'analysis':{'matches':[{'mid':'previous'}]}})
+        self.plugin.renderer.render.side_effect=RuntimeError('render failed')
+        await self.plugin.query_tool(self.event,'Name#123')
+        self.assertEqual(self.plugin.bindings.selection(owner,1),'b'*64)
+
 class DocumentTests(unittest.TestCase):
     def test_untrusted_names_and_review_text_are_escaped_and_pages_preserve_content(self):
         documents=importlib.import_module(PACKAGE+'.documents')
