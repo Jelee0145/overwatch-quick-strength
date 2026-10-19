@@ -1,7 +1,12 @@
 import {parseEvents} from './events-parser.mjs';
 import {json} from './security.mjs';
 
-export const EVENTS_API='https://liquipedia.net/overwatch/api.php?action=parse&page=Liquipedia%3AMatches&prop=text&format=json';
+// Apply the OWCS page-prefix range upstream, before the shared ticker's row limit.
+// MatchTicker/Controller supports both string comparisons in additionalConditions.
+const conditions=' AND [[pagename::>Overwatch_Champions_Series/]] AND [[pagename::<Overwatch_Champions_Series0]]';
+const ticker=['upcoming','recent'].map(type=>'<div data-filter-expansion-template="#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'">{{#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'|limit=50|additionalConditions='+conditions+'}}</div>').join('\n');
+export const EVENTS_API='https://liquipedia.net/overwatch/api.php?'+new URLSearchParams({action:'parse',text:ticker,contentmodel:'wikitext',prop:'text',format:'json',title:'Liquipedia:Matches'});
+const SOURCE_VERSION=2;
 const HOUR=60*60*1000,MAX_AGE=48*HOUR,MAX_BYTES=2*1024*1024;
 export const nextEventSync=now=>(Math.floor(now/HOUR)+1)*HOUR;
 export class EventCenter{
@@ -41,7 +46,7 @@ export class EventCenter{
  }
  async load(force){
   const now=this.now(),saved=await this.storage.get('snapshot'),next=await this.storage.get('refreshAfter')||0;
-  if(now>=next&&(force||!saved||saved.updatedAt<Math.floor(now/HOUR)*HOUR)){
+  if(now>=next&&(force||!saved||saved.sourceVersion!==SOURCE_VERSION||saved.updatedAt<Math.floor(now/HOUR)*HOUR)){
    // Persist spacing before the request, including failures and process restarts.
    await this.storage.put('refreshAfter',now+30000);
    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
@@ -61,7 +66,7 @@ export class EventCenter{
     try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>MAX_BYTES)throw Error('Response too large');chunks.push(value);}}finally{await reader.cancel().catch(()=>{});}
     const bytes=new Uint8Array(size);let offset=0;for(const part of chunks){bytes.set(part,offset);offset+=part.length;}
     const data=JSON.parse(new TextDecoder().decode(bytes)),matches=parseEvents(data.parse?.text?.['*']);
-    const snapshot={matches,updatedAt:this.now()};await this.storage.put('snapshot',snapshot);
+    const snapshot={matches,updatedAt:this.now(),sourceVersion:SOURCE_VERSION};await this.storage.put('snapshot',snapshot);
     await this.storage.put('refreshFailed',false);
     return this.view(snapshot,false);
    }catch{
@@ -74,5 +79,5 @@ export class EventCenter{
   if(await this.storage.get('refreshFailed'))return {...value,refreshError:'更新失败或上游暂时限流，正在显示上次成功的数据，请稍后重试。'};
   return value;
  }
- view(snapshot,stale){return {matches:snapshot.matches,updatedAt:new Date(snapshot.updatedAt).toISOString(),stale,source:{name:'Liquipedia',url:'https://liquipedia.net/overwatch/Liquipedia:Matches',license:'CC BY-SA 3.0',licenseUrl:'https://creativecommons.org/licenses/by-sa/3.0/'},coverage:'仅包含数据源当前提供的 OWCS 近期比赛，不代表完整赛季。'};}
+ view(snapshot,stale){return {matches:snapshot.matches,updatedAt:new Date(snapshot.updatedAt).toISOString(),stale,source:{name:'Liquipedia',url:'https://liquipedia.net/overwatch/Liquipedia:Matches',license:'CC BY-SA 3.0',licenseUrl:'https://creativecommons.org/licenses/by-sa/3.0/'},coverage:'上游先筛 OWCS，再分别获取最多 50 场近期赛程与赛果；日期条件仅筛缓存，不代表所选日期的全部比赛或完整赛季。'};}
 }

@@ -21,6 +21,25 @@ class Storage{
 function setup(fetcher=async()=>response(page())){const storage=new Storage(),env={EVENTS_CONTACT:'https://site.test',EVENTS_FETCH:fetcher},center=new EventCenter({storage},env);let now=1792310400000;center.now=()=>now;return {center,storage,env,advance:ms=>{now+=ms;}};}
 const request=()=>new Request('https://events.internal/');
 
+test('source filters OWCS before its row cap; Saturday WBG survives date and team filters in API and webpage',async()=>{
+ const query=new URL(EVENTS_API).searchParams,ticker=query.get('text');assert.equal(query.get('action'),'parse');assert.equal(query.get('contentmodel'),'wikitext');
+ assert.equal((ticker.match(/limit=50\|additionalConditions=/g)||[]).length,2);
+ assert.equal((ticker.match(/\[\[pagename::>Overwatch_Champions_Series\/\]\]/g)||[]).length,2);
+ assert.equal((ticker.match(/\[\[pagename::<Overwatch_Champions_Series0\]\]/g)||[]).length,2);
+ const timestamp=String(Date.parse('2026-10-24T11:00:00Z')/1000),wbg=card({path:'Overwatch_Champions_Series/2026/China/Stage_3/Regular_Season',name:'OWCS China Stage 3',timestamp,teams:['Weibo Gaming','All Gamers']}).replace('>Wei</a>','>WBG</a>').replace('>All</a>','>AG</a>');
+ const ctx=setup(async()=>response(page(card({path:'Other_Cup/2026'}).repeat(50)+wbg,'')));await ctx.center.alarm();const data=await ctx.center.read();assert.equal(data.matches.length,1);
+ const params=new URLSearchParams({from:'2026-10-19',to:'2026-10-25',team:'wbg',region:'CN'});assert.equal(filterEvents(data,params).total,1);
+ const context={window:{},Intl};vm.runInNewContext(await readFile(new URL('../web/events-model.js',import.meta.url),'utf8'),context);
+ assert.equal(context.window.EventsModel.select(data.matches,{from:'2026-10-19',to:'2026-10-25',team:'WBG',region:'中国'}).length,1);
+ assert.equal(context.window.EventsModel.select(data.matches,{from:'2026-10-25',to:'2026-10-26',team:'WBG'}).length,0);
+});
+
+test('a source upgrade replaces a same-hour truncated snapshot without bypassing persisted pacing',async()=>{
+ let calls=0;const ctx=setup(async()=>{calls++;return response(page());});await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');
+ await ctx.storage.put('snapshot',{...saved,sourceVersion:1});await ctx.center.alarm();assert.equal(calls,1);
+ ctx.advance(30000);await ctx.center.alarm();assert.equal(calls,2);assert.equal((await ctx.storage.get('snapshot')).sourceVersion,2);
+});
+
 test('events parser covers OWCS regions, scores including zero, entities and unknown time/opponent; ignores other events',()=>{
  const regions=[['China','中国'],['Asia/Stage_3/Korea','韩国'],['Asia/Stage_3/Japan','日本'],['Asia/Stage_3/Pacific','太平洋'],['North_America','北美'],['EMEA','EMEA'],['World_Finals','国际赛']];
  const html=regions.map(([r])=>card({path:'Overwatch_Champions_Series/2026/'+r})).join('')+card({path:'Other_Cup/2026'})+card({path:'Overwatch_Champions_Series/2026/Asia',timestamp:null,teams:['A &amp; B','TBD']});
