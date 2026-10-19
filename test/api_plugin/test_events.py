@@ -1,10 +1,30 @@
 import unittest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 import urllib.parse
 from test_client import client
 
 
 class EventTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pending_date_query_polls_without_creating_battle_jobs_and_keeps_long_backoff(self):
+        api=client.ApiClient('https://site.test','owqs_'+'a'*64)
+        api.request=AsyncMock(side_effect=[{'state':'pending','retryAfter':30},{'matches':[],'total':0}])
+        with patch.object(client.asyncio,'sleep',new_callable=AsyncMock) as sleep:
+            result=await api.events(from_date='2026-10-01',to_date='2026-10-18',series='all')
+        self.assertEqual(result['total'],0);sleep.assert_awaited_once_with(30)
+        params=urllib.parse.parse_qs(urllib.parse.urlsplit(api.request.call_args.args[1]).query)
+        self.assertEqual(params['series'],['all']);self.assertEqual(params['status'],['auto']);self.assertEqual(api.request.await_count,2)
+        api.request=AsyncMock(return_value={'state':'pending','retryAfter':300})
+        with patch.object(client.asyncio,'sleep',new_callable=AsyncMock) as sleep:
+            result=await api.events(from_date='2026-10-01',to_date='2026-10-18')
+        sleep.assert_not_awaited();self.assertIn('正在补查',client.format_events(result));self.assertNotIn('没有符合',client.format_events(result))
+
+    async def test_series_defaults_and_unsafe_or_oversized_date_query_are_rejected_before_network(self):
+        self.assertEqual(client.event_filters()['series'],'owcs');self.assertEqual(client.event_filters(series='全部')['series'],'all')
+        api=client.ApiClient('https://site.test','owqs_'+'a'*64);api.request=AsyncMock()
+        for values in ({'series':'bad'},{'from_date':'2020-01-01','to_date':'2026-10-18'}):
+            with self.assertRaises(client.UserError):await api.events(**values)
+        api.request.assert_not_awaited()
+
     async def test_filters_are_encoded_on_a_read_only_website_api_request(self):
         api=client.ApiClient('https://site.test','owqs_'+'a'*64)
         api.request=AsyncMock(return_value={'matches':[]})

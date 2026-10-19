@@ -30,8 +30,9 @@ async function apiV1(request,env,url){
  const auth=await authCall(env,'/api-key-auth',{key});
  if(url.pathname==='/api/v1/events'){
   if(request.method!=='GET')throw new Fault('请求方法错误',405);
-  const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/');
-  if(!response.ok)return response;
+  filterEvents({matches:[]},url.searchParams);
+  const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/?'+url.searchParams);
+  if(response.status!==200)return response;
   return json(filterEvents(await response.json(),url.searchParams),200,{'Cache-Control':'private, no-store'});
  }
  const task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));
@@ -97,7 +98,11 @@ export async function route(request,env){
   const auth=await authCall(env,'/authorize',{},i);
   if(path==='/api/events'||path==='/api/events/refresh'){
    if(path.endsWith('/refresh')?!mutation:mutation)throw new Fault('请求方法错误',405);
-   return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/'+(mutation?'refresh':''),{method:mutation?'POST':'GET'});
+   const params=new URLSearchParams(url.searchParams);if(!params.has('status'))params.set('status','all');
+   filterEvents({matches:[]},params,{paginate:false});
+   const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/'+(mutation?'refresh':'')+'?'+params,{method:mutation?'POST':'GET'});
+   if(response.status!==200)return response;
+   return json(filterEvents(await response.json(),params,{paginate:false}),200,{'Cache-Control':'private, no-store'});
   }
   const task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));let internal,b=i.body;
   if(path==='/api/query'&&mutation)internal='/query';

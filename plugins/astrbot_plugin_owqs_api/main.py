@@ -18,13 +18,14 @@ HELP = """狸狸天眼查 · 网站 API
 /owqs 查询 [昵称#编号] [5|10|20] [快|慢]
 /owqs 数据 n
 /owqs 锐评 n
-/owqs 赛程 [开始=YYYY-MM-DD] [结束=YYYY-MM-DD] [赛区=中国] [赛事=关键词] [战队=简称] [状态=赛程|赛果|全部] [条数=10]
+/owqs 赛程 [开始=YYYY-MM-DD] [结束=YYYY-MM-DD] [范围=OWCS|全部] [赛区=中国] [赛事=关键词] [战队=简称] [状态=赛程|赛果|全部] [条数=10]
 /owqs 解绑
 /owqs 取消
 /owqs 帮助
 绑定 Key 后扣除该网站账号额度；可省略游戏 ID，使用上一次查询的 ID。
 未绑定时每次必须填写完整游戏 ID；按发送者计算免费次数，查询／锐评各默认每天 10 次（管理员可配置，北京时间零点重置）。数据图不扣次数，已有锐评复用。
 免费记录只在 Bot 本地管理，不参加云端历史同步。网站临时任务保留约一小时，以便读取数据和锐评。
+赛事默认 OWCS，完整起止日期可补查历史或更远未来；过去日期默认查赛果，补查排队时请稍候。不扣战绩／AI 次数。
 默认快查询、搜索 10 场并发送图片；数据／锐评的 n 对应最近一张查询图从左到右 1—10。换绑或解绑后需重新查询。不要在群聊发送 Key。"""
 
 
@@ -233,8 +234,8 @@ class Main(Star):
         return '请私聊 Bot 使用 /owqs 绑定 网站Key。绑定后使用个人网站额度；不要在群聊发送密钥。'
 
     @filter.llm_tool(name="owqs_events")
-    async def events_tool(self, event: AstrMessageEvent, from_date: str = '', to_date: str = '', region: str = '', tournament: str = '', team: str = '', status: str = 'scheduled', limit: int = 10) -> str:
-        """查询守望先锋 OWCS 近期赛事赛程或赛果，按用户要求筛选；与玩家战绩查询无关，不需要游戏 ID。只读取服务器每小时同步一次的数据，不触发同步，不扣战绩／AI 次数。没有结果时如实说明，不推测未公布对阵或实时比分。
+    async def events_tool(self, event: AstrMessageEvent, from_date: str = '', to_date: str = '', region: str = '', tournament: str = '', team: str = '', status: str = 'auto', limit: int = 10, series: str = 'owcs') -> str:
+        """查询守望先锋赛事赛程或赛果，按用户要求筛选；与玩家战绩查询无关，不需要游戏 ID。默认查询服务器每小时同步的 OWCS 近期数据；提供完整开始和结束日期后可补查历史或更远未来，范围最多 366 天。可选择全部赛事；不扣战绩／AI 次数。补查排队时不能声称没有比赛。没有结果时如实说明，不推测未公布对阵或实时比分。
 
         Args:
             from_date(string): 开始日期 YYYY-MM-DD，按北京时间，留空不限；相对日期需先换算。
@@ -242,11 +243,12 @@ class Main(Star):
             region(string): 赛区，例如中国、韩国、日本、太平洋、北美、EMEA、国际赛，也支持 CN、KR、JP、NA；留空不限。
             tournament(string): 赛事名称关键词，例如 Stage 3；留空不限。
             team(string): 战队名称或简称关键词，例如 Crazy Raccoon、CR、AG；留空不限。
-            status(string): scheduled 为赛程，completed 为赛果，all 为全部；默认 scheduled。
+            status(string): auto 自动选择（过去日期查赛果，其他查赛程），scheduled 为赛程，completed 为赛果，all 为全部；默认 auto。
+            series(string): 赛事范围，owcs 为 OWCS，all 为全部赛事；默认 owcs。
             limit(number): 返回条数，1—20，默认 10；结果多时应缩小筛选条件。
         """
         try:
-            return await self.event_schedule(event, from_date=from_date, to_date=to_date, region=region, tournament=tournament, team=team, status=status, limit=limit)
+            return await self.event_schedule(event, from_date=from_date, to_date=to_date, region=region, tournament=tournament, team=team, status=status, limit=limit, series=series)
         except UserError as error:
             return str(error)
         except Exception:

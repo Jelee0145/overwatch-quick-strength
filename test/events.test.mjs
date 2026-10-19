@@ -28,7 +28,7 @@ test('source filters OWCS before its row cap; Saturday WBG survives date and tea
  assert.equal((ticker.match(/\[\[pagename::<Overwatch_Champions_Series0\]\]/g)||[]).length,2);
  const timestamp=String(Date.parse('2026-10-24T11:00:00Z')/1000),wbg=card({path:'Overwatch_Champions_Series/2026/China/Stage_3/Regular_Season',name:'OWCS China Stage 3',timestamp,teams:['Weibo Gaming','All Gamers']}).replace('>Wei</a>','>WBG</a>').replace('>All</a>','>AG</a>');
  const ctx=setup(async()=>response(page(card({path:'Other_Cup/2026'}).repeat(50)+wbg,'')));await ctx.center.alarm();const data=await ctx.center.read();assert.equal(data.matches.length,1);
- const params=new URLSearchParams({from:'2026-10-19',to:'2026-10-25',team:'wbg',region:'CN'});assert.equal(filterEvents(data,params).total,1);
+ const params=new URLSearchParams({from:'2026-10-19',to:'2026-10-25',team:'wbg',region:'CN',status:'scheduled'});assert.equal(filterEvents(data,params).total,1);
  const context={window:{},Intl};vm.runInNewContext(await readFile(new URL('../web/events-model.js',import.meta.url),'utf8'),context);
  assert.equal(context.window.EventsModel.select(data.matches,{from:'2026-10-19',to:'2026-10-25',team:'WBG',region:'中国'}).length,1);
  assert.equal(context.window.EventsModel.select(data.matches,{from:'2026-10-25',to:'2026-10-26',team:'WBG'}).length,0);
@@ -119,7 +119,7 @@ test('website refresh is authenticated and origin protected; scheduled and manua
  assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,401);assert.equal(calls.length,0);
  approved=true;assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,200);assert.equal(calls[0].method,'GET');
  assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'}),env)).status,403);assert.equal(calls.length,1);
- assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,200);assert.equal(calls[1].url,'https://events.internal/refresh');assert.equal(calls[1].method,'POST');
+ assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,200);assert.equal(new URL(calls[1].url).pathname,'/refresh');assert.equal(calls[1].method,'POST');
  let work;await worker.scheduled({},env,{waitUntil:promise=>{work=promise;}});await work;assert.equal(calls[2].url,'https://events.internal/sync');assert.equal(calls[2].method,'POST');
 });
 
@@ -156,12 +156,12 @@ test('failed manual refresh retains data with an explicit notice and five-minute
 
 test('events UI has a manual action, refreshes once on entry and explains pending results',async()=>{
  const html=await readFile(new URL('../web/events.html',import.meta.url),'utf8'),script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');
- assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\);await refresh\(\)/);assert.ok(!script.includes('setInterval'));assert.match(html,/每小时自动同步/);assert.match(html,/赛果待公布/);
+ assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\)/);assert.ok(!script.includes('setInterval'));assert.match(html,/每小时自动同步/);assert.match(html,/赛果待公布/);
 });
 
 test('Bot events API combines filters, preserves Beijing date boundaries and caps results without using query tasks',async()=>{
  const data={matches:parseEvents(page(card({timestamp:'1792252800'})+card({path:'Overwatch_Champions_Series/2026/China/Stage_3',name:'OWCS China Stage 3',teams:['All Gamers','OU Gaming']}),card({timestamp:'1792166400',scores:[3,0]}))),updatedAt:'2026-10-18T00:00:00Z',stale:false};
- const filtered=filterEvents(data,new URLSearchParams({region:'KR',team:'CRa',tournament:'stage 3',from:'2026-10-18',to:'2026-10-18',limit:'1'}));assert.equal(filtered.total,1);assert.equal(filtered.matches.length,1);
+ const filtered=filterEvents(data,new URLSearchParams({region:'KR',team:'CRa',tournament:'stage 3',from:'2026-10-18',to:'2026-10-18',limit:'1',status:'scheduled'}));assert.equal(filtered.total,1);assert.equal(filtered.matches.length,1);
  assert.equal(filterEvents(data,new URLSearchParams({region:'CN',team:'All Gamers'})).total,1);assert.equal(filterEvents(data,new URLSearchParams({status:'completed'})).matches[0].scores[1],0);
  for(const params of [{from:'2026-02-30'},{from:'2026-10-19',to:'2026-10-18'},{limit:'21'},{status:'live'},{refresh:'true'}])assert.throws(()=>filterEvents(data,new URLSearchParams(params)));
  let calls=0;const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>Response.json({user:{id:'user'},tier:'free'})})},TASKS:{get:()=>{throw Error('must not create query task');}},EVENTS:{idFromName:()=>'',get:()=>({fetch:async()=>{calls++;return Response.json(data);}})}};

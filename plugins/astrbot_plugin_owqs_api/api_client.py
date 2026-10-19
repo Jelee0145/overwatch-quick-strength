@@ -191,7 +191,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def event_filters(from_date='', to_date='', region='', tournament='', team='', status='scheduled', limit=10):
+def event_filters(from_date='', to_date='', region='', tournament='', team='', status='auto', limit=10, series='owcs'):
     values = {'from': from_date, 'to': to_date, 'region': region, 'tournament': tournament, 'team': team}
     for key, value in values.items():
         if not isinstance(value, str) or len(value) > 160 or re.search(r'[\x00-\x1f\x7f]', value):
@@ -206,23 +206,26 @@ def event_filters(from_date='', to_date='', region='', tournament='', team='', s
                 raise UserError('日期请使用有效的 YYYY-MM-DD（北京时间）')
     if values['from'] and values['to'] and values['from'] > values['to']:
         raise UserError('开始日期不能晚于结束日期')
-    status = {'赛程': 'scheduled', 'upcoming': 'scheduled', '赛果': 'completed', 'results': 'completed', '全部': 'all'}.get(status, status)
-    if status not in ('scheduled', 'completed', 'all'):
+    series={'全部':'all','所有':'all'}.get(str(series).strip().lower(),str(series).strip().lower())
+    if series not in ('owcs','all'): raise UserError('赛事范围只支持 OWCS 或 all（全部）')
+    if values['from'] and values['to'] and (datetime.strptime(values['to'],'%Y-%m-%d')-datetime.strptime(values['from'],'%Y-%m-%d')).days>365: raise UserError('日期范围最多为 366 天，请分段查询')
+    status = {'自动':'auto','赛程': 'scheduled', 'upcoming': 'scheduled', '赛果': 'completed', 'results': 'completed', '全部': 'all'}.get(status, status)
+    if status not in ('auto', 'scheduled', 'completed', 'all'):
         raise UserError('状态只支持赛程、赛果、全部')
     if isinstance(limit, bool) or not re.fullmatch(r'[0-9]+(?:\.0+)?', str(limit)) or not 1 <= float(limit) <= 20:
         raise UserError('条数只支持 1—20')
-    return {**{k: v for k, v in values.items() if v}, 'status': status, 'limit': int(float(limit))}
+    return {**{k: v for k, v in values.items() if v}, 'status': status, 'limit': int(float(limit)), 'series':series}
 
 
 def parse_events(text):
-    names = {'开始': 'from_date', '结束': 'to_date', '赛区': 'region', '赛事': 'tournament', '战队': 'team', '状态': 'status', '条数': 'limit', 'from': 'from_date', 'to': 'to_date'}
+    names = {'范围':'series','赛事范围':'series','开始': 'from_date', '结束': 'to_date', '赛区': 'region', '赛事': 'tournament', '战队': 'team', '状态': 'status', '条数': 'limit', 'from': 'from_date', 'to': 'to_date'}
     try: parts = shlex.split(text)
     except ValueError: raise UserError('含空格的筛选值请用成对双引号包住')
     values = {}
     for part in parts:
         if '=' not in part: raise UserError('用法：/owqs 赛程 赛区=中国 战队="All Gamers" 状态=赛程')
         key, value = part.split('=', 1); key = names.get(key, key)
-        if key not in ('from_date', 'to_date', 'region', 'tournament', 'team', 'status', 'limit') or key in values:
+        if key not in ('from_date', 'to_date', 'region', 'tournament', 'team', 'status', 'limit', 'series') or key in values:
             raise UserError('未知或重复的赛程筛选条件')
         values[key] = value
     event_filters(**values)
@@ -234,8 +237,13 @@ def format_events(value):
     def when(text):
         try: return datetime.fromisoformat(text.replace('Z', '+00:00')).astimezone(timezone(timedelta(hours=8))).strftime('%m-%d %H:%M')
         except (ValueError, TypeError, AttributeError): return '待定'
-    lines = ['OWCS 赛程与赛果 · 北京时间', '服务器每小时同步一次 · 更新于 ' + when(value.get('updatedAt'))]
-    if value.get('stale'): lines.append('今日同步尚未完成，以下为上次同步数据。')
+    scope='OWCS' if value.get('series',value.get('filters',{}).get('series','owcs'))=='owcs' else '全部赛事'
+    if value.get('state')=='pending': return scope+' · 服务器正在补查所选日期的数据，稍后再查即可复用结果；尚不能判断有无比赛。'
+    lines = [scope+' 赛程与赛果 · 北京时间', ('日期补查缓存' if value.get('range') else '服务器每小时同步一次') + ' · 更新于 ' + when(value.get('updatedAt'))]
+    if value.get('range'): lines.append(value['range']['from']+' 至 '+value['range']['to']+'（含首尾日期）')
+    if value.get('truncated'): lines.append(value.get('coverage') or '结果可能不完整，请缩小日期范围。')
+    if value.get('refreshError'): lines.append(clean(value['refreshError'],160))
+    if value.get('stale'): lines.append('更新尚未完成，以下为上次同步数据。')
     matches = value.get('matches') or []
     if not matches: lines.append('没有符合条件的近期比赛。')
     for index, match in enumerate(matches[:20], 1):
@@ -246,7 +254,7 @@ def format_events(value):
         lines.append(f"{clean(match.get('region'),12)} · {clean(match.get('tournament'))}" + (f" · BO{match['bestOf']}" if match.get('bestOf') else '') + ' · ' + state)
     total = value.get('total', len(matches))
     lines.append(f'共 {total} 场，展示 {len(matches)} 场；可按日期、赛区、赛事、战队继续筛选。')
-    lines.append('来源：Liquipedia · 仅包含来源提供的近期比赛，不保证实时比分。')
+    lines.append('来源：Liquipedia · 仅包含来源已公布的数据，不保证实时比分。')
     return '\n'.join(lines)
 
 
@@ -287,6 +295,8 @@ class ApiClient:
         except urllib.error.HTTPError as error:
             if error.code in (401, 403):
                 raise UserError(BIND_ERROR) from None
+            if route.startswith("/api/v1/events") and error.code==429: raise UserError("赛事补查队列繁忙，请稍后再试") from None
+            if route.startswith("/api/v1/events") and error.code==400: raise UserError("赛事筛选条件无效，请检查日期和赛事范围") from None
             if error.code == 429:
                 raise UserError("网站额度或未完成任务已达上限，请稍后再试") from None
             if error.code == 404:
@@ -322,7 +332,15 @@ class ApiClient:
 
     async def events(self, **filters):
         values = event_filters(**filters)
-        return await self.request('GET', '/api/v1/events?' + urllib.parse.urlencode(values))
+        route='/api/v1/events?' + urllib.parse.urlencode(values)
+        waited=0
+        for _ in range(5):
+            result=await self.request('GET',route)
+            if result.get('state')!='pending' and not result.get('updating'): return result
+            delay=max(1,int(result.get('retryAfter',5)))
+            if waited+delay>45: return result
+            await asyncio.sleep(delay);waited+=delay
+        return result
 
     async def status(self, job):
         return await self.request("GET", "/api/v1/jobs/" + job + "?render=svg&compact=1")

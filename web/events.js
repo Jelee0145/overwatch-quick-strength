@@ -4,8 +4,9 @@
  const dateTime=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
  const timeFormat=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
  const dateFormat=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'long',day:'numeric',weekday:'long'});
- let snapshot=null,view='scheduled',busy=false;
- const filters=()=>({view,from:$('eventsFrom').value,to:$('eventsTo').value,tournament:$('eventsTournament').value,region:$('eventsRegion').value,team:$('eventsTeam').value});
+ let snapshot=null,view='scheduled',busy=false,requestId=0,retryTimer,queryTimer;
+ const scope=()=>new URLSearchParams({series:$('eventsSeries').value,...($('eventsFrom').value&&$('eventsTo').value?{from:$('eventsFrom').value,to:$('eventsTo').value}:{})});
+ const filters=()=>({view,series:$('eventsSeries').value,from:$('eventsFrom').value,to:$('eventsTo').value,tournament:$('eventsTournament').value,region:$('eventsRegion').value,team:$('eventsTeam').value});
  function element(tag,className,value){const node=document.createElement(tag);if(className)node.className=className;if(value!==undefined)node.textContent=value;return node;}
  function teamLabel(team,left){
   const label=element('span','event-team'+(left?' event-team-left':'')),name=element('span','event-team-name',team.name),badge=element('span','event-logo-slot');badge.setAttribute('aria-hidden','true');
@@ -18,11 +19,12 @@
  function fillOptions(id,values,label){const select=$(id),value=select.value;select.replaceChildren(new Option(label,''),...[...new Set(values)].sort((a,b)=>a.localeCompare(b,'zh-CN')).map(v=>new Option(v,v)));if(values.includes(value))select.value=value;}
  function render(){
   if(!snapshot)return;
+  $('eventsCoverage').textContent=snapshot.coverage||'';
   const f=filters(),invalid=f.from&&f.to&&f.from>f.to,matches=invalid?[]:model.select(snapshot.matches,f),list=$('eventsList');
   list.replaceChildren();$('eventsCount').textContent=`${matches.length} 场比赛`;
   $('eventsUpdated').textContent='更新于 '+dateTime.format(new Date(snapshot.updatedAt));
   if(invalid){list.append(element('p','events-empty','开始日期不能晚于结束日期。'));return;}
-  if(!matches.length){const hasFilters=f.from||f.to||f.tournament||f.region||f.team.trim();list.append(element('p','events-empty',hasFilters?'没有符合筛选条件的比赛，试试调整筛选。':view==='completed'?'数据源暂未提供近期 OWCS 赛果。':'数据源暂未提供近期 OWCS 赛程。'));return;}
+  if(!matches.length){const hasFilters=f.from||f.to||f.tournament||f.region||f.team.trim();list.append(element('p','events-empty',hasFilters?'没有符合筛选条件的比赛，试试调整筛选。':view==='completed'?'数据源暂未提供匹配的赛果。':'数据源暂未提供匹配的赛程。'));return;}
   let currentDay='',group;
   for(const match of matches){
    const date=model.day(match.startsAt)||'tbd';
@@ -38,18 +40,36 @@
    row.append(meta,body);group.append(row);
   }
  }
+ function setView(next){view=next;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));}
  async function refresh(sync=true){
-  if(busy)return;busy=true;$('eventsList').setAttribute('aria-busy','true');$('eventsRefresh').disabled=true;$('eventsRefresh').textContent='更新中…';
+  const id=++requestId;clearTimeout(retryTimer);busy=true;$('eventsList').setAttribute('aria-busy','true');$('eventsRefresh').disabled=true;$('eventsRefresh').textContent='更新中…';
+  const params=scope();
   try{
-   const next=await Cloud.api(sync?'/api/events/refresh':'/api/events',sync?{}:undefined);snapshot=next;
-   fillOptions('eventsTournament',next.matches.map(m=>m.tournament),'全部赛事');fillOptions('eventsRegion',next.matches.map(m=>m.region),'全部赛区');
-   notice(next.refreshError||(next.stale?'服务器数据已超过一小时未更新，正在显示上次同步的数据，赛程或比分可能已变化。':''));render();
-  }catch(error){notice(error.message+(snapshot?'，已保留当前赛程。':''));if(!snapshot){$('eventsCount').textContent='暂无赛程';$('eventsList').replaceChildren(element('p','events-empty','服务器赛程暂未就绪，请点击“刷新赛程”重试。'));}}
-  finally{busy=false;$('eventsList').setAttribute('aria-busy','false');$('eventsRefresh').disabled=false;$('eventsRefresh').textContent='刷新赛程';}
+   const next=await Cloud.api((sync?'/api/events/refresh':'/api/events')+'?'+params,sync?{}:undefined);if(id!==requestId)return;
+   if(next.state==='pending'){
+    notice(next.message||'服务器正在补查，请稍候。');$('eventsCount').textContent='正在补查…';
+    if(!snapshot)$('eventsList').replaceChildren(element('p','events-empty','正在按日期与赛事获取数据…'));
+    retryTimer=setTimeout(()=>refresh(false),Math.max(1,Math.min(300,Number(next.retryAfter)||5))*1000);return;
+   }
+   snapshot=next;fillOptions('eventsTournament',next.matches.map(m=>m.tournament),'全部阶段');fillOptions('eventsRegion',next.matches.map(m=>m.region),'全部赛区');
+   notice(next.refreshError||(next.truncated?next.coverage:next.stale?'正在显示上次同步的数据，赛程或比分可能已变化。':''));render();
+   if(next.updating)retryTimer=setTimeout(()=>refresh(false),Math.max(1,Math.min(300,Number(next.retryAfter)||5))*1000);
+  }catch(error){if(id!==requestId)return;notice(error.message+(snapshot?'，已保留当前赛程。':''));if(!snapshot){$('eventsCount').textContent='暂无赛程';$('eventsList').replaceChildren(element('p','events-empty','服务器赛程暂未就绪，请点击“刷新赛程”重试。'));}}
+  finally{if(id===requestId){busy=false;$('eventsList').setAttribute('aria-busy','false');$('eventsRefresh').disabled=false;$('eventsRefresh').textContent='刷新赛程';}}
  }
- $('eventsFilters').onsubmit=e=>e.preventDefault();$('eventsFilters').addEventListener('input',render);$('eventsFilters').addEventListener('change',render);
- $('eventsClear').onclick=()=>{$('eventsFilters').reset();render();};
- document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>{view=button.dataset.view;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));render();});
+ function queryChanged(){
+  ++requestId;clearTimeout(retryTimer);clearTimeout(queryTimer);
+  const from=$('eventsFrom').value,to=$('eventsTo').value;
+  if(from&&to&&from>to){busy=false;$('eventsRefresh').disabled=false;$('eventsRefresh').textContent='刷新赛程';$('eventsList').setAttribute('aria-busy','false');render();return;}
+  if(from&&to&&to<model.day(new Date().toISOString()))setView('completed');
+  queryTimer=setTimeout(()=>refresh(false),400);
+ }
+ $('eventsFilters').onsubmit=e=>{e.preventDefault();clearTimeout(queryTimer);refresh(false);};
+ $('eventsFilters').addEventListener('input',render);$('eventsFilters').addEventListener('change',render);
+ for(const id of ['eventsSeries','eventsFrom','eventsTo'])$(id).addEventListener('change',queryChanged);
+ $('eventsSeries').addEventListener('change',()=>{$('eventsTournament').value='';});
+ $('eventsClear').onclick=()=>{$('eventsFilters').reset();queryChanged();render();};
+ document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>{setView(button.dataset.view);render();});
  $('eventsRefresh').onclick=()=>refresh();
- Cloud.boot().then(async()=>{await refresh(false);await refresh();}).catch(()=>{});
+ Cloud.boot().then(async()=>{await refresh(false);if(!scope().get('from')&&scope().get('series')==='owcs')await refresh();}).catch(()=>{});
 })();

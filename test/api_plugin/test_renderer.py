@@ -66,9 +66,9 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.plugin.client.events=AsyncMock(return_value=data)
         reserve=Mock(side_effect=AssertionError('events must not spend quota'))
         self.plugin.bindings.reserve=reserve
-        text=await self.plugin.events_tool(self.event,region='CN',team='AG',status='completed',limit=5)
+        text=await self.plugin.events_tool(self.event,region='CN',team='AG',status='completed',limit=5,series='owcs')
         self.assertIn('没有符合条件',text)
-        self.plugin.client.events.assert_awaited_once_with(from_date='',to_date='',region='CN',tournament='',team='AG',status='completed',limit=5)
+        self.plugin.client.events.assert_awaited_once_with(from_date='',to_date='',region='CN',tournament='',team='AG',status='completed',limit=5,series='owcs')
         self.plugin.manager.query.assert_not_awaited();reserve.assert_not_called()
         self.event.get_message_str=lambda:'owqs 赛程 赛区=中国 战队="All Gamers" 状态=赛果 条数=5'
         messages=[m async for m in self.plugin.owqs(self.event)]

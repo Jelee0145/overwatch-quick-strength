@@ -19,26 +19,28 @@ function region(path){
  if(/\/(?:North_America|NA)(?:\/|$)/i.test(path))return '北美';
  if(/\/EMEA(?:\/|$)/i.test(path))return 'EMEA';
  if(/\/Asia(?:\/|$)/i.test(path))return '亚洲';
- return '国际赛';
+ return path.startsWith('/overwatch/Overwatch_Champions_Series/')?'国际赛':'未标注';
 }
 function team(node){
  const name=first(node,'name'),link=nodes(name||node).find(n=>n.tagName==='a');
  const icon=nodes(node).find(n=>has(n,'team-template-image-icon')&&!has(n,'team-template-darkmode')),image=nodes(icon||{}).find(n=>n.tagName==='img');
  return {name:(attr(link||{},'title').replace(/ \(page does not exist\)$/,'')||text(name)||'待定').slice(0,160),shortName:text(name).slice(0,80)||'待定',logo:liquipediaLogo(attr(image||{},'src'))};
 }
-export function parseEvents(html){
+export function parseEvents(html,options){return parseEventBatch(html,options).matches;}
+export function parseEventBatch(html,{series='owcs'}={}){
  if(typeof html!=='string'||html.length>2*1024*1024)throw Error('赛事数据格式异常');
  const tree=parseFragment(html),all=nodes(tree),sections=all.filter(n=>/\btype=(upcoming|recent)\b/.test(attr(n,'data-filter-expansion-template')));
  if(sections.length!==2||!sections.some(n=>attr(n,'data-filter-expansion-template').includes('type=upcoming'))||!sections.some(n=>attr(n,'data-filter-expansion-template').includes('type=recent')))throw Error('赛事页面结构已变化');
- const matches=[],seen=new Map();
+ const matches=[],seen=new Map(),counts={scheduled:0,completed:0};
  for(const section of sections){
   const cards=nodes(section).filter(n=>has(n,'match-info'));
+  counts[attr(section,'data-filter-expansion-template').includes('type=recent')?'completed':'scheduled']=cards.length;
   if(!cards.length&&text(section)&&!/^No (?:upcoming|recent|completed) matches\.?$/i.test(text(section)))throw Error('赛事列表结构已变化');
   for(const card of cards){
    const tournament=first(card,'match-info-tournament-name'),link=nodes(tournament||{}).find(n=>n.tagName==='a'),url=liquipediaLink(attr(link||{},'href'));
    if(!url)throw Error('赛事来源链接缺失');
    const path=decodeURI(new URL(url).pathname);
-   if(!path.startsWith('/overwatch/Overwatch_Champions_Series/'))continue;
+   if(series==='owcs'&&!path.startsWith('/overwatch/Overwatch_Champions_Series/'))continue;
    const opponents=nodes(card).filter(n=>has(n,'match-info-header-opponent'));
    if(opponents.length!==2||!text(tournament))throw Error('赛事对阵格式已变化');
    const timer=first(card,'timer-object'),raw=attr(timer||{},'data-timestamp'),seconds=/^\d+$/.test(raw)?Number(raw):0;
@@ -48,10 +50,10 @@ export function parseEvents(html){
    const format=text(first(card,'match-info-header-scoreholder-lower')).match(/\bBo\s*(\d{1,2})\b/i);
    const status=attr(section,'data-filter-expansion-template').includes('type=recent')||attr(timer||{},'data-finished')==='finished'?'completed':'scheduled';
    const id=[url,startsAt||'tbd',...teams.map(t=>t.name)].join('|');
-   const match={id,startsAt,status,teams,scores,bestOf:format?Number(format[1]):null,tournament:text(tournament).slice(0,240),region:region(path),sourceUrl:url};
+   const match={id,startsAt,status,teams,scores,bestOf:format?Number(format[1]):null,tournament:text(tournament).slice(0,240),region:region(path),sourceUrl:url,series:path.startsWith('/overwatch/Overwatch_Champions_Series/')?'owcs':'other'};
    if(seen.has(id)){if(status==='completed')matches[seen.get(id)]=match;continue;}
    seen.set(id,matches.length);matches.push(match);
   }
  }
- return matches;
+ return {matches,counts};
 }

@@ -654,8 +654,25 @@ node scripts/wrangler.mjs secret put API_KEY_ENCRYPTION_KEY
 - `GET /api/v1/reviews/{id}` 轮询 `{state,message,match,review,quota}`，完成后有锐评正文，不返回签名包或 AI 凭证。AI 在后台仅派发一次，失败按原有规则释放网站 AI 额度。
 
 所有路径均需要原有 Bearer 密钥并隔离账户。无效编号返回 400，其他账户记录／过期查询返回 404，进行中冲突返回 409。Bot 只对发送者最近一次成功查询的窗口操作，重查后编号更新；首次升级须先查询。
-# 赛事缓存查询
+# 赛事查询与补查
 
-`GET /api/v1/events` 使用原有 Bearer Key 鉴权，只读取服务器每小时同步的数据，不创建战绩任务、不扣查询／AI 次数。支持 `from`、`to`（北京时间 YYYY-MM-DD）、`region`（中文或 CN/KR/JP/PAC/NA/EMEA/ASIA/GLOBAL）、`tournament` 和 `team`（大小写不敏感关键词，战队同时匹配简称）、`status=scheduled|completed|all`、`limit=1..20`（默认 10）。日期范围含首尾；赛程升序，赛果倒序，未知时间排末尾。上游先按 OWCS 页面范围筛选，再分别获取最多 50 场赛程与赛果，避免非 OWCS 比赛挤占条数。日期条件只筛已获取缓存，不向上游按日期补查，不保证所选日期的全部赛事；覆盖说明见 `coverage`。
+`GET /api/v1/events` 使用原有 Bearer Key 鉴权；网页对应 `GET /api/events` 和同源 CSRF 校验后的 `POST /api/events/refresh`。均不创建战绩任务，不扣查询／AI 次数。
 
-响应包括筛选后的 `matches`、匹配总数 `total`、`limit`、`filters`、`updatedAt`、`stale`、`source` 和 `coverage`。无匹配返回空列表；没有可用服务器缓存返回 503。该接口没有刷新／同步参数，个人和 free 层级 Key 均可读取。
+- `series=owcs|all`：赛事范围，默认 `owcs`；`all` 查询所有守望先锋赛事。`tournament` 仍为具体赛事／阶段名称关键词。
+- `from`、`to`：北京时间 YYYY-MM-DD，含首尾日期。同时提供两端时按日期向上游补查，单次最多 366 天；仅一端时沿用对近期缓存的日期过滤。
+- `region`：中文或 CN/KR/JP/PAC/NA/EMEA/ASIA/GLOBAL；`team` 同时匹配名称与简称，大小写不敏感。日期补查结果由不同战队／赛事关键词筛选共享，避免重复请求上游。
+- `status=auto|scheduled|completed|all`：默认 `auto`，完整日期范围已过去时查赛果，其他情况查赛程；可以显式覆盖。
+- `limit=1..20`：Bot 返回条数，默认 10；只限制最终匹配输出，`total` 仍表示匹配总数。网页接口不做此条数截断。
+
+```text
+/api/v1/events?series=owcs&from=2026-10-01&to=2026-10-18&team=WBG&status=completed&limit=20
+/api/v1/events?series=all&tournament=FACEIT
+```
+
+不填完整日期且默认 OWCS 时直接读取每小时同步的近期缓存，近期赛程和赛果各最多 50 场。完整日期或其他赛事范围使用独立共享查询缓存，不覆盖近期快照。过去日期结果缓存 24 小时，其余查询缓存 1 小时；页面手动刷新可请求更新，仍遵守全局请求间隔。
+
+补查只由服务器访问 Liquipedia，所有补查和近期刷新共用至少 30 秒间隔，10 秒网络超时、至少 5 分钟失败退避及上游 `Retry-After`。排队／分段查询返回 **202**：`{state:"pending",retryAfter:30,series:"owcs",range:{from:"2026-10-01",to:"2026-10-18"},message:"…"}`，同时设置 Retry-After；按该间隔重新 GET 同一地址，不能把 pending 当作空结果。后台通过持久化告警继续补查，重启和无人访问时也会恢复。最多保留 8 个查询缓存／排队项；容量占满且均进行中时返回 429。
+
+日期段每类请求最多 200 场，达到上限会继续按日期拆分；单日达到上限或累计约 4000 场时停止并返回 `truncated:true`、`coverage` 提示用户缩小范围，不把截断结果称作完整数据。未知时间不能归入日期段；未来只包含来源已公布的赛程。
+
+200 响应包括 `matches`、`total`、`filters`、`updatedAt`、`stale`、`source`、`coverage`，Bot 另有 `limit`；补查响应还包括 `series`、`range`、`truncated`。`updating:true` 表示旧结果仍可用但后台在更新，客户端可按 `retryAfter` 继续轮询。补查失败保留最多 7 天内的旧查询缓存并提示；近期缓存保留 48 小时。无匹配返回空列表；没有可用数据且多次补查失败返回 503。个人和 free 层级 Key 都支持，不读写战绩历史或游戏 ID。
