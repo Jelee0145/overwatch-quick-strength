@@ -15,6 +15,43 @@
 
 整包 JSON 原子存储替代原 Durable Objects 的分片删除/写入过程。Cloudflare 保留原分片路径。查询内的玩家身份按上游 token 复用计算，不更改评分、缓存有效期或签名内容。
 
+## 预约推送（Web Push）
+
+**状态：已实现并测试，等待审查完成后由维护者发布上线。** 相关文件（`server/web-push.mjs`、`server/event-reminders.mjs`、`web/event-reminders*.js`）仍在工作区，尚未进入已发布版本；线上 `/opt/owqs/releases/20261019-aba28b6` 暂不含这些路由，`/etc/owqs/config.json` 也没有 `WEB_PUSH_*` 配置。发布前线上站点不提供开赛提醒，`/api/events/reminders` 不可用。本节描述的是启用后的行为。
+
+比赛中心的开赛提醒由网站进程直接发送，不经过 Cloudflare。`server/runtime.mjs` 只有在 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY`、`WEB_PUSH_SUBJECT` 三项非空时才创建推送发送器；缺少任一项时页面显示提醒服务未启用，订阅和预约接口返回 503。配置只在启动时读取，首次启用或修改后必须重启 `owqs.service`。运行环境为 Node.js 24。
+
+### 配置工具
+
+`scripts/setup-event-push.mjs` 是显式的管理员命令，不加入构建、启动或定时任务：
+
+```sh
+# 只显示用法，不读取任何配置
+node scripts/setup-event-push.mjs
+
+# 三字段已完整：只校验，保持密钥不轮换
+node scripts/setup-event-push.mjs --config /etc/owqs/config.json
+
+# 缺少字段或需要指定联系人：生成密钥并写入
+node scripts/setup-event-push.mjs --config /etc/owqs/config.json --subject mailto:ops@example.com
+node scripts/setup-event-push.mjs --config /etc/owqs/config.json --subject https://example.com/contact
+```
+
+- `--config` 必须是绝对路径，且指向已存在的普通文件。工具不会自动读取 `/etc/owqs/config.json`；文中该路径只是生产默认位置的说明。目标为目录、其他非普通文件或符号链接时拒绝处理。
+- 三项 `WEB_PUSH_*` 已完整时沿用原密钥，不重新生成；可用 `--subject` 修正联系人。若现有密钥对或 SUBJECT 无效，工具报错且不写文件；需要重新生成时，先由管理员删除这三项再运行。
+- 生成密钥复用 `server/web-push.mjs` 的 `generatePushKeys()`；SUBJECT 与运行时使用同一套 VAPID 校验，只接受 `mailto:...` 或 `https://...` 联系人地址。
+- 写入使用目标同目录的临时文件，权限 `0600`，写完 `fsync` 后 `rename` 原子替换；保留原 JSON 的其他字段。Linux 上尽量保留原文件所有者和 `0640` 以内的权限，无法保留所有者或设置权限时放弃写入；非 Linux 环境不调整所有者。
+- 工具拒绝把配置写到仓库内（包括 `public/`）。如管理员需要备份，应放在仓库和静态目录之外，使用 `0600` 权限并在完成后移除；工具本身不创建备份。
+- 工具不打印配置内容或任何密钥，成功时只报告“预约推送配置已完成”。
+
+### 使用边界
+
+- 每台浏览器需单独授权一次系统通知；提醒会发送到该账号所有已启用通知的设备，单账号最多 10 台。只授权部分浏览器时，其余设备不会收到。
+- 推送订阅绑定当前访问源的 origin。更换 `PUBLIC_ORIGIN`、改用新域名或通过另一 IP 访问后，必须在每台设备重新启用通知；旧 origin 的订阅不能沿用。浏览器要求 HTTPS 安全上下文。
+- 只有 OWCS 场次可可靠跟踪和预约。重复对阵会被标记为无法确认，TBD／待定队名不支持预约；其他赛事不提供预约。
+- 赛程来自公开数据源，存在分钟级延迟，不是秒级推送。后台以每 2 分钟轮换核对赛事来源，开赛时再核实；多赛事共享请求间隔、限流或失败退避可能延后核对，超过 3 分钟未更新的场次不会触发提醒；开赛后 5 分钟内才拿到的新结果仍可能提醒，更晚则跳过，不会回放长时间中断前的旧提醒。
+- 轮换推送密钥会使已有订阅无法解密，需要每台设备重新启用通知。配置变更后应按实际改动范围验证，真实推送需在 HTTPS 站点与已授权浏览器上验收；上线需取得用户授权。
+
 ## 构建与验证
 
 ```sh

@@ -1,6 +1,6 @@
 # 守望工具箱 Cloudflare 共享版
 
-完整项目已迁移到 `D:\重装大礼包\project\owqs`；本机工具位于 `local/`，云端项目不修改它。`source` 保存评分、强度预测、图表和素材的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。本机算法更新后，可手动运行 `node scripts/sync-local.mjs` 同步白名单源码。
+完整项目位于 `D:\project\owqs`；本机工具位于 `local/`，云端项目不修改它。`source` 保存评分、强度预测、图表和素材的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。本机算法更新后，可手动运行 `node scripts/sync-local.mjs` 同步白名单源码。
 
 ## 使用与管理
 
@@ -26,7 +26,11 @@
 
 ### Bot 查询 API
 
-网站 API 版 AstrBot 插件见 [安装与指令](plugins/astrbot_plugin_owqs_api/README.md)：配置网站地址和账户 API 密钥，支持 `/owqs 绑定`、`/owqs 查询`、`/owqs 取消`，以及查询／绑定／取消 LLM 工具。查询和评分由网站完成，Bot 默认渲染并发送最近 10 场强度图片，出图失败时回复文字摘要；`python scripts/build-api-plugin.py` 生成无密钥 ZIP。
+网站 API 版 AstrBot 插件见 [安装与指令](plugins/astrbot_plugin_owqs_api/README.md)：配置网站地址和账户 API 密钥，支持 `/owqs 绑定`、`/owqs 查询`、`/owqs 取消`，以及查询／绑定／取消／单局数据／锐评／赛程 LLM 工具。查询和评分由网站完成，Bot 渲染并发送最近 10 场强度图片，出图失败时回复文字摘要。
+
+自然语言查询由后台任务执行：工具立即返回“已开始查询”和预计耗时（快查询约 1—2 分钟，慢查询约 2—4 分钟），完成或失败后主动发回原会话，因此不受 AstrBot 工具调用超时限制。参数错误、未绑定且缺少 ID、免费次数用完仍会当场返回。`python scripts/build-api-plugin.py` 生成无密钥 ZIP。
+
+另提供可在 Linux／Docker 独立运行的 [AstrBot 插件](plugins/astrbot_plugin_owqs/README.md)，支持绑定、快慢查询和强度图回复。插件使用管理员配置的大神凭证，在 Bot 本机完成查询、评分和出图，不需要网站 API 密钥。`npm run plugin:build` 生成独立 ZIP 安装包。
 
 网页先加载当前页面和可见图表需要的资源，页面加载完成并空闲 3 秒后，再逐份预取其他页面脚本、地图预览和英雄头像，复用浏览器持久缓存。后台请求为低优先级、单路、每次访问最多 8 MiB；操作页面、查询或导图时暂停，省流量／2G／离线时不启动。资源按内容版本更新，高清导出图片仍按需读取；浏览器可自行清理缓存，不影响正常访问。预加载不包含账号、接口响应或历史数据。
 
@@ -59,7 +63,16 @@ Authorization: Bearer owqs_...
 
 ## 构建与部署
 
-腾讯云独立网站、SQLite 持久化、HTTPS 与 Cloudflare 账号历史迁移见 [STANDALONE.md](STANDALONE.md)。独立网站继续提供现有 Bot 查询 API。
+当前生产环境是腾讯云独立站点（`https://106.55.47.68:8443`，`/opt/owqs/current` 指向 `/opt/owqs/releases/<版本>`）。独立网站、SQLite 持久化、HTTPS 与 Cloudflare 账号历史迁移见 [STANDALONE.md](STANDALONE.md)。独立网站继续提供现有 Bot 查询 API。
+
+AstrBot 的 OWQS 网站 API 插件已部署在该服务器。更新时替换插件文件后热重载即可，不需要重启容器（AstrBot 容器的文件监听未启用，必须显式触发重载）：
+
+```sh
+node scripts/deploy-api-plugin.mjs            # 拷贝插件文件并热重载
+node scripts/deploy-api-plugin.mjs --dry-run  # 只显示计划
+```
+
+它只写入 `/opt/astrbot/data/plugins/astrbot_plugin_owqs_api/` 并调用面板 `/api/plugin/reload`，不改网站、配置或其他插件；默认主机别名 `tencent`，可用 `OWQS_HOST` 覆盖。
 
 战绩获取、数据整理和分析计算的仓库内复用入口、调用示例及平台边界见 [SERVICES.md](SERVICES.md)。网页、Bot 与 AI 锐评共用服务模块，支持直接分析已有数据。
 
@@ -93,7 +106,7 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 
 ## 快／慢查询与迁移
 
-默认不勾选“补充其他对局”为快查询，勾选后按缺口补采；两种模式共用签名缓存。完整本地验收见 `LOCAL-FAST-SLOW-ACCEPTANCE.md`。目前仅有本地实现，未推送上线。
+默认不勾选“补充其他对局”为快查询，勾选后按缺口补采；两种模式共用签名缓存。快／慢查询已随线上腾讯云站点发布，`POST /api/v1/query` 的 `mode` 字段接受 `fast`／`slow`。本地验收记录见 `LOCAL-FAST-SLOW-ACCEPTANCE.md`。
 
 重装、凭证及 Git 恢复详见 [迁移与重装恢复.md](迁移与重装恢复.md)。`.private` 中的会话工作与历史导出仅作私有资料，不作为正式入口。
 
