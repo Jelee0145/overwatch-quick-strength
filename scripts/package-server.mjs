@@ -13,7 +13,8 @@ await writeFile(path.join(stage,'package.json'),JSON.stringify({name:'owqs-stand
 // Exercise imports from the isolated allowlisted package, not the source checkout.
 execFileSync(process.execPath,['--input-type=module','-e','await import('+JSON.stringify(pathToFileURL(path.join(stage,'src/worker.mjs')).href)+')'],{cwd:stage,stdio:'pipe'});
 const archive=path.join(base,'dist/owqs-server.tar.gz');
-execFileSync('tar',['-czf',archive,'-C',stage,'.'],{stdio:'pipe'});
+// Relative paths keep Windows drive letters from being parsed as remote hosts.
+execFileSync('tar',['-czf','owqs-server.tar.gz','-C','server-stage','.'],{cwd:path.join(base,'dist'),stdio:'pipe'});
 const bytes=await readFile(archive),sha256=createHash('sha256').update(bytes).digest('hex');
 await writeFile(archive+'.sha256',sha256+'  owqs-server.tar.gz\n');
 console.log('Standalone package ready: dist/owqs-server.tar.gz ('+bytes.length+' bytes)');
