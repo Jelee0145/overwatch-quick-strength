@@ -17,7 +17,7 @@
 
 ## 预约推送（Web Push）
 
-**状态：已实现并测试，等待审查完成后由维护者发布上线。** 相关文件（`server/web-push.mjs`、`server/event-reminders.mjs`、`web/event-reminders*.js`）仍在工作区，尚未进入已发布版本；线上 `/opt/owqs/releases/20261019-aba28b6` 暂不含这些路由，`/etc/owqs/config.json` 也没有 `WEB_PUSH_*` 配置。发布前线上站点不提供开赛提醒，`/api/events/reminders` 不可用。本节描述的是启用后的行为。
+**状态：2026-10-20 已发布至腾讯云 `/opt/owqs/releases/20261020-03d7dbc`。** 预约路由、官方直播入口和全站三秒悬浮提醒已上线；服务器已生成并配置 `WEB_PUSH_*`，原配置项保留。公网健康、未登录鉴权、脚本与版本更新日志已核验。真实设备的系统通知及关页送达尚未完成验收，仍受浏览器授权、系统设置和推送网络影响。
 
 比赛中心的开赛提醒由网站进程直接发送，不经过 Cloudflare。`server/runtime.mjs` 只有在 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY`、`WEB_PUSH_SUBJECT` 三项非空时才创建推送发送器；缺少任一项时页面显示提醒服务未启用，订阅和预约接口返回 503。配置只在启动时读取，首次启用或修改后必须重启 `owqs.service`。运行环境为 Node.js 24。
 

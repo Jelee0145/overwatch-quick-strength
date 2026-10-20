@@ -29,7 +29,7 @@ rollback(){ ln -s "$previous" /opt/owqs/current.rollback; mv -Tf /opt/owqs/curre
 if ! systemctl restart owqs; then rollback; exit 1; fi
 healthy=0
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
- if curl -fsS http://127.0.0.1:8788/api/health | EXPECTED_REVISION="$revision" node --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;const d=JSON.parse(s);if(!d.ok||!d.revision.startsWith(process.env.EXPECTED_REVISION))process.exit(1);'; then healthy=1; break; fi
+ if curl -fsS -H 'Host: 106.55.47.68:8443' http://127.0.0.1:8788/api/health | EXPECTED_REVISION="$revision" node --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;const d=JSON.parse(s);if(!d.ok||!d.revision.startsWith(process.env.EXPECTED_REVISION))process.exit(1);'; then healthy=1; break; fi
  sleep 2
 done
 if [ "$healthy" != 1 ]; then rollback; exit 1; fi
