@@ -3,11 +3,16 @@ import {UserTasks} from '../src/tasks.mjs';
 import {EventCenter} from '../src/events.mjs';
 import {SqliteDatabase} from './storage.mjs';
 import {pacedFetch} from './limiter.mjs';
+import {EventReminders} from './event-reminders.mjs';
+import {createPushSender} from './web-push.mjs';
 
-export function createRuntime(config,{filename,assets,upstreamFetch=fetch,eventsFetch=fetch,intervalMs=500}={}){
+export function createRuntime(config,{filename,assets,upstreamFetch=fetch,eventsFetch=fetch,pushSender,intervalMs=500}={}){
  const database=new SqliteDatabase(filename),instances=new Map(),running=new Map();
  const env={...config,ASSETS:assets,EVENTS_FETCH:eventsFetch,UPSTREAM_FETCH:pacedFetch(upstreamFetch,{intervalMs})};
+ const send=pushSender||(config.WEB_PUSH_PUBLIC_KEY&&config.WEB_PUSH_PRIVATE_KEY&&config.WEB_PUSH_SUBJECT?createPushSender({publicKey:config.WEB_PUSH_PUBLIC_KEY,privateKey:config.WEB_PUSH_PRIVATE_KEY,subject:config.WEB_PUSH_SUBJECT}):null);
+ env.REMINDERS=new EventReminders(database.store('reminders'),env,{send,publicKey:config.WEB_PUSH_PUBLIC_KEY||''});
  const instance=ns=>{
+  if(ns==='reminders')return env.REMINDERS;
   if(!instances.has(ns)){const Class=ns==='auth'?AuthDirectory:ns==='events'?EventCenter:UserTasks;instances.set(ns,new Class({storage:database.store(ns)},env));}
   return instances.get(ns);
  };

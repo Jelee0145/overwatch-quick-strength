@@ -21,6 +21,13 @@ export function eventApi({series='owcs',from='',to=''}={},limit=50){
  const text=['upcoming','recent'].map(type=>'<div data-filter-expansion-template="#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'">{{#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'|limit='+limit+'|additionalConditions='+conditions+'}}</div>').join('\n');
  return EVENT_SOURCE+'?'+new URLSearchParams({action:'parse',text,contentmodel:'wikitext',prop:'text',format:'json',title:'Liquipedia:Matches'});
 }
+export function trackedEventApi(source){
+ let url;try{url=new URL(source);}catch{throw new Fault('赛事来源无效');}
+ if(url.origin!=='https://liquipedia.net'||url.username||url.password||url.search||!url.pathname.startsWith('/overwatch/Overwatch_Champions_Series/')||!/^[A-Za-z0-9_\/-]+$/.test(url.pathname))throw new Fault('赛事来源无效');
+ const page=decodeURIComponent(url.pathname.slice('/overwatch/'.length));
+ const text=['upcoming','recent'].map(type=>'<div data-filter-expansion-template="type='+type+'">{{#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'|limit=200|additionalConditions= AND [[pagename::'+page+']]}}</div>').join('\n');
+ return EVENT_SOURCE+'?'+new URLSearchParams({action:'parse',text,contentmodel:'wikitext',prop:'text',format:'json',title:'Liquipedia:Matches'});
+}
 export function splitEventRange(range){
  if(!range.from||range.from===range.to)return null;
  const first=Date.parse(range.from),last=Date.parse(range.to),mid=first+Math.floor((last-first)/DAY/2)*DAY,date=ms=>new Date(ms).toISOString().slice(0,10);

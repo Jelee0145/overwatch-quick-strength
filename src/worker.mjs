@@ -2,6 +2,7 @@ import {Fault,json,getCookie,cookie} from './security.mjs';import {authCall} fro
 import {release} from './release.mjs';import {analyzeResult} from './api-analysis.mjs';
 import {renderApiChart,compactAnalysis} from './api-chart.mjs';
 import {filterEvents} from './events-filter.mjs';
+import {broadcastsFor} from './events-broadcasts.mjs';
 export {AuthDirectory} from './auth.mjs';export {UserTasks} from './tasks.mjs';
 export {EventCenter} from './events.mjs';
 const securityHeaders={'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
@@ -31,7 +32,7 @@ async function apiV1(request,env,url){
  if(url.pathname==='/api/v1/events'){
   if(request.method!=='GET')throw new Fault('请求方法错误',405);
   filterEvents({matches:[]},url.searchParams);
-  const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/?'+url.searchParams);
+  const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/?'+url.searchParams,{headers:{'X-OWQS-Event-User':auth.user.id}});
   if(response.status!==200)return response;
   return json(filterEvents(await response.json(),url.searchParams),200,{'Cache-Control':'private, no-store'});
  }
@@ -96,13 +97,21 @@ export async function route(request,env){
    if(path.endsWith('/logout'))headers['Set-Cookie']=cookie('',path.startsWith('/api/admin/'),0);if(path==='/api/auth/session')value.scope={server:env.DASHEN_SERVER,dts:env.DASHEN_DTS};return json(value,200,headers);
   }
   const auth=await authCall(env,'/authorize',{},i);
+  if(path==='/api/events/reminders'||path.startsWith('/api/events/reminders/')){
+   const action=path==='/api/events/reminders'?'list':path.slice('/api/events/reminders/'.length);
+   if(action==='list'?mutation:!mutation)throw new Fault('请求方法错误',405);
+   if(!env.REMINDERS){if(action==='list')return json({enabled:false,publicKey:'',reservations:[],notices:[]});throw new Fault('比赛通知尚未启用',503);}
+   return json(await env.REMINDERS.handle(auth.user.id,action,i.body));
+  }
   if(path==='/api/events'||path==='/api/events/refresh'){
    if(path.endsWith('/refresh')?!mutation:mutation)throw new Fault('请求方法错误',405);
    const params=new URLSearchParams(url.searchParams);if(!params.has('status'))params.set('status','all');
    filterEvents({matches:[]},params,{paginate:false});
-   const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/'+(mutation?'refresh':'')+'?'+params,{method:mutation?'POST':'GET'});
+   const response=await env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/'+(mutation?'refresh':'')+'?'+params,{method:mutation?'POST':'GET',headers:{'X-OWQS-Event-User':auth.user.id}});
    if(response.status!==200)return response;
-   return json(filterEvents(await response.json(),params,{paginate:false}),200,{'Cache-Control':'private, no-store'});
+   const value=filterEvents(await response.json(),params,{paginate:false});
+   value.matches=env.REMINDERS?await env.REMINDERS.decorate(value.matches):value.matches.map(match=>({...match,broadcasts:broadcastsFor(match),reservable:false}));
+   return json(value,200,{'Cache-Control':'private, no-store'});
   }
   const task=env.TASKS.get(env.TASKS.idFromName(auth.user.id));let internal,b=i.body;
   if(path==='/api/query'&&mutation)internal='/query';

@@ -4,14 +4,17 @@ import re
 import uuid
 from pathlib import Path
 
-from astrbot.api import AstrBotConfig
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api import AstrBotConfig, logger
+from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-from .api_client import ApiClient, Bindings, Query, QueryManager, UserError, compact_result, format_result, owner_key, parse_query, credential_scope, valid_key, BIND_ERROR
+from .api_client import ApiClient, Bindings, Query, QueryManager, UserError, format_result, owner_key, parse_query, credential_scope, valid_key, BIND_ERROR
 from .renderer import Renderer
 from .api_client import parse_events, format_events
+
+ESTIMATE = {'fast': '约 1—2 分钟', 'slow': '约 2—4 分钟'}
+MAX_DATA_RENDERS = 3
 
 HELP = """狸狸天眼查 · 网站 API
 /owqs 绑定 网站Key（仅私聊）
@@ -40,7 +43,12 @@ class Main(Star):
         self.manager = QueryManager(self.client, timeout=config.get("query_timeout", 600), max_pending=config.get("max_pending", 5))
         self.review_pending = set()
         self.query_pending = set()
+        self.background = set()
         self.review_slot = asyncio.Semaphore(1)
+        self.data_pending = set()
+        self.data_tasks = {}
+        self.data_limit = MAX_DATA_RENDERS
+        self.data_slot = asyncio.Semaphore(MAX_DATA_RENDERS)
 
     def route(self, owner):
         key=self.bindings.key(owner)
@@ -71,11 +79,11 @@ class Main(Star):
         self.bindings.bind_key(owner,key)
         return '网站 Key 绑定成功。查询将使用该 Key 所属账号额度；可 /owqs 查询 昵称#编号，之后可省略 ID。'
 
-    async def run_query(self, owner, arguments):
+    async def prepare_query(self, owner, arguments):
+        """Validate the sender and reserve quota before anything is acknowledged."""
         if owner in self.query_pending:raise UserError('你已有查询正在处理，请等待完成')
         if len(self.query_pending)>=self.manager.max_pending:raise UserError('插件查询队列已满，请稍后再试')
         self.query_pending.add(owner)
-        reservation=None
         try:
             client,scope,free=self.route(owner)
             if free and (await client.account()).get('tier')!='free':
@@ -84,7 +92,15 @@ class Main(Star):
             if not free and not default and '#' not in arguments:
                 account=await client.account();default=account.get('lastBattletag')
             query=parse_query(arguments,default)
-            if free:reservation=self.bindings.reserve(owner,'query',self.config.get('free_daily_limit',10))
+            reservation=self.bindings.reserve(owner,'query',self.config.get('free_daily_limit',10)) if free else None
+            return client,query,scope,reservation,free
+        except BaseException:
+            self.query_pending.discard(owner)
+            raise
+
+    async def execute_query(self, owner, client, query, scope, reservation, free):
+        """Run the long part of a prepared query; keeps the sender locked until it ends."""
+        try:
             result=await self.manager.query(owner,query,client=client)
             canonical=result.get('battletag')
             if isinstance(canonical,str) and canonical.casefold()==query.tag.casefold():
@@ -96,6 +112,71 @@ class Main(Star):
             raise
         finally:self.query_pending.discard(owner)
 
+    async def run_query(self, owner, arguments):
+        return await self.execute_query(owner, *await self.prepare_query(owner, arguments))
+
+    async def deliver_query(self, owner, session, arguments, client, query, scope, reservation, free):
+        """Background half of the tool query: waits for the website, then pushes the chart."""
+        label=f'{query.tag} · 最近 {query.limit} 场 · {"慢" if query.mode=="slow" else "快"}模式'
+        try:
+            result,query,scope=await self.execute_query(owner,client,query,scope,reservation,free)
+            try:
+                image=await self.renderer.render(result.get("chart"))
+                self.bindings.remember(owner,result,scope)
+                await self.notify(session,None,image)
+            except Exception:
+                await self.notify(session,"本次图片生成失败，改用文字结果（不会重复查询）。\n"+format_result(result,query))
+        except UserError as error:
+            await self.notify(session,f'{label} 查询失败：{error}')
+        except Exception:
+            await self.notify(session,f'{label} 查询失败：插件执行异常，请管理员检查网站连接与插件配置')
+
+    async def notify(self, session, text, image=None):
+        """Push a result into the originating session outside the tool call."""
+        try:
+            if image:
+                chain=MessageChain().file_image(image)
+            else:
+                chain=MessageChain().message(text)
+            if not await self.context.send_message(session,chain):
+                logger.warning('OWQS 后台结果发送失败：没有匹配的平台会话')
+        except Exception:
+            logger.exception('OWQS 后台结果发送失败')
+
+    async def _render_data_image(self, client, job, n):
+        async with self.data_slot:
+            value = await client.match(job, n)
+            detail = value.get('match') or {}
+            try:
+                return await self.renderer.render_data(detail), detail
+            except Exception:
+                return None, detail
+
+    async def data_image(self, owner, client, job, n, scope):
+        """Coalesce identical data renders and bound queued Playwright work."""
+        key = (owner, job, n, scope)
+        task = self.data_tasks.get(key)
+        if task is None:
+            if owner in self.data_pending:
+                raise UserError('你已有数据图正在排队或生成，请等待完成')
+            if len(self.data_tasks) >= self.data_limit:
+                raise UserError('数据图队列已满，请稍后再试')
+            task = asyncio.create_task(self._render_data_image(client, job, n))
+            self.data_tasks[key] = task
+            self.data_pending.add(owner)
+            self.background.add(task)
+
+            def release(done, key=key, owner=owner):
+                if self.data_tasks.get(key) is done:
+                    self.data_tasks.pop(key, None)
+                self.data_pending.discard(owner)
+                self.background.discard(done)
+                if not done.cancelled():
+                    done.exception()
+
+            task.add_done_callback(release)
+        return await asyncio.shield(task)
+
     async def selected_images(self, event, n, review=False):
         if type(n) is float and n.is_integer():n=int(n)
         if isinstance(n,bool) or not re.fullmatch(r"[0-9]{1,2}",str(n)):
@@ -103,9 +184,9 @@ class Main(Star):
         n=int(n);owner=owner_key(event);client,scope,free=self.route(owner)
         job=self.bindings.selection(owner,n,scope)
         if not review:
-            value=await client.match(job,n);detail=value.get('match') or {}
-            try:return [await self.renderer.render_data(detail)],None
-            except Exception:return [],f"第 {n} 场数据图生成失败；地图：{detail.get('mapName','未知')}。请在网站查看完整数据。"
+            image,detail=await self.data_image(owner,client,job,n,scope)
+            if image:return [image],None
+            return [],f"第 {n} 场数据图生成失败；地图：{detail.get('mapName','未知')}。请在网站查看完整数据。"
         if owner in self.review_pending:raise UserError("你已有锐评排队或生成中，请等待完成")
         if len(self.review_pending)>=5:raise UserError("锐评队列已满，请稍后再试")
         self.review_pending.add(owner)
@@ -194,7 +275,7 @@ class Main(Star):
 
     @filter.llm_tool(name="owqs_query")
     async def query_tool(self, event: AstrMessageEvent, battletag: str = "", limit: int = 10, mode: str = "fast") -> str:
-        """用户用自然语言要求查询守望先锋玩家战绩时调用，直接发送图片。赛事赛程或赛果请调用 owqs_events，无需游戏 ID。必须逐字保留游戏 ID 大小写，禁止将昵称改成全小写。未绑定且没有完整 ID 时先询问用户，不能把缺少 ID 说成系统故障。已绑定 Key 可省略 ID。不要重复调用失败查询。用户要已查图中第 n 场数据或锐评时分别调用 owqs_match_data / owqs_match_review，避免重新查询扣费。默认快查询，规则评分不代表官方 MMR。
+        """用户用自然语言要求查询守望先锋玩家战绩时调用。查询在后台进行，工具会立即返回已开始和预计耗时；强度图由后台在完成后自动发到当前会话，并附通知说明。参数错误、未绑定且没有完整 ID、次数用完等情况仍会直接当场说明，不能说成已经开始了查询。收到开始回执后不要重复调用同一查询，也不要在后台结果到达前猜测结果。赛事赛程或赛果请调用 owqs_events，无需游戏 ID。必须逐字保留游戏 ID 大小写，禁止将昵称改成全小写。未绑定且没有完整 ID 时先询问用户，不能把缺少 ID 说成系统故障。已绑定 Key 可省略 ID。不要重复调用失败查询。用户要已查图中第 n 场数据或锐评时分别调用 owqs_match_data / owqs_match_review，避免重新查询扣费。默认快查询，规则评分不代表官方 MMR。
 
         Args:
             battletag(string): 完整战网昵称，如昵称#12345。为空时仅允许已绑定 Key 的发送者使用上一次查询 ID。
@@ -214,15 +295,13 @@ class Main(Star):
             if tag:
                 original=re.search(re.escape(tag)+r'(?!\d)',event.get_message_str().replace('＃','#'),re.IGNORECASE)
                 if original:tag=original.group(0)
-            result,query,scope = await self.run_query(owner, f'{tag} {limit} {mode}')
-            try:
-                image = await self.renderer.render(result.get("chart"))
-                await event.send(event.image_result(image))
-                self.bindings.remember(owner,result,scope)
-                return json.dumps({"battletag":query.tag,"imageSent":True,"displayed":len((result.get("analysis") or {}).get("matches") or []),"message":"强度图片已发送，无需重复展示详细文字"},ensure_ascii=False)
-            except Exception:
-                await event.send(event.plain_result("本次图片生成失败，改用文字结果（不会重复查询）。\n" + format_result(result, query)))
-                return json.dumps({"battletag":query.tag,"imageSent":False,"textSent":True,"summary":compact_result(result, query)},ensure_ascii=False)
+            client,query,scope,reservation,free = await self.prepare_query(owner, f'{tag} {limit} {mode}')
+            session=event.unified_msg_origin
+            task=asyncio.create_task(self.deliver_query(owner,session,f'{query.tag} {query.limit} {query.mode}',client,query,scope,reservation,free))
+            self.background.add(task);task.add_done_callback(self.background.discard)
+            return json.dumps({"battletag":query.tag,"mode":query.mode,"limit":query.limit,"started":True,"estimate":ESTIMATE[query.mode],
+                "reply":f'已开始查询 {query.tag}（最近 {query.limit} 场 · {"慢" if query.mode=="slow" else "快"}模式），预计 {ESTIMATE[query.mode]}，完成后会自动发强度图；期间可 /owqs 取消。',
+                "message":"请把 reply 原意告诉用户，不要声称已有结果；不要在后台结果到达前再次调用同一查询"},ensure_ascii=False)
         except UserError as error:
             return str(error)
         except Exception:
@@ -290,6 +369,8 @@ class Main(Star):
             return str(error)
 
     async def terminate(self):
+        for task in list(self.background):
+            task.cancel()
         await self.manager.close()
         await self.renderer.close()
         self.bindings.close()

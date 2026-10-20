@@ -13,7 +13,7 @@ test('optimized page has a small deferred bundle and no local map API',async()=>
  const code=await read('public'+script);assert.ok(!code.includes('/api/map-art'));assert.ok(!/data:image\/[^;\s"']+;base64,[A-Za-z0-9+/=]{100,}/.test(code));assert.ok(!code.includes('credentialPayload'));
  const scripts=[...html.matchAll(/<script defer src="([^"]+)"/g)].map(m=>m[1]);
  const bytes=(await Promise.all(scripts.map(file=>stat(path.join(base,'public',file))))).reduce((n,s)=>n+s.size,0)+(await stat(path.join(base,'public',css))).size+Buffer.byteLength(html);assert.ok(bytes<300000,`${bytes} exceeds the startup budget`);
- assert.deepEqual((await readdir(path.join(base,'public'))).filter(f=>f.endsWith('.js')),['install.js']);
+ assert.deepEqual((await readdir(path.join(base,'public'))).filter(f=>f.endsWith('.js')).sort(),['event-reminders-sw.js','install.js']);
  assert.match(html,/<script defer src="\/install\.js"><\/script>/);
 });
 test('timeline preview clips only moving content, keeps axes outside moving layers and preserves ten-column geometry with one buffer',async()=>{

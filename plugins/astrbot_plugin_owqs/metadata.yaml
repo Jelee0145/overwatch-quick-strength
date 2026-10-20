@@ -1,0 +1,7 @@
+name: astrbot_plugin_owqs
+display_name: 狸狸天眼查
+desc: 独立查询守望先锋快速对局，生成强度图，支持战网昵称绑定和快慢查询。
+version: v1.0.0
+author: Jelee0145
+repo: https://github.com/Jelee0145/overwatch-quick-strength
+astrbot_version: ">=4.9.2,<5"

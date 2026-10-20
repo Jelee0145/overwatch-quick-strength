@@ -48,6 +48,7 @@ const brandPage=page=>page.replace(/<title>([^<]+)<\/title>/,(_,title)=>'<title>
 const installHead='<link rel="manifest" href="/manifest.json"><script defer src="/install.js"></script>';
 await writeFile(path.join(base,'public/app-icon.svg'),await readFile(path.join(base,'web/app-icon.svg')));
 await writeFile(path.join(base,'public/install.js'),await readFile(path.join(base,'web/install.js')));
+await writeFile(path.join(base,'public/event-reminders-sw.js'),await readFile(path.join(base,'web/event-reminders-sw.js')));
 await writeFile(path.join(base,'public/manifest.json'),JSON.stringify({id:'/',name:'狸狸天眼查',short_name:'天眼查',description:'守望先锋对局分析、英雄抽取与赛事中心',lang:'zh-CN',start_url:'/',scope:'/',display:'standalone',background_color:'#ffffff',theme_color:'#f58220',icons:[{src:'/app-icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]}));
 const withInstall=page=>page.replace('</head>',installHead+'</head>');
 html=html.replace('<span>快速强度图</span>','<span>狸狸天眼查</span>').replace('快速强度图首页','狸狸天眼查首页');
@@ -142,7 +143,10 @@ chart=chart.replace('data-chart-version="${QS_CHART_VERSION}"','data-chart-versi
 chart=chart.replace("String(i+1).padStart", "String((model.windowOffset||0)+i+1).padStart");
 const hash=value=>createHash('sha256').update(value).digest('hex').slice(0,16);
 async function staticFile(source,extension,name){const out=(await transform(source,{loader:extension==='css'?'css':'js',minify:true,target:'es2022',...(extension==='css'?{}:{format:'iife'})})).code;const url='/static/'+name+'.'+hash(out)+'.'+extension;await writeFile(path.join(base,'public',url.slice(1)),out);return url;}
-const css=await staticFile(await readFile(path.join(local,'style.css'),'utf8')+'\n'+await readFile(path.join(base,'web/cloud.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile-shell.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile.css'),'utf8'),'css','app');
+// Keep reminders off the startup budget: the engine hashes separately and loads after the page is idle.
+const reminderEngine=await staticFile(await readFile(path.join(base,'web/event-reminders.js'),'utf8'),'js','event-reminders');
+const reminderLoader=await staticFile((await readFile(path.join(base,'web/event-reminders-loader.js'),'utf8')).replace('__EVENT_REMINDERS_URL__',reminderEngine),'js','event-reminders-loader');
+const css=await staticFile(await readFile(path.join(local,'style.css'),'utf8')+'\n'+await readFile(path.join(base,'web/cloud.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile-shell.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile.css'),'utf8')+'\n'+await readFile(path.join(base,'web/event-reminders.css'),'utf8'),'css','app');
 const files=async names=>Promise.all(names.map(name=>readFile(path.join(local,name),'utf8')));
 const browserData=await readFile(path.join(local,'data.js'),'utf8');
 const runtime=await files(shared);
@@ -150,12 +154,12 @@ const services=await build({entryPoints:[path.join(base,'web/services.js')],bund
 runtime.push(services.outputFiles[0].text);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
 const main=await staticFile(rewriteCopy(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile-shell.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
-html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="/install.js"></script></head>`);
+html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${reminderLoader}"></script><script defer src="/install.js"></script></head>`);
 await mkdir(path.join(base,'public/tools'),{recursive:true});
 await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDecorativeEnglish(html)));
 await buildApiCapture({base,html:rewriteCopy(cleanDecorativeEnglish(html)),app:rewriteCopy(app),css});
 await buildToolkit({base,brandPage:page=>withInstall(brandPage(page)),logo,staticFile,releaseNotes,rewriteCopy,cleanDecorativeEnglish});
 for(const page of ['login','admin']){let content=withInstall(brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8')));const js=await staticFile(rewriteCopy(await readFile(path.join(base,'web',page+'.js'),'utf8')),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script><script defer src="/install.js"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),rewriteCopy(cleanDecorativeEnglish(content)));}
-await writeFile(path.join(base,'public/_headers'),`/release-notes.json\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
+await writeFile(path.join(base,'public/_headers'),`/release-notes.json\n  Cache-Control: no-store\n/event-reminders-sw.js\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
 await buildAssetPreload({base,media,staticFile});
 console.log('Cloud build complete: hashed scripts, lazy CDN media, idle browser prewarming; original local tool preserved.');

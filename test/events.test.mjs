@@ -115,11 +115,11 @@ test('background sync times out at ten seconds and failed attempts survive proce
 
 test('website refresh is authenticated and origin protected; scheduled and manual sync never create tasks',async()=>{
  let approved=false;const calls=[];
- const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>approved?Response.json({user:{id:'user'}}):Response.json({error:'请先登录'},{status:401})})},EVENTS:{idFromName:()=> 'global',get:()=>({fetch:async(url,init)=>{calls.push({url,method:init?.method||'GET'});return Response.json({matches:[]});}})},TASKS:{get:()=>{throw Error('must not create query tasks');}},ASSETS:{fetch:async request=>new Response(new URL(request.url).pathname)}};
+ const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>approved?Response.json({user:{id:'user'}}):Response.json({error:'请先登录'},{status:401})})},EVENTS:{idFromName:()=> 'global',get:()=>({fetch:async(url,init)=>{calls.push({url,method:init?.method||'GET',headers:init?.headers||{}});return Response.json({matches:[]});}})},TASKS:{get:()=>{throw Error('must not create query tasks');}},ASSETS:{fetch:async request=>new Response(new URL(request.url).pathname)}};
  assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,401);assert.equal(calls.length,0);
- approved=true;assert.equal((await worker.fetch(new Request('https://site.test/api/events'),env)).status,200);assert.equal(calls[0].method,'GET');
+ approved=true;assert.equal((await worker.fetch(new Request('https://site.test/api/events',{headers:{'X-OWQS-Event-User':'forged'}}),env)).status,200);assert.equal(calls[0].method,'GET');assert.equal(calls[0].headers['X-OWQS-Event-User'],'user');
  assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://evil.test','Content-Type':'application/json'},body:'{}'}),env)).status,403);assert.equal(calls.length,1);
- assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,200);assert.equal(new URL(calls[1].url).pathname,'/refresh');assert.equal(calls[1].method,'POST');
+ assert.equal((await worker.fetch(new Request('https://site.test/api/events/refresh',{method:'POST',headers:{Origin:'https://site.test','Content-Type':'application/json'},body:'{}'}),env)).status,200);assert.equal(new URL(calls[1].url).pathname,'/refresh');assert.equal(calls[1].method,'POST');assert.equal(calls[1].headers['X-OWQS-Event-User'],'user');
  let work;await worker.scheduled({},env,{waitUntil:promise=>{work=promise;}});await work;assert.equal(calls[2].url,'https://events.internal/sync');assert.equal(calls[2].method,'POST');
 });
 
@@ -164,8 +164,8 @@ test('Bot events API combines filters, preserves Beijing date boundaries and cap
  const filtered=filterEvents(data,new URLSearchParams({region:'KR',team:'CRa',tournament:'stage 3',from:'2026-10-18',to:'2026-10-18',limit:'1',status:'scheduled'}));assert.equal(filtered.total,1);assert.equal(filtered.matches.length,1);
  assert.equal(filterEvents(data,new URLSearchParams({region:'CN',team:'All Gamers'})).total,1);assert.equal(filterEvents(data,new URLSearchParams({status:'completed'})).matches[0].scores[1],0);
  for(const params of [{from:'2026-02-30'},{from:'2026-10-19',to:'2026-10-18'},{limit:'21'},{status:'live'},{refresh:'true'}])assert.throws(()=>filterEvents(data,new URLSearchParams(params)));
- let calls=0;const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>Response.json({user:{id:'user'},tier:'free'})})},TASKS:{get:()=>{throw Error('must not create query task');}},EVENTS:{idFromName:()=>'',get:()=>({fetch:async()=>{calls++;return Response.json(data);}})}};
- const api=url=>worker.fetch(new Request('https://site.test/api/v1/events'+url,{headers:{Authorization:'Bearer owqs_'+'a'.repeat(64)}}),env);
+ let calls=0;const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>Response.json({user:{id:'user'},tier:'free'})})},TASKS:{get:()=>{throw Error('must not create query task');}},EVENTS:{idFromName:()=>'',get:()=>({fetch:async(url,init)=>{calls++;assert.equal(init.headers['X-OWQS-Event-User'],'user');return Response.json(data);}})}};
+ const api=url=>worker.fetch(new Request('https://site.test/api/v1/events'+url,{headers:{Authorization:'Bearer owqs_'+'a'.repeat(64),'X-OWQS-Event-User':'forged'}}),env);
  const response=await api('?region=CN&team=All%20Gamers');assert.equal(response.status,200);assert.equal((await response.json()).total,1);assert.equal(calls,1);
  assert.equal((await worker.fetch(new Request('https://site.test/api/v1/events'),env)).status,401);
 });

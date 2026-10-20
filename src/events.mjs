@@ -1,21 +1,27 @@
 import {parseEventBatch} from './events-parser.mjs';
 import {json} from './security.mjs';
 
-import {eventApi,eventQuery} from './events-source.mjs';
+import {eventApi,eventQuery,trackedEventApi} from './events-source.mjs';
 import {EventQueries} from './events-queries.mjs';
 import {Fault} from './security.mjs';
 export const EVENTS_API=eventApi();
 const SOURCE_VERSION=2;
 const HOUR=60*60*1000,MAX_AGE=48*HOUR,MAX_BYTES=2*1024*1024;
+const ACCOUNT_HEADER='X-OWQS-Event-User';
 export const nextEventSync=now=>(Math.floor(now/HOUR)+1)*HOUR;
 export class EventCenter{
- constructor(ctx,env){this.storage=ctx.storage;this.env=env;this.pending=null;this.sourceBusy=false;this.queries=new EventQueries(this);}
+ constructor(ctx,env){this.storage=ctx.storage;this.env=env;this.pending=null;this.sourceBusy=null;this.queries=new EventQueries(this);}
  now(){return Date.now();}
  async fetch(request){
   const url=new URL(request.url),path=url.pathname;
+  if(path==='/track'&&request.method==='POST'){
+   try{const source=url.searchParams.get('source'),api=trackedEventApi(source),value=await this.source(api,{series:'owcs'},{priority:'track'});if(value.counts.scheduled>=200||value.counts.completed>=200)throw Error('Incomplete tracked tournament');return json({matches:value.matches.filter(m=>m.sourceUrl===source),updatedAt:this.now()});}
+   catch(error){return json({error:'预约赛程暂不可核实'},error.status||503);}
+   finally{await this.schedule();}
+  }
   let query;try{query=eventQuery(url.searchParams);}catch(error){return json({error:error.message},error.status||400);}
   if((query.from||query.series!=='owcs')&&['GET','POST'].includes(request.method)&&path!=='/sync'){
-   try{const key=await this.queries.ensure(query,{force:request.method==='POST'&&path==='/refresh'});let value=await this.queries.read(key);if(value.state==='pending'||value.updating){await this.queries.work();value=await this.queries.read(key);}return json(value,value.state==='pending'?202:200,{'Cache-Control':'private, no-store',...(value.state==='pending'?{'Retry-After':String(value.retryAfter)}:{})});}
+   try{const owner=await this.accountRef(request),key=await this.queries.ensure(query,{force:request.method==='POST'&&path==='/refresh',owner});let value=await this.queries.read(key);if(value.state==='pending'||value.updating){await this.queries.work();value=await this.queries.read(key);}return json(value,value.state==='pending'?202:200,{'Cache-Control':'private, no-store',...(value.state==='pending'?{'Retry-After':String(value.retryAfter)}:{})});}
    catch(error){return json({error:error instanceof Fault?error.message:'赛事补查暂不可用，请稍后重试'},error.status||503,{'Cache-Control':'no-store'});}
    finally{await this.schedule();}
   }
@@ -37,25 +43,35 @@ export class EventCenter{
   return this.view(saved,this.now()-saved.updatedAt>=HOUR);
  }
  async refresh(force=false){
-  if(!this.pending)this.pending=this.load(force).finally(()=>{this.pending=null;this.sourceBusy=false;this.queries=new EventQueries(this);});
+  if(!this.pending)this.pending=this.load(force).finally(()=>{this.pending=null;});
   return this.pending;
  }
  async alarm(){
-  await this.queries.work();
   try{await this.refresh();}catch{/* A sync failure preserves the last good snapshot. */}
+  if(!await this.recentDue())await this.queries.work();
   await this.schedule();
  }
  async schedule(){
   // New key deliberately ignores the old daily nextAttempt on policy upgrade.
   const next=await this.storage.get('refreshAfter')||0;
-  const saved=await this.storage.get('snapshot'),due=!saved||saved.sourceVersion!==SOURCE_VERSION||saved.updatedAt<Math.floor(this.now()/HOUR)*HOUR;
+  const due=await this.recentDue();
   await this.storage.setAlarm(Math.max(due||await this.queries.hasPending()?this.now()+1000:nextEventSync(this.now()),next));
  }
+ async recentDue(now=this.now()){
+  const saved=await this.storage.get('snapshot');
+  return !saved||saved.sourceVersion!==SOURCE_VERSION||saved.updatedAt<Math.floor(now/HOUR)*HOUR;
+ }
+ async accountRef(request){
+  const account=(request.headers.get(ACCOUNT_HEADER)||'').trim().slice(0,512);
+  if(!account)return 'legacy';
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('event-owner:'+account));
+  return 'account:'+[...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+ }
  async load(force){
-  const now=this.now(),saved=await this.storage.get('snapshot'),next=await this.storage.get('refreshAfter')||0;
-  if(now>=next&&(force||!saved||saved.sourceVersion!==SOURCE_VERSION||saved.updatedAt<Math.floor(now/HOUR)*HOUR)){
+  const now=this.now(),next=await this.storage.get('refreshAfter')||0;
+  if(now>=next&&(force||await this.recentDue(now))){
    try{
-    const {matches}=await this.source(EVENTS_API);
+    const {matches}=await this.source(EVENTS_API,{series:'owcs'},{priority:'recent'});
     const snapshot={matches,updatedAt:this.now(),sourceVersion:SOURCE_VERSION};await this.storage.put('snapshot',snapshot);
     await this.storage.put('refreshFailed',false);return this.view(snapshot,false);
    }catch(error){if(!error.retryAfter)await this.storage.put('refreshFailed',true);}
@@ -64,11 +80,13 @@ export class EventCenter{
   if(await this.storage.get('refreshFailed'))return {...value,refreshError:'更新失败或上游暂时限流，正在显示上次成功的数据，请稍后重试。'};
   return value;
  }
- async source(api,options={series:'owcs'}){
+ async source(api,options={series:'owcs'},{priority='backfill'}={}){
   const cooldown=seconds=>Object.assign(Error('Event source cooldown'),{retryAfter:seconds});
-  if(this.sourceBusy)throw cooldown(1);this.sourceBusy=true;
+  if(this.sourceBusy)throw cooldown(1);
+  const owner={};this.sourceBusy=owner;
   let timer,started=false;
   try{
+   if(priority!=='recent'&&await this.recentDue())throw cooldown(1);
    const next=await this.storage.get('refreshAfter')||0;if(this.now()<next)throw cooldown(Math.ceil((next-this.now())/1000));
    await this.storage.put('refreshAfter',this.now()+30000);started=true;
    const controller=new AbortController();timer=setTimeout(()=>controller.abort(),10000);
@@ -87,7 +105,7 @@ export class EventCenter{
    const bytes=new Uint8Array(size);let offset=0;for(const part of chunks){bytes.set(part,offset);offset+=part.length;}
    const data=JSON.parse(new TextDecoder().decode(bytes));return parseEventBatch(data.parse?.text?.['*'],options);
   }catch(error){if(started)await this.storage.put('refreshAfter',Math.max(await this.storage.get('refreshAfter')||0,this.now()+5*60*1000));throw error;}
-  finally{clearTimeout(timer);this.sourceBusy=false;}
+  finally{clearTimeout(timer);if(this.sourceBusy===owner)this.sourceBusy=null;}
  }
 
  view(snapshot,stale){return {matches:snapshot.matches,updatedAt:new Date(snapshot.updatedAt).toISOString(),stale,source:{name:'Liquipedia',url:'https://liquipedia.net/overwatch/Liquipedia:Matches',license:'CC BY-SA 3.0',licenseUrl:'https://creativecommons.org/licenses/by-sa/3.0/'},coverage:'上游先筛 OWCS，再分别获取最多 50 场近期赛程与赛果；日期条件仅筛缓存，不代表所选日期的全部比赛或完整赛季。'};}

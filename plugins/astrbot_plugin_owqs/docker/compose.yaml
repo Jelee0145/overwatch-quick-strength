@@ -1,0 +1,18 @@
+services:
+  astrbot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: astrbot-owqs:local
+    init: true
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:6185:6185"
+    volumes:
+      - astrbot_data:/AstrBot/data
+
+volumes:
+  astrbot_data:

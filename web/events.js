@@ -5,6 +5,35 @@
  const timeFormat=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
  const dateFormat=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'long',day:'numeric',weekday:'long'});
  let snapshot=null,view='scheduled',busy=false,requestId=0,retryTimer,queryTimer;
+ const reminders=()=>window.EventReminders,reminderState=()=>reminders()?.state;
+ const reserved=match=>reminderState()?.reservations.some(r=>r.id===match.reminderId&&r.state!=='completed');
+ function reminderAction(action){
+  let promise;try{promise=action();}catch(error){promise=Promise.reject(error);}
+  Promise.resolve(promise).catch(error=>{if(reminderState())reminderState().error=error.message;$('eventsRemindersError').textContent=error.message;$('eventsRemindersError').hidden=false;});
+ }
+ function renderReminders(){
+  const s=reminderState(),ready=s?.ready,list=$('eventsReservations'),enable=$('eventsEnableNotifications');
+  list.setAttribute('aria-busy',String(!ready));list.replaceChildren();
+  enable.disabled=!ready||!s.enabled||s.pending||s.deviceEnabled;enable.textContent=s?.deviceEnabled?'本机通知已启用':'启用本机通知';
+  $('eventsRemindersStatus').textContent=!ready?(s?.error||'正在读取提醒设置…'):s.error?'提醒设置暂不可用，请重试。':!s.enabled?'开赛提醒服务尚未启用。':s.deviceEnabled?'本机已关联此账号的所有预约。':'启用本机通知后，可接收此账号的开赛提醒。';
+  $('eventsRemindersError').textContent=s?.error||'';$('eventsRemindersError').hidden=!s?.error;
+  if(!ready)return;
+  const entries=s.reservations.filter(r=>r.state!=='completed');
+  if(!entries.length){list.append(element('li','events-reservation-empty',s.enabled?'还没有预约，在赛程中选择一场比赛。':'服务启用后，可在赛程中预约比赛。'));return;}
+  for(const r of entries){
+   const item=element('li','events-reservation'),copy=element('div'),match=r.match||{};
+   const teams=(match.teams||[]).map(t=>typeof t==='string'?t:t.name).filter(Boolean).join(' vs ');
+   copy.append(element('strong','',teams||'待确认比赛'));
+   const starts=Date.parse(match.startsAt),parts=[Number.isFinite(starts)?dateTime.format(new Date(starts)):'时间待定',match.tournament,match.region].filter(Boolean);
+   copy.append(element('span','',parts.join(' · ')));
+   const status={active:r.changed?'赛程已变更，请核对开赛时间。':'已预约',notified:'已发送开赛提醒',unverified:'赛程待核实'}[r.state]||'已预约';
+   copy.append(element('span','events-reservation-status',status));
+   const cancel=element('button','','取消预约');cancel.type='button';cancel.disabled=!s.enabled||s.pending;cancel.setAttribute('aria-label','取消预约 '+(teams||'待确认比赛'));cancel.onclick=()=>reminderAction(()=>reminders().cancel(r.id));
+   item.append(copy,cancel);list.append(item);
+  }
+ }
+ $('eventsEnableNotifications').onclick=()=>reminderAction(()=>reminders().enable());
+ window.addEventListener('owqs:reminders',()=>{renderReminders();render();});
  const scope=()=>new URLSearchParams({series:$('eventsSeries').value,...($('eventsFrom').value&&$('eventsTo').value?{from:$('eventsFrom').value,to:$('eventsTo').value}:{})});
  const filters=()=>({view,series:$('eventsSeries').value,from:$('eventsFrom').value,to:$('eventsTo').value,tournament:$('eventsTournament').value,region:$('eventsRegion').value,team:$('eventsTeam').value});
  function element(tag,className,value){const node=document.createElement(tag);if(className)node.className=className;if(value!==undefined)node.textContent=value;return node;}
@@ -37,7 +66,14 @@
    const scores=match.scores.every(s=>s!==null)?match.scores.join(' : '):completed?'—':'VS';
    versus.append(teamLabel(match.teams[0],true),element('strong','event-score'+(completed?' is-completed':''),scores),teamLabel(match.teams[1],false));
    const url=new URL(match.sourceUrl);if(url.protocol==='https:'&&url.hostname==='liquipedia.net'&&!url.port&&!url.username&&!url.password&&url.pathname.startsWith('/overwatch/')){const link=element('a','event-source-link','赛事详情 ↗');link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';body.append(time,versus,link);}else body.append(time,versus);
-   row.append(meta,body);group.append(row);
+   const actions=element('div','event-actions');
+   for(const broadcast of match.broadcasts||[]){const href=reminders()?.safeUrl(broadcast.url);if(!href)continue;const link=element('a','event-broadcast',broadcast.label||broadcast.platform||'观看直播');link.href=href;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}
+   if(!completed&&(match.reservable||reserved(match))){
+    const s=reminderState(),isReserved=reserved(match),button=element('button','event-reserve',isReserved?'已预约':'预约');button.type='button';button.disabled=!!isReserved||!s?.ready||!s.enabled||s.pending;
+    button.title=isReserved?'可在“我的预约”中取消':!s?.enabled?'开赛提醒服务尚未启用':'预约开赛提醒';
+    button.onclick=()=>reminderAction(()=>reminders().reserve(match.reminderId));actions.append(button);
+   }
+   row.append(meta,body);if(actions.childElementCount)row.append(actions);group.append(row);
   }
  }
  function setView(next){view=next;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));}
@@ -71,5 +107,6 @@
  $('eventsClear').onclick=()=>{$('eventsFilters').reset();queryChanged();render();};
  document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>{setView(button.dataset.view);render();});
  $('eventsRefresh').onclick=()=>refresh();
+ renderReminders();
  Cloud.boot().then(async()=>{await refresh(false);if(!scope().get('from')&&scope().get('series')==='owcs')await refresh();}).catch(()=>{});
 })();

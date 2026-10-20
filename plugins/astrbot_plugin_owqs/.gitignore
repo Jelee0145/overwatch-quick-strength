@@ -1,0 +1,5 @@
+__pycache__/
+runtime.mjs
+assets/
+*.sqlite3*
+*.png

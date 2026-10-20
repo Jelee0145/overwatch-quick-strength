@@ -1,50 +1,71 @@
 import {Fault} from './security.mjs';
 import {eventApi,EVENT_LIMIT,splitEventRange} from './events-source.mjs';
 
-const HOUR=3600000,MAX_QUERIES=8,MAX_PARTS=160;
+const HOUR=3600000,MAX_QUERIES=8,MAX_PARTS=160,MAX_JOBS_PER_OWNER=2;
 // One persistent index and bounded, chunked results. None of this shares user tasks/quotas.
 export class EventQueries{
  constructor(center){this.center=center;this.storage=center.storage;this.pending=null;this.tail=Promise.resolve();}
  exclusive(fn){const work=this.tail.then(fn);this.tail=work.catch(()=>{});return work;}
  async index(){return await this.storage.get('eventQueries')||[];}
+ async served(){return await this.storage.get('eventQueryServed')||{};}
  async hasPending(){return (await this.index()).some(q=>q.job&&q.job.todo.length&&q.job.failures<3);}
- async ensure(query,{force=false}={}){return this.exclusive(async()=>{
-  const now=this.center.now(),key=query.series+':'+(query.from?query.from+':'+query.to:'recent'),index=await this.index();let entry=index.find(q=>q.key===key);
+ async ensure(query,{force=false,owner='legacy'}={}){return this.exclusive(async()=>{
+  const now=this.center.now(),key=query.series+':'+(query.from?query.from+':'+query.to:'recent'),index=await this.index(),served=await this.served(),account=typeof owner==='string'&&owner?owner:'legacy';let entry=index.find(q=>q.key===key);
   if(!entry){
+   const active=index.filter(q=>q.job&&q.job.failures<3&&(q.owner||'legacy')===account).length;
+   if(active>=MAX_JOBS_PER_OWNER)throw new Fault('赛事补查正在排队，请稍后再试',429);
    if(index.length>=MAX_QUERIES){
     const candidates=index.filter(q=>!q.job||q.job.failures>=3).sort((a,b)=>a.usedAt-b.usedAt);if(!candidates.length)throw new Fault('赛事补查正在排队，请稍后再试',429);
     const old=candidates[0];for(const part of [...old.cache?.parts||[],...old.job?.parts||[]])await this.storage.delete(part);index.splice(index.indexOf(old),1);
    }
-   entry={key,query,usedAt:now};index.push(entry);
+   entry={key,query,usedAt:now,owner:account};index.push(entry);
   }
+  entry.owner||=account;
   entry.usedAt=now;
   const historical=query.to&&query.to<new Date(now+8*HOUR).toISOString().slice(0,10),ttl=historical?24*HOUR:HOUR;
-  if(!entry.job&&(!entry.cache||now-entry.cache.updatedAt>=ttl||force&&now-entry.cache.updatedAt>=30000))entry.job={id:crypto.randomUUID(),todo:[query],parts:[],truncated:false,failures:0};
-  if(entry.job?.failures>=3&&now>=(await this.storage.get('refreshAfter')||0))entry.job.failures=0;
-  await this.storage.put('eventQueries',index);return key;
+  const wantsJob=!entry.job&&(!entry.cache||now-entry.cache.updatedAt>=ttl||force&&now-entry.cache.updatedAt>=30000);
+  if(wantsJob){
+   const active=index.filter(q=>q.key!==entry.key&&q.job&&q.job.failures<3&&(q.owner||'legacy')===entry.owner).length;
+   if(active>=MAX_JOBS_PER_OWNER)throw new Fault('赛事补查正在排队，请稍后再试',429);
+   entry.job={id:crypto.randomUUID(),todo:[query],parts:[],truncated:false,failures:0};
+  }
+  if(entry.job?.failures>=3&&now>=(await this.storage.get('refreshAfter')||0)){
+   const active=index.filter(q=>q.key!==entry.key&&q.job&&q.job.failures<3&&(q.owner||'legacy')===entry.owner).length;
+   if(active<MAX_JOBS_PER_OWNER)entry.job.failures=0;
+  }
+  for(const key of Object.keys(served))if(!index.some(q=>(q.owner||'legacy')===key))delete served[key];
+  await this.storage.put('eventQueries',index);await this.storage.put('eventQueryServed',served);return key;
  });}
  async work(){
   if(!this.pending)this.pending=this.workOne().finally(()=>{this.pending=null;});return this.pending;
  }
  async workOne(){
-  const index=await this.index(),entry=index.find(q=>q.job?.todo.length&&q.job.failures<3);if(!entry)return;
-  const job=entry.job,range=job.todo[0],limit=range.from?EVENT_LIMIT:50;let batch;
-  try{batch=await this.center.source(eventApi(range,limit),range);}
+  const selected=await this.exclusive(async()=>{
+   const index=await this.index(),served=await this.served();
+   const pending=index.filter(q=>q.job?.todo.length&&q.job.failures<3).sort((a,b)=>(served[a.owner||'legacy']||0)-(served[b.owner||'legacy']||0)||a.usedAt-b.usedAt||a.key.localeCompare(b.key));
+   const entry=pending[0];if(!entry)return null;
+   if(!entry.owner){entry.owner='legacy';await this.storage.put('eventQueries',index);}
+   return {key:entry.key,owner:entry.owner,jobId:entry.job.id,range:entry.job.todo[0],parts:entry.job.parts.length};
+  });
+  if(!selected)return;
+  const {key,owner,jobId,range,parts:partCount}=selected,limit=range.from?EVENT_LIMIT:50;let batch;
+  try{batch=await this.center.source(eventApi(range,limit),range,{priority:'backfill'});}
   catch(error){
-   if(!error.retryAfter)await this.exclusive(async()=>{const rows=await this.index(),row=rows.find(q=>q.key===entry.key&&q.job?.id===job.id);if(row){row.job.failures++;await this.storage.put('eventQueries',rows);}});
+   if(!error.retryAfter)await this.exclusive(async()=>{const rows=await this.index(),row=rows.find(q=>q.key===key&&q.job?.id===jobId),served=await this.served();served[owner]=this.center.now();if(row){row.job.failures++;await this.storage.put('eventQueries',rows);}await this.storage.put('eventQueryServed',served);});
    return;
   }
+  await this.exclusive(async()=>{const served=await this.served();served[owner]=this.center.now();await this.storage.put('eventQueryServed',served);});
   const saturated=batch.counts.scheduled>=limit||batch.counts.completed>=limit,split=range.from&&saturated?splitEventRange(range):null;
   const parts=[];
   if(!split){
-   for(let offset=0;offset<Math.min(batch.matches.length,(MAX_PARTS-job.parts.length)*25);offset+=25){
-    const key='eventQuery:'+job.id+':'+(job.parts.length+parts.length),chunk=batch.matches.slice(offset,offset+25);
+   for(let offset=0;offset<Math.min(batch.matches.length,(MAX_PARTS-partCount)*25);offset+=25){
+    const partKey='eventQuery:'+jobId+':'+(partCount+parts.length),chunk=batch.matches.slice(offset,offset+25);
     if(new TextEncoder().encode(JSON.stringify(chunk)).length>100000)throw Error('Event cache chunk too large');
-    await this.storage.put(key,chunk);parts.push(key);
+    await this.storage.put(partKey,chunk);parts.push(partKey);
    }
   }
   await this.exclusive(async()=>{
-   const rows=await this.index(),row=rows.find(q=>q.key===entry.key&&q.job?.id===job.id);if(!row)return;
+   const rows=await this.index(),row=rows.find(q=>q.key===key&&q.job?.id===jobId);if(!row)return;
    row.job.todo.shift();row.job.failures=0;
    if(split)row.job.todo.unshift(...split);else {row.job.parts.push(...parts);if(range.from&&saturated)row.job.truncated=true;}
    if(row.job.parts.length>=MAX_PARTS){row.job.todo=[];row.job.truncated=true;}

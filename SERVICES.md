@@ -2,6 +2,10 @@
 
 `src/services/index.mjs` 导出 `createMatchService`、`createDataService`、`createAnalysisService` 和 `ServiceError`。模块使用 ESM；数据整理和分析计算没有网络、DOM、存储或 Cloudflare 依赖。它们返回新的数据，不修改输入。获取服务会更新传入的查询状态，但会复制初始快照、恢复数据及传入缓存。
 
+图表服务 `createChartService({core, maps, avatar, rankArt}).render(model, {art, showArt, title})` 同样从统一入口导出，返回 SVG 字符串。`core` 提供 `esc/rank/bands/roles`，其余参数显式提供素材与地图信息，不访问 DOM 或请求网络。`source/chart.js` 是唯一图表正文，同时保留网页四参数 `renderChart` 入口；云端构建继续注入原有时间轴与统计范围逻辑。`scripts/sync-local.mjs` 在显式同步图表时保留服务封装。
+
+独立 AstrBot 插件、配置与部署说明见 [插件 README](plugins/astrbot_plugin_owqs/README.md)。执行 `npm run plugin:build` 输出带算法、图表和素材的独立 ZIP；插件不依赖网站账户或 Cloudflare。
+
 ## 使用已有数据计算
 
 先执行 `npm run build`。Worker 和仓库内的 Node 脚本可直接使用运行时适配器；不需要启动网站，也不会请求大神或 AI：

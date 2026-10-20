@@ -1,0 +1,9 @@
+{
+  "DASHEN_SERVER": {"type":"string","description":"大神服务器标识","default":"","hint":"由管理员填写，与获取凭证时的服务器一致"},
+  "DASHEN_DTS": {"type":"string","description":"大神 DTS／赛季范围","default":""},
+  "DASHEN_ROLE_ID": {"type":"string","description":"大神角色 ID","default":""},
+  "DASHEN_TOKEN": {"type":"string","description":"大神查询 Token（保密）","default":"","hint":"仅在管理员配置面板填写，不要在聊天中发送"},
+  "node_path": {"type":"string","description":"Node.js 可执行文件","default":"node","hint":"Node.js 22+；可填写绝对路径"},
+  "query_timeout": {"type":"int","description":"单次查询运行超时（秒，不含排队）","default":600},
+  "font_family": {"type":"string","description":"出图中文字体","default":"Noto Sans CJK SC","hint":"Docker 示例已安装此字体"}
+}
