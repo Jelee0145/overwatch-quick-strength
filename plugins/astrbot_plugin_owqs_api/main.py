@@ -9,7 +9,7 @@ from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-from .api_client import ApiClient, Bindings, Query, QueryManager, UserError, format_result, owner_key, parse_query, credential_scope, valid_key, BIND_ERROR
+from .api_client import ApiClient, Bindings, Query, QueryManager, UserError, format_result, owner_key, parse_query, credential_scope, valid_key, BIND_ERROR, POOLS
 from .renderer import Renderer
 from .api_client import parse_events, format_events
 
@@ -104,7 +104,7 @@ class Main(Star):
             result=await self.manager.query(owner,query,client=client)
             canonical=result.get('battletag')
             if isinstance(canonical,str) and canonical.casefold()==query.tag.casefold():
-                query=Query(canonical,query.limit,query.mode)
+                query=Query(canonical,query.limit,query.mode,query.pool)
             if not free:self.bindings.save_last(owner,scope,query.tag)
             return result,query,scope
         except UserError as error:
@@ -117,7 +117,7 @@ class Main(Star):
 
     async def deliver_query(self, owner, session, arguments, client, query, scope, reservation, free):
         """Background half of the tool query: waits for the website, then pushes the chart."""
-        label=f'{query.tag} · 最近 {query.limit} 场 · {"慢" if query.mode=="slow" else "快"}模式'
+        label=f'{query.tag} · 最近 {query.limit} 场 · {query.label}'
         try:
             result,query,scope=await self.execute_query(owner,client,query,scope,reservation,free)
             try:
@@ -274,13 +274,14 @@ class Main(Star):
             yield event.plain_result("查询插件执行失败，请管理员检查网站连接与插件配置")
 
     @filter.llm_tool(name="owqs_query")
-    async def query_tool(self, event: AstrMessageEvent, battletag: str = "", limit: int = 10, mode: str = "fast") -> str:
-        """用户用自然语言要求查询守望先锋玩家战绩时调用。查询在后台进行，工具会立即返回已开始和预计耗时；强度图由后台在完成后自动发到当前会话，并附通知说明。参数错误、未绑定且没有完整 ID、次数用完等情况仍会直接当场说明，不能说成已经开始了查询。收到开始回执后不要重复调用同一查询，也不要在后台结果到达前猜测结果。赛事赛程或赛果请调用 owqs_events，无需游戏 ID。必须逐字保留游戏 ID 大小写，禁止将昵称改成全小写。未绑定且没有完整 ID 时先询问用户，不能把缺少 ID 说成系统故障。已绑定 Key 可省略 ID。不要重复调用失败查询。用户要已查图中第 n 场数据或锐评时分别调用 owqs_match_data / owqs_match_review，避免重新查询扣费。默认快查询，规则评分不代表官方 MMR。
+    async def query_tool(self, event: AstrMessageEvent, battletag: str = "", limit: int = 10, mode: str = "fast", pool: str = "") -> str:
+        """用户用自然语言要求查询守望先锋玩家战绩时调用。查询在后台进行，工具会立即返回已开始和预计耗时；强度图由后台在完成后自动发到当前会话，并附通知说明。参数错误、未绑定且没有完整 ID、次数用完等情况仍会直接当场说明，不能说成已经开始了查询。收到开始回执后不要重复调用同一查询，也不要在后台结果到达前猜测结果。赛事赛程或赛果请调用 owqs_events，无需游戏 ID。必须逐字保留游戏 ID 大小写，禁止将昵称改成全小写。未绑定且没有完整 ID 时先询问用户，不能把缺少 ID 说成系统故障。已绑定 Key 可省略 ID。不要重复调用失败查询。用户要已查图中第 n 场数据或锐评时分别调用 owqs_match_data / owqs_match_review，避免重新查询扣费。玩家同时有 5v5 和 6v6 快速对局时，按用户所说模式传 pool；未说明则留空，返回全部快速模式。默认快查询，规则评分不代表官方 MMR。
 
         Args:
             battletag(string): 完整战网昵称，如昵称#12345。为空时仅允许已绑定 Key 的发送者使用上一次查询 ID。
             limit(number): 搜索最近多少场，仅支持 5、10、20，默认 10；分析窗口固定最近 10 场。
             mode(string): fast 为快查询，slow 为补采其他玩家对局的慢查询，默认 fast。
+            pool(string): 快速对局模式，55 为 5v5，66 为 6v6，留空为全部快速模式。用户只说“快速”时留空。
         """
         try:
             owner = owner_key(event)
@@ -289,18 +290,21 @@ class Main(Star):
                 raise UserError('查询场数只支持 5、10、20；模式只支持 fast/slow')
             limit=int(float(limit));mode={'快':'fast','慢':'slow'}.get(str(mode).strip().lower(),str(mode).strip().lower())
             if mode not in ('fast','slow'):raise UserError('查询模式只支持 fast/slow（快/慢）')
+            wanted_pool=str(pool or '').strip().lower()
+            selected_pool='' if not wanted_pool else POOLS.get(wanted_pool)
+            if selected_pool is None:raise UserError('对局模式只支持 5v5（55）、6v6（66）或留空')
             if battletag is None:battletag=''
             if not isinstance(battletag,str):raise UserError('请提供完整游戏 ID（昵称#编号）')
             tag=battletag.strip().replace('＃','#')
             if tag:
                 original=re.search(re.escape(tag)+r'(?!\d)',event.get_message_str().replace('＃','#'),re.IGNORECASE)
                 if original:tag=original.group(0)
-            client,query,scope,reservation,free = await self.prepare_query(owner, f'{tag} {limit} {mode}')
+            client,query,scope,reservation,free = await self.prepare_query(owner, f'{tag} {limit} {mode} {selected_pool}'.strip())
             session=event.unified_msg_origin
-            task=asyncio.create_task(self.deliver_query(owner,session,f'{query.tag} {query.limit} {query.mode}',client,query,scope,reservation,free))
+            task=asyncio.create_task(self.deliver_query(owner,session,f'{query.tag} {query.limit} {query.mode} {query.pool}'.strip(),client,query,scope,reservation,free))
             self.background.add(task);task.add_done_callback(self.background.discard)
-            return json.dumps({"battletag":query.tag,"mode":query.mode,"limit":query.limit,"started":True,"estimate":ESTIMATE[query.mode],
-                "reply":f'已开始查询 {query.tag}（最近 {query.limit} 场 · {"慢" if query.mode=="slow" else "快"}模式），预计 {ESTIMATE[query.mode]}，完成后会自动发强度图；期间可 /owqs 取消。',
+            return json.dumps({"battletag":query.tag,"mode":query.mode,"limit":query.limit,"pool":query.pool,"started":True,"estimate":ESTIMATE[query.mode],
+                "reply":f'已开始查询 {query.tag}（最近 {query.limit} 场 · {query.label}），预计 {ESTIMATE[query.mode]}，完成后会自动发强度图；期间可 /owqs 取消。',
                 "message":"请把 reply 原意告诉用户，不要声称已有结果；不要在后台结果到达前再次调用同一查询"},ensure_ascii=False)
         except UserError as error:
             return str(error)

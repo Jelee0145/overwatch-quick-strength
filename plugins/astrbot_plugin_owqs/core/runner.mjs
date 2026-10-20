@@ -10,13 +10,13 @@ import {canonical,digest,token} from '../../../src/security.mjs';
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const analysisOptions={side:'all',strategy:'legacy',estimate:true};
 
-export function chartModel(snapshot){
- const raw=dataService.normalize(snapshot),all=analysisService.analyzeBatch(raw,analysisOptions);
- return analysisService.summarize(raw,all.matches.slice(-10),analysisOptions);
+export function chartModel(snapshot,pool=''){
+ const options={...analysisOptions,pool},raw=dataService.normalize(snapshot),all=analysisService.analyzeBatch(raw,options);
+ return analysisService.summarize(raw,all.matches.slice(-10),options);
 }
 
-export async function renderSnapshot(snapshot,assetRoot){
- const model=chartModel(snapshot);
+export async function renderSnapshot(snapshot,assetRoot,pool=''){
+ const model=chartModel(snapshot,pool);
  if(!model.matches.length)throw new ServiceError('该账号暂无可展示的快速对局',404);
  const manifest=JSON.parse(await readFile(path.join(assetRoot,'manifest.json'),'utf8'));
  const memo=new Map();
@@ -38,14 +38,15 @@ export async function runJob(input,{provider=upstream,emit=()=>{},sleep=delay,as
  if(input?.version!==1)throw new ServiceError('插件核心协议版本不匹配');
  const env=Object.fromEntries(['DASHEN_SERVER','DASHEN_DTS','DASHEN_ROLE_ID','DASHEN_TOKEN'].map(k=>[k,String(input.credentials?.[k]||'').trim()]));
  if(Object.values(env).some(v=>!v))throw new ServiceError('请管理员先配置完整的大神查询凭证',503);
- const {tag,limit=10,mode='fast'}=input.request||{};
+ const {tag,limit=10,mode='fast',pool=''}=input.request||{};
  if(![5,10,20].includes(limit)||!['fast','slow'].includes(mode))throw new ServiceError('场数仅支持 5/10/20，模式仅支持快/慢');
+ if(!['','55','66'].includes(pool))throw new ServiceError('对局模式仅支持 5v5（55）、6v6（66）或留空');
  const service=createMatchService({provider,pick:analysisService.pick,data:dataService,digest,canonical,createId:token,sleep,
   playerIdentity:async(context,customerToken)=>customerToken?createHmac('sha256',context.DASHEN_TOKEN).update(canonical([context.DASHEN_SERVER,context.DASHEN_DTS,context.DASHEN_ROLE_ID,customerToken])).digest('hex'):null,
   ...serviceOptions});
  const scope=await service.accountScope(env);
  const prior=input.prior?.scope===scope&&input.prior?.snapshot?.battletag===tag?input.prior:null;
- const state=service.createQuery(tag,limit,prior?.snapshot||{matches:[]},prior?.accounts||[],{supplementOtherMatches:mode==='slow'});
+ const state=service.createQuery(tag,limit,prior?.snapshot||{matches:[]},prior?.accounts||[],{supplementOtherMatches:mode==='slow',pool});
  let previous='';
  while(state.phase!=='done'){
   try{
@@ -61,7 +62,7 @@ export async function runJob(input,{provider=upstream,emit=()=>{},sleep=delay,as
  }
  const snapshot=state.result;
  snapshot.source='网易大神 · AstrBot 独立查询';
- const picture=await renderSnapshot(snapshot,assetRoot);
+ const picture=await renderSnapshot(snapshot,assetRoot,pool);
  return {type:'done',...picture,cache:{scope,snapshot,accounts:service.accountRecords(state)}};
 }
 

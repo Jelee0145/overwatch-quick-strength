@@ -8,6 +8,16 @@ const statKeys=['kill','assist','death','heroDamage','cure','resistDamage','fina
 const nonnegative=v=>v===null||v===undefined||v===''||typeof v==='boolean'||!Number.isFinite(Number(v))||Number(v)<0?null:Number(v);
 const role=r=>r==='support'?'healer':String(r||'').toLowerCase();
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Upstream lists quick play as gameMode: LeisurePreset (5v5) or Leisure6v6 (6v6).
+// Substitutes are judged against the mode's roster size, never a fixed five.
+const modeNames={leisurepreset:'快速 5v5',leisure6v6:'快速 6v6'};
+function rosterLimit(mode){return rosterSize(mode)??5;}
+function hasSubstitutes(players,mode){const limit=rosterLimit(mode);return ['T','E'].some(side=>(players||[]).filter(p=>p.side===side).length>limit);}
+function modeLabel(mode){const value=String(mode||'');return modeNames[value.toLowerCase()]||value||'快速';}
+// '55' / '66' select one quick-play pool; anything else keeps every mode.
+function modeOf(value){const v=String(value||'').toLowerCase();return v==='55'||v==='5v5'?5:v==='66'||v==='6v6'?6:null;}
+// LeisurePreset is the 5v5 quick-play queue; other leisure modes carry their size.
+function rosterSize(mode){const value=String(mode||''),found=/^leisure(\d+)v(\d+)$/i.exec(value);if(found)return Math.max(Number(found[1]),Number(found[2]));return /^leisure/i.test(value)?5:null;}
 function compact(v){if(v===null||v===''||typeof v==='boolean')return null;const n=Number(v);if(!Number.isInteger(n)||n<=0)return null;const id=Math.floor(n/100),s=n%100;return bases[id]!==undefined&&s>=95&&s<=99?bases[id]+(s-95)*100:null;}
 const namedBases={bronze:500,'青铜':500,silver:1000,'白银':1000,gold:1500,'黄金':1500,platinum:2000,platium:2000,'白金':2000,'铂金':2000,emerald:2500,'翡翠':2500,diamond:3000,'钻石':3000,master:3500,'大师':3500,grandmaster:4000,gm:4000,'宗师':4000,champion:4500,'英杰':4500,'冠军':4500};
 function rowStrength(row){
@@ -28,7 +38,7 @@ function normalize(raw){
    const score=p.score!==null&&p.score!==undefined?Number(p.score):null;
    return {name:String(p.name??'匿名玩家').slice(0,100),side:p.side==='E'?'E':'T',hero:String(p.hero??p.heroGuid??'').slice(0,80),role:role(p.role),stats:Object.fromEntries(statKeys.map(k=>[k,nonnegative(p.stats?.[k])])),score:score!==null&&Number.isFinite(score)&&score>=500&&score<=4900?score:null,res:{rows:cleanRows(p.res?.rows),previousRows:cleanRows(p.res?.previousRows),sourceSeason:String(p.res?.sourceSeason||'').slice(0,20),error:!!p.res?.error||p.status==='query_error',previousError:!!p.res?.previousError,rankQueriedAt:String(p.res?.rankQueriedAt||'').slice(0,80)}};
   });
-  return {dataQueriedAt:String(m.dataQueriedAt||'').slice(0,80),hasGameData:!!m.hasGameData,resourceDataChecked:!!m.resourceDataChecked,duration:nonnegative(m.duration),teamScore:nonnegative(m.teamScore),opponentScore:nonnegative(m.opponentScore),mid:String(m.mid??m.matchId??`import-${i}`).slice(0,100),t:Number(m.t??m.beginTs)||0,ret:[-1,0,1].includes(Number(m.ret??m.matchRet))?Number(m.ret??m.matchRet):0,mapGuid:String(m.mapGuid??'').slice(0,80),mapName:String(m.mapName??'').slice(0,100),players};
+  return {dataQueriedAt:String(m.dataQueriedAt||'').slice(0,80),hasGameData:!!m.hasGameData,resourceDataChecked:!!m.resourceDataChecked,duration:nonnegative(m.duration),teamScore:nonnegative(m.teamScore),opponentScore:nonnegative(m.opponentScore),mid:String(m.mid??m.matchId??`import-${i}`).slice(0,100),gameMode:String(m.gameMode||'').slice(0,40),t:Number(m.t??m.beginTs)||0,ret:[-1,0,1].includes(Number(m.ret??m.matchRet))?Number(m.ret??m.matchRet):0,mapGuid:String(m.mapGuid??'').slice(0,80),mapName:String(m.mapName??'').slice(0,100),players};
  });
  const recentHistory=(Array.isArray(raw.recentHistory)?raw.recentHistory:[]).slice(0,12).map(h=>({name:String(h.name||'').slice(0,100),queriedAt:String(h.queriedAt||'').slice(0,80),cached:!!h.cached,matches:normalize({matches:(Array.isArray(h.matches)?h.matches:[]).slice(0,2)}).matches}));
  const historyStatus=raw.historyStatus?Object.fromEntries(['sampledPlayers','playersWithGames','games','cacheHits','requests','requestBudget','errors','maxPlayers','gamesPerPlayer'].map(k=>[k,nonnegative(raw.historyStatus[k])])):null;
@@ -73,7 +83,7 @@ function rankEvidence(p){
  return values.length?{value:weightedMedian(values),weight:Math.max(...values.map(x=>x.weight)),previous:values.every(x=>x.previous),crossRole:true}:null;
 }
 function performanceSignal(m){
- if(!m.duration||m.hasSubstitutes||['T','E'].some(s=>m.players.filter(p=>p.side===s).length>5))return null;
+ if(!m.duration||m.hasSubstitutes||hasSubstitutes(m.players,m.gameMode))return null;
  const players=m.combatPlayers||m.players,usable=players.filter(p=>p.performance?.calibrationEligible===true&&p.performance.coverage>=.8&&Number.isFinite(p.performance.score));
  const teams=['T','E'].map(side=>{
   const roster=players.filter(p=>p.side===side),valid=usable.filter(p=>p.side===side),roles=[...new Set(roster.map(p=>p.role))];
@@ -95,7 +105,7 @@ function recentReferences(raw,heroes,evaluatePerformance,strategy){
   const games=h.matches.filter(m=>!excluded.has(m.mid)).map(m=>{
    const players=m.players.map(p=>pick(p,strategy,heroes));
    if(evaluatePerformance)players.forEach(p=>p.performance=evaluatePerformance(p,m));
-   const owner=players.find(p=>p.name===h.name),substitutes=['T','E'].some(s=>players.filter(p=>p.side===s).length>5);
+   const owner=players.find(p=>p.name===h.name),substitutes=hasSubstitutes(players,m.gameMode);
    const eligible=!substitutes&&m.duration>=120&&owner?.performance?.calibrationEligible;
    const own=owner&&rankEvidence(owner),known=players.filter(p=>p.name!==h.name).map(rankEvidence).filter(Boolean);
    const center=weightedMedian(known),coverage=known.length/Math.max(1,players.length-1);
@@ -215,7 +225,7 @@ function personalPrediction(raw,matches,heroes,evaluatePerformance){
   if(evidence)direct.push({name:p.name,t:m.t,...evidence,direct:true,anchors:[p.name]});
  }
  const independentRaw={...raw,recentHistory:(raw.recentHistory||[]).filter(h=>h.name!==subject).map(h=>({...h,
-  matches:h.matches.filter(m=>!['T','E'].some(s=>m.players.filter(p=>p.side===s).length>5)).map(m=>({...m,players:m.players.filter(p=>p.name!==subject)}))}))};
+  matches:h.matches.filter(m=>!hasSubstitutes(m.players,m.gameMode)).map(m=>({...m,players:m.players.filter(p=>p.name!==subject)}))}))};
  const recent=recentReferences(independentRaw,heroes,evaluatePerformance,'role');
  for(const h of recent.filter(h=>h.rankAnchored))for(const r of h.records.filter(r=>r.value!==null)){
   const original=independentRaw.recentHistory.find(g=>g.name===h.name)?.matches.find(g=>g.mid===r.mid);
@@ -256,7 +266,7 @@ function personalPrediction(raw,matches,heroes,evaluatePerformance){
  }
  for(const m of matches){
   const self=m.combatPlayers.filter(p=>p.name===subject);
-  let reason=self.length!==1?'未找到唯一的本人记录':m.hasSubstitutes?'含替补或重复记录':!m.hasGameData?'缺少战斗数据':m.duration<120?'不足两分钟':!order.includes(self[0].role)?'职责未知':self[0].performance?.calibrationEligible!==true||!Number.isFinite(self[0].performance.score)||!Number.isFinite(self[0].performance.coverage)||self[0].performance.coverage<.8?'本人定位数据不足或冲突':null;
+  let reason=self.length!==1?'未找到唯一的本人记录':m.hasSubstitutes?modeLabel(m.gameMode)+' 场上人数超出赛制上限（含替补或重复记录）':!m.hasGameData?'缺少战斗数据':m.duration<120?'不足两分钟':!order.includes(self[0].role)?'职责未知':self[0].performance?.calibrationEligible!==true||!Number.isFinite(self[0].performance.score)||!Number.isFinite(self[0].performance.coverage)||self[0].performance.coverage<.8?'本人定位数据不足或冲突':null;
   if(reason){excluded.push({mid:m.mid,reason});continue;}
   const p=self[0],context=contextForPlayer(m),balance=independentBalance(m),durationFactor=Math.min(1,m.duration/300),recency=Math.pow(2,-Math.max(0,latest-m.t)/(7*86400000));
   const quality=p.performance.coverage*durationFactor*context.quality*balance.factor;
@@ -321,7 +331,10 @@ function build(raw,options,heroes,evaluatePerformance){
  const range=xs=>xs.length?{min:Math.min(...xs),max:Math.max(...xs)}:null;
  const average=xs=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:null;
  const seen=new Set();
- const matches=[...raw.matches].sort((a,b)=>b.t-a.t).filter(m=>{if(seen.has(m.mid))return false;seen.add(m.mid);return true;}).slice(0,options.limit||50).map(m=>{
+ const wanted=modeOf(options.pool);
+ // 5v5 and 6v6 quick play are separate pools; when a mode is chosen, the newest
+ // matches of that roster size fill the window instead of mixing both.
+ const matches=[...raw.matches].sort((a,b)=>b.t-a.t).filter(m=>{if(seen.has(m.mid))return false;seen.add(m.mid);return true;}).filter(m=>!wanted||rosterSize(m.gameMode)===wanted).slice(0,options.limit||50).map(m=>{
   const combatPlayers=m.players.map(p=>pick(p,options.strategy,heroes));
   if(evaluatePerformance)combatPlayers.forEach(p=>p.performance=evaluatePerformance(p,m));
   const players=combatPlayers.filter(p=>options.side==='all'||!options.side||p.side===options.side);
@@ -329,7 +342,7 @@ function build(raw,options,heroes,evaluatePerformance){
   const allRoleScores=players.flatMap(p=>{
    const latest={};for(const r of [...(p.res.rows||[]),...(p.res.previousRows||[])]){const value=rowStrength(r);if(value!==null&&latest[r.r]===undefined)latest[r.r]=value;}return p.res.error?[]:Object.values(latest);
   });
-  return {...m,combatPlayers,hasSubstitutes:['T','E'].some(side=>m.players.filter(p=>p.side===side).length>5),players,known,scores,mean,observedMean:mean,roleRange:range(scores),allRoleScores,allRoleRange:range(allRoleScores),estimateSource:null};
+  return {...m,combatPlayers,hasSubstitutes:hasSubstitutes(m.players,m.gameMode),gameModeLabel:modeLabel(m.gameMode),players,known,scores,mean,observedMean:mean,roleRange:range(scores),allRoleScores,allRoleRange:range(allRoleScores),estimateSource:null};
  }).sort((a,b)=>a.t-b.t);
  // Overstats never imputes missing ranks. This optional extension estimates a
  // MATCH trend, while preserving every player's missing rank and provenance.
@@ -341,5 +354,5 @@ function build(raw,options,heroes,evaluatePerformance){
  summary.confidencePercent=confidence.percent;
  return {...raw,matches,summary,confidence,options,personalPrediction:personalPrediction(raw,matches,heroes,evaluatePerformance),algorithmVersion:'2.6',aggregation:'equal-match-mean'};
 }
-const api={bands,bases,roles,states,role,esc,compact,rowStrength,rank,normalize,pick,build};root.QS=api;if(typeof module!=='undefined')module.exports=api;
+const api={bands,bases,roles,states,role,esc,compact,rowStrength,rank,normalize,pick,build,rosterLimit,rosterSize,hasSubstitutes,modeLabel,modeOf};root.QS=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

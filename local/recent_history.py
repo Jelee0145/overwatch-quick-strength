@@ -92,7 +92,8 @@ def supplement(config, job, result, client, cache_path, rank_rows, query_error, 
                                 ranks[ct] = {'rows': [], 'error': True}
                         player['res'] = copy.deepcopy(ranks.get(ct, {'rows': []}))
                     details[mid] = {'mid': str(mid), 't': item.get('beginTs', 0), 'ret': item.get('matchRet', 0),
-                                    'mapGuid': str(item.get('mapGuid', '')), 'hasGameData': True, **data}
+                                    'mapGuid': str(item.get('mapGuid', '')), 'gameMode': str(item.get('gameMode', ''))[:40],
+                                    'hasGameData': True, **data}
                 game = details[mid]
                 if any(p['name'] == name for p in game['players']):
                     games.append(copy.deepcopy(game))

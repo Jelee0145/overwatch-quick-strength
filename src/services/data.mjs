@@ -15,7 +15,7 @@ export function createDataService({normalizeSnapshot}={}){
   if(!Array.isArray(v?.guideCountData))throw new ServiceError('竞技职责列表异常',502);
   return v.guideCountData.slice(0,20).map(r=>({r:text(r.roleType,20),s:r.lastRankInfo?.rankScore??0,n:text(r.lastRankInfo?.rankName,40),d:num(r.lastRankInfo?.rankSubTier),season:''}));
  }
- function matchList(v){const a=Array.isArray(v)?v:v?.matchList||v?.recentMatchList;if(!Array.isArray(a))throw new ServiceError('快速对局列表异常',502);return a.slice(0,100).map(m=>({mid:text(m.matchId),t:num(m.beginTs)||0,ret:[-1,0,1].includes(m.matchRet)?m.matchRet:0,mapGuid:text(m.mapGuid,80)})).filter(m=>m.mid);}
+ function matchList(v){const a=Array.isArray(v)?v:v?.matchList||v?.recentMatchList;if(!Array.isArray(a))throw new ServiceError('快速对局列表异常',502);return a.slice(0,100).map(m=>({mid:text(m.matchId),t:num(m.beginTs)||0,ret:[-1,0,1].includes(m.matchRet)?m.matchRet:0,mapGuid:text(m.mapGuid,80),gameMode:text(m.gameMode,40)})).filter(m=>m.mid);}
  function player(p,side,{name=nameKey(text(p.name)),playerKey,res={rows:[]}}={}){
   return {name,side,hero:text(p.heroGuid,80),playerKey,stats:Object.fromEntries(statKeys.map(k=>[k,num(p[k]??(k==='soloKill'?p.soloKills:null))])),res:structuredClone(res)};
  }
@@ -29,7 +29,8 @@ export function createDataService({normalizeSnapshot}={}){
   if(sides.size!==1||sourceSides.size!==1||!sourceSides.has('T'))return null;
   const flip=sides.has('E'),g=structuredClone(record.game);
   if(flip){for(const p of g.players)p.side=p.side==='T'?'E':'T';[g.teamScore,g.opponentScore]=[g.opponentScore,g.teamScore];}
-  return {...g,...structuredClone(listed)};
+  // Older artifacts carry no gameMode; fall back to the mode already stored on the battle.
+  return {...g,...structuredClone(listed),gameMode:listed?.gameMode||g.gameMode||''};
  }
  /** Later records win by match ID, as in the incremental query engine. */
  function mergeMatches(previous,incoming,limit=50){return structuredClone([...new Map([...previous,...incoming].map(m=>[m.mid,m])).values()].sort((a,b)=>b.t-a.t).slice(0,limit));}
@@ -40,7 +41,7 @@ export function createDataService({normalizeSnapshot}={}){
    const data=envelope.content.data,stamp=Date.parse(data.queriedAt);
    for(const m of data.matches){const mid=String(m.mid),old=index.get(mid);
     if(old&&(Date.parse(old.queriedAt)>stamp||Date.parse(old.queriedAt)===stamp&&old.batchId>=batchId))continue;
-    index.set(mid,{mid,t:Number(m.t)||0,mapGuid:m.mapGuid,mapName:m.mapName,ret:m.ret,batchId,queriedAt:data.queriedAt});
+    index.set(mid,{mid,t:Number(m.t)||0,mapGuid:m.mapGuid,mapName:m.mapName,gameMode:String(m.gameMode||''),ret:m.ret,batchId,queriedAt:data.queriedAt});
    }
   }
   return [...index.values()].sort((a,b)=>a.t-b.t||compareIds(a.mid,b.mid)).slice(-limit);

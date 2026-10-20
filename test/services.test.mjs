@@ -46,6 +46,31 @@ test('review baseline accepts both LF and CRLF checkouts while fingerprints bind
  assert.notEqual(fingerprints[0],fingerprints[1]);
 });
 
+test('quick-play pools split 5v5 and 6v6; substitutes follow the mode roster size',()=>{
+ const raw=analysisFixture();
+ // Ten players per match means LeisurePreset (5v5), never a substitute.
+ const five=analysisService.analyzeBatch({...raw,matches:raw.matches.map(m=>({...m,gameMode:'LeisurePreset'}))});
+ assert.equal(five.matches[0].gameModeLabel,'快速 5v5');
+ assert.equal(five.matches[0].hasSubstitutes,false);
+ // A sixth player is normal in Leisure6v6 but a substitute in LeisurePreset.
+ const six=m=>({...m,mid:m.mid+'-66',gameMode:'Leisure6v6',players:[...m.players,{...m.players[0],name:'Sub#100',side:'T'}]});
+ const sixes=analysisService.analyzeBatch({...raw,matches:raw.matches.map(six)});
+ assert.equal(sixes.matches[0].gameModeLabel,'快速 6v6');
+ assert.equal(sixes.matches[0].hasSubstitutes,false);
+ const mixed=[...raw.matches.map(m=>({...m,gameMode:'LeisurePreset'})),...raw.matches.map(six)];
+ assert.equal(analysisService.analyzeBatch({...raw,matches:mixed},{pool:'55'}).matches.length,12);
+ assert.equal(analysisService.analyzeBatch({...raw,matches:mixed},{pool:'66'}).matches.length,12);
+ assert.equal(analysisService.analyzeBatch({...raw,matches:mixed},{}).matches.length,24);
+ // Legacy records without a mode cannot be proven to belong to the chosen pool.
+ const legacy={...raw,matches:raw.matches.map(m=>({...m,gameMode:''}))};
+ assert.equal(analysisService.analyzeBatch(legacy,{pool:'55'}).matches.length,0);
+ assert.equal(analysisService.analyzeBatch(legacy,{pool:'66'}).matches.length,0);
+ assert.equal(analysisService.analyzeBatch(legacy,{}).matches.length,12);
+ const seven=analysisService.analyzeBatch({...raw,matches:raw.matches.map(m=>({...six(m),players:[...six(m).players,{...m.players[0],name:'Extra#100',side:'T'}]}))});
+ assert.equal(seven.matches[0].hasSubstitutes,true);
+ assert.match(seven.personalPrediction.excluded[0].reason,/快速 6v6 场上人数超出赛制上限/);
+});
+
 test('history analysis preserves original per-batch evidence and frozen personal predictions',()=>{
  const archive=freeze(archiveFixture()),history=analysisService.analyzeHistory(archive);
  assert.equal(hash(history),baseline.history);

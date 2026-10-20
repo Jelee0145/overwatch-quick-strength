@@ -5,7 +5,7 @@ import media from './shared/media.mjs';
 
 export function compactAnalysis(analysis){
  const fields=['version','options','summary','confidence','statisticsRange','statisticsLabel','windowOffset','displayLimit'];
- return {...Object.fromEntries(fields.map(k=>[k,analysis[k]])),personalPrediction:{selected:analysis.personalPrediction?.selected},matches:analysis.matches.map(m=>Object.fromEntries(['mid','t','ret','mapName','mean','observedMean'].map(k=>[k,m[k]])))};
+ return {...Object.fromEntries(fields.map(k=>[k,analysis[k]])),personalPrediction:{selected:analysis.personalPrediction?.selected},matches:analysis.matches.map(m=>Object.fromEntries(['mid','t','ret','mapName','gameMode','gameModeLabel','hasSubstitutes','mean','observedMean'].map(k=>[k,m[k]])))};
 }
 /** Render only the existing latest-ten analysis; static assets never need a user's credentials. */
 export async function renderApiChart(snapshot,options,assets){

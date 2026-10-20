@@ -32,6 +32,7 @@ def clean_match(match):
     return {'mid': str(match.get('mid', ''))[:100], 't': number(match.get('t')) or 0,
             'ret': match.get('ret') if match.get('ret') in (-1, 0, 1) else 0,
             'mapGuid': str(match.get('mapGuid', ''))[:80], 'mapName': str(match.get('mapName', ''))[:100],
+            'gameMode': str(match.get('gameMode', ''))[:40],
             'hasGameData': bool(match.get('hasGameData')), 'resourceDataChecked': bool(match.get('resourceDataChecked')), 'duration': number(match.get('duration')),
             'teamScore': number(match.get('teamScore')), 'opponentScore': number(match.get('opponentScore')),
             'dataQueriedAt': str(match.get('dataQueriedAt', ''))[:80], 'players': players}

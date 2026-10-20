@@ -13,7 +13,7 @@ window.Cloud=(()=>{
  const snapshot=async tag=>{await boot();return storage('snapshot|'+scope()+'|'+tag);};
  async function save(envelope,records=[],queryIndex=null){if(!envelope?.content?.data)throw Error('查询结果缺少可信签名');await CloudHistory.save(envelope);lastTag=envelope.content.data.battletag;await storage('snapshot|'+scope()+'|'+lastTag,envelope);await storage('latest',lastTag);await CloudCache.save(envelope,records,queryIndex);void CloudHistory.sync();}
  async function latest(){await boot();await CloudHistory.sync();const remote=await api('/api/latest'),savedTag=await storage('latest'),accounts=await CloudHistory.list(),tag=accounts.some(a=>a.tag===savedTag)?savedTag:accounts[0]?.tag;const value=tag?await snapshot(tag):null;await CloudCache.render(value?.content?.data?.syncStatus);return {...remote,historyTag:tag,result:value?.content?.data||null};}
- async function startQuery(tag,limit,supplementOtherMatches=false){await boot();return api('/api/query',{battletag:tag,limit,supplementOtherMatches,cacheManifest:await CloudCache.manifest(),queryIndex:await CloudCache.queryIndex(tag),requestId:crypto.randomUUID()});}
+ async function startQuery(tag,limit,supplementOtherMatches=false,pool=''){await boot();return api('/api/query',{battletag:tag,limit,supplementOtherMatches,pool,cacheManifest:await CloudCache.manifest(),queryIndex:await CloudCache.queryIndex(tag),requestId:crypto.randomUUID()});}
  const key=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)))),n=>n.toString(16).padStart(2,'0')).join('');
  return {api,boot,snapshot,save,latest,startQuery,storage,key};
 })();

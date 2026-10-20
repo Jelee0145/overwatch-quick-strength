@@ -34,3 +34,14 @@ test('signed cache binds user, season, server, type and payload; manifest never 
  const s=createQuery('Main#100',10,undefined,[],{supplementOtherMatches:false});await finish(s,service());const record=(await mintCacheRecords('u',s.result,env))[0];await assert.rejects(()=>verifyCacheRecord(record,'other',env));await assert.rejects(()=>verifyCacheRecord(record,'u',{...env,DASHEN_SERVER:'2'}));await assert.rejects(()=>verifyCacheRecord(record,'u',{...env,DASHEN_DTS:'2025'}));const changed=structuredClone(record);changed.content.value.game.players[0].stats.kill=999;await assert.rejects(()=>verifyCacheRecord(changed,'u',env));assert.deepEqual(cleanManifest([{type:'match',key:'__proto__'}]),[]);
  const expired=await mintCacheRecords('u',{...s.result,matches:[],queryCache:{profiles:[{name:'Main#100',res:{rows:[],rankQueriedAt:'2000-01-01'}}]}},env),next=createQuery(s.tag,10,undefined,[],{supplementOtherMatches:false,cacheManifest:manifest(expired)}),mock=service();await finish(next,mock,expired);assert.equal(mock.counts['/customer/queryCountInfo'],10);
 });
+test('quick-play pool keeps only the chosen roster size and records the mode',async()=>{
+ const mock=service({mixedModes:true}),s=createQuery('Main#100',10,undefined,[],{supplementOtherMatches:false,pool:'66'});await finish(s,mock);
+ assert.ok(s.result.matches.length>0);
+ assert.ok(s.result.matches.every(m=>m.gameMode==='Leisure6v6'),JSON.stringify(s.result.matches.map(m=>m.gameMode)));
+ assert.ok(mock.details.every(mid=>Number(mid.slice(1))%2===1),JSON.stringify(mock.details));
+ const five=createQuery('Main#100',10,undefined,[],{supplementOtherMatches:false,pool:'55'}),again=service({mixedModes:true});await finish(five,again);
+ assert.ok(five.result.matches.every(m=>m.gameMode==='LeisurePreset'));
+ assert.ok(again.details.every(mid=>Number(mid.slice(1))%2===0));
+ const all=createQuery('Main#100',10,undefined,[],{supplementOtherMatches:false}),both=service({mixedModes:true});await finish(all,both);
+ assert.equal(all.result.matches.length,10);
+});

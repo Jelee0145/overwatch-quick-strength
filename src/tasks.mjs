@@ -46,11 +46,11 @@ export class UserTasks{
   if(path==='/api-query'){
    const tag=String(b.battletag||'').trim(),limit=Number(b.limit);
    if(!tag||tag.length>80||!Number.isInteger(limit)||![5,10,20].includes(limit))throw new Fault('查询参数错误');
-   const options={battletag:tag,limit,mode:b.mode==='slow'?'slow':'fast',supplementOtherMatches:!!b.supplementOtherMatches,statisticsRange:['all','5','10','20'].includes(String(b.statisticsRange))?String(b.statisticsRange):'all',side:['all','T','E'].includes(String(b.side))?String(b.side):'all',strategy:['legacy','role','highest'].includes(String(b.strategy))?String(b.strategy):'legacy',estimate:b.estimate!==false};
+   const options={battletag:tag,limit,mode:b.mode==='slow'?'slow':'fast',pool:b.pool==='55'||b.pool==='66'?b.pool:'',supplementOtherMatches:!!b.supplementOtherMatches,statisticsRange:['all','5','10','20'].includes(String(b.statisticsRange))?String(b.statisticsRange):'all',side:['all','T','E'].includes(String(b.side))?String(b.side):'all',strategy:['legacy','role','highest'].includes(String(b.strategy))?String(b.strategy):'legacy',estimate:b.estimate!==false};
    const jobs=[...await this.storage.list({prefix:'job:'})].map(([,j])=>j),cutoff=Date.now();
    if(jobs.filter(j=>j.user===user&&j.kind==='query'&&j.api&&j.until>cutoff&&active(j)).length>=5)throw new Fault('当前 API 密钥的未完成查询已达 5 个，请稍后再试',429);
    options.syncHistory=b.syncHistory!==false;
-   const data=createQuery(tag,limit,options.syncHistory?(await this.priorFromHistory(user,tag)||{matches:[]}):{matches:[]},options.syncHistory?await this.readAccounts():[],{supplementOtherMatches:options.supplementOtherMatches});
+   const data=createQuery(tag,limit,options.syncHistory?(await this.priorFromHistory(user,tag)||{matches:[]}):{matches:[]},options.syncHistory?await this.readAccounts():[],{supplementOtherMatches:options.supplementOtherMatches,pool:options.pool});
    const id=token(),job={id,user,version,kind:'query',api:true,apiOptions:options,state:'running',message:'查询已建立',createdAt:cutoff,until:cutoff+3600000};
    await authCall(this.env,'/quota',{user,kind:'query',job:id});
    try{await putBlob(this.storage,'prior:'+id,data.prior);await putBlob(this.storage,'data:'+id,queryCheckpoint(data));await this.storage.put('job:'+id,job);}
@@ -69,7 +69,7 @@ export class UserTasks{
    const done=await this.storage.get('dedupe:'+kind+':'+dedupeKey);if(done){const old=await this.storage.get('job:'+done);if(old&&old.until>Date.now())return {id:old.id,state:old.state};}
    let indexPrior;
    if(kind==='query'&&b.queryIndex){const index=await verifyQueryIndex(b.queryIndex,user,b.battletag,this.env);if(prior)prior.matchIndex=index;else indexPrior={matches:[],matchIndex:index};}
-   const data=kind==='query'?createQuery(b.battletag,b.limit,prior||indexPrior||{matches:[]},await this.readAccounts(),{supplementOtherMatches:b.supplementOtherMatches!==false,cacheManifest:cleanManifest(b.cacheManifest)}):analysis;
+   const data=kind==='query'?createQuery(b.battletag,b.limit,prior||indexPrior||{matches:[]},await this.readAccounts(),{supplementOtherMatches:b.supplementOtherMatches!==false,pool:b.pool,cacheManifest:cleanManifest(b.cacheManifest)}):analysis;
    const id=token(),job={id,user,version,kind,fingerprint,dedupeKey,state:'running',message:kind==='query'?'查询已建立':'正在准备 AI锐评…',createdAt:Date.now(),until:Date.now()+3600000};
    if(kind==='ai')job.reviewKey=String(b.reviewKey||'').slice(0,150);
    if(kind==='ai'&&b.apiReview){job.apiReview=true;job.reviewMatch=b.reviewMatch;}

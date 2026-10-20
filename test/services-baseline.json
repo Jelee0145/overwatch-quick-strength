@@ -1,15 +1,15 @@
 {
-  "description": "Pre-refactor synthetic API analysis, historical analysis and AI payload hashes; prompt-dependent fingerprints checked against the runtime contract",
+  "description": "Synthetic API analysis, historical analysis and AI payload hashes; includes gameMode/gameModeLabel plus mode-aware substitute flags added 2026-10-20. Prompt-dependent fingerprints checked against the runtime contract",
   "cases": [
     {
       "options": {},
-      "hash": "9c97a004a5377d5ab1dc46e04b9f23958dc18cc7b6b9e491a366cd9c59b0d32a"
+      "hash": "9ee4a425fecfea77b3e6823b625a5a1b0970f7128eb00bfa0e0fadbd086bae39"
     },
     {
       "options": {
         "statisticsRange": "5"
       },
-      "hash": "b08a4973b434113aab66ea2b6da7e19b0494e01e083e1f828040a040b94ad9a6"
+      "hash": "fefcdcd726f7a27391d0d4a9a0de25ddb59438131ceeca17c22a599766cdbd0d"
     },
     {
       "options": {
@@ -18,7 +18,7 @@
         "strategy": "role",
         "estimate": false
       },
-      "hash": "2976846ee3e042f381193c0a5f07d8cdc3a01502fafd0ad5e638d3ddf71c8914"
+      "hash": "93c5d2af66fb0d0b4ec604816d73880ab73b17e09dc6eda39eb4d16b079acaa0"
     },
     {
       "options": {
@@ -26,11 +26,11 @@
         "side": "T",
         "strategy": "highest"
       },
-      "hash": "b586ea38cb10ac240de78f8e158a73239031a35d4b53e2b7b75eba5d35329d48"
+      "hash": "8feff5eacff3ac330d4147d3ca67c5297e603e11cd31d941e105ded55c2f0a59"
     }
   ],
-  "empty": "3458cda7418c27e795d334a7a7d306e01eab4c831a89d9b166df1a93e7c9a602",
-  "history": "632bce478885c4c6759a08ebfbbbc10c004c574d203029f8f051796fee676bc7",
-  "historySummary": "77fcf5a0ee97bf3ce75a257a28a0d584bfc04febda1c255b95c35053558599f8",
+  "empty": "1b5778c357fdcb55e862ef4694d628f8b3aee045f2da11cd670cb92f73ceb379",
+  "history": "c1229c6cbb0c0b24cd59f0ce06129c887301ad6ca3e54fbd55bb5b3c2dfbc134",
+  "historySummary": "4b6059830f669ad7c1b5d6a94450a868f3d5c9c5caef0b56772a676de7ef30e9",
   "reviewPayload": "f5f9be5b7d004bce9f79904647e9749e3adf2af97cdea00d3e40bbf2c930dec8"
 }

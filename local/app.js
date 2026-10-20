@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);let raw=QS.normalize({battletag:'',matches:[]}),model,activeJob=null,pollTimer=null,chartExpanded=false;
 const gameRequests=new Set();
 const status=(message,error=false)=>{$('status').textContent=message;$('status').classList.toggle('error',error);};
-const options=()=>({limit:Number($('limit').value),side:$('side').value,strategy:$('strategy').value,estimate:$('estimate').checked});
+const options=()=>({limit:Number($('limit').value),side:$('side').value,strategy:$('strategy').value,estimate:$('estimate').checked,pool:$('pool').value});
 function generate(){
  const selected=model?.matches[Number($('matchSelect').value)]?.mid;
  model=QS.build(raw,options(),QS_DATA.heroes,(p,m)=>QS_PERFORMANCE.evaluate(p,m,QS_DATA.heroes,QS_BENCHMARKS));
@@ -34,7 +34,7 @@ function showPlayers(index){
  $('performancePanel').hidden=true;
  const time=m?.duration!==null&&m?.duration!==undefined?` · 时长 ${Math.floor(m.duration/60)}:${String(Math.floor(m.duration%60)).padStart(2,'0')}`:'';
  const score=m&&m.teamScore!==null&&m.opponentScore!==null?` · 比分 ${m.teamScore}:${m.opponentScore}`:'';
- $('matchMeta').textContent=m?`本场强度 ${m.mean===null?'—':m.mean.toFixed(1)} · ${m.estimateSource?'估算：'+m.estimateSource:m.mean===null?'缺少可查段位':'实测可查段位均值（'+m.known.length+'/'+m.players.length+'，不代表完整对局）'}${m.estimateRange?' · 参考范围 '+m.estimateRange.min+'—'+m.estimateRange.max:''}${time}${score}`:'';
+ $('matchMeta').textContent=m?`本场强度 ${m.mean===null?'—':m.mean.toFixed(1)} · ${m.estimateSource?'估算：'+m.estimateSource:m.mean===null?'缺少可查段位':'实测可查段位均值（'+m.known.length+'/'+m.players.length+'，不代表完整对局）'}${m.estimateRange?' · 参考范围 '+m.estimateRange.min+'—'+m.estimateRange.max:''}${time}${score}${m.gameModeLabel?' · 模式 '+m.gameModeLabel+(m.hasSubstitutes?'（含替补，不作个人预测）':''):''}`:'';
  const estimate=m?.estimateDetails,aux=estimate?.auxiliary;
  $('estimateDetail').hidden=!estimate;
  const fixed=v=>Number.isFinite(v)?v.toFixed(1):'—';
@@ -71,7 +71,7 @@ $('png').onclick=async()=>{
 };
 $('svg').onclick=()=>{download(svgBlob(),fileName('svg'));status('已导出可缩放 SVG');};
 $('json').onclick=()=>{const exportData={...raw,visualization:{title:$('title').value,chartVersion:QS_CHART_VERSION,options:model.options,summary:model.summary,confidence:model.confidence,algorithmVersion:model.algorithmVersion,aggregation:model.aggregation,personalPrediction:model.personalPrediction,points:model.matches.map(m=>({mid:m.mid,mean:m.mean,observedMean:m.observedMean,confidenceEvidence:m.confidenceEvidence,estimateSource:m.estimateSource,estimateDetails:m.estimateDetails||null,estimateRange:m.estimateRange||null,roleRange:m.roleRange,allRoleRange:m.allRoleRange,performances:m.players.map(p=>({name:p.name,side:p.side,heroGuid:p.hero,...p.performance}))})),performanceVersion:QS_PERFORMANCE.version,benchmarkVersion:QS_BENCHMARKS.version}};download(new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'}),fileName('json'));status('已导出原始数据与估算来源 JSON（不含查询凭据）');};
-['limit','side','strategy','estimate','art'].forEach(id=>$(id).onchange=()=>{mapAttempts.clear();generate();});
+['limit','side','strategy','estimate','art','pool'].forEach(id=>$(id).onchange=()=>{mapAttempts.clear();generate();});
 let redrawTimer=null;$('title').oninput=()=>{clearTimeout(redrawTimer);redrawTimer=setTimeout(generate,150);};$('matchSelect').onchange=()=>showPlayers(Number($('matchSelect').value));
 async function request(path,body){
  if(location.protocol==='file:')throw Error('在线查询需要本地服务，请双击“启动工具.cmd”');
@@ -83,7 +83,7 @@ async function poll(){
 }
 $('onlinePanel').onsubmit=async e=>{
  e.preventDefault();if(activeJob)return;
- const payload={recentHistory:true,battletag:$('battleTag').value.trim(),roleId:$('roleId').value.trim(),token:$('token').value.trim(),dts:$('dts').value.trim(),server:$('serverId').value.trim(),limit:Math.min(Number($('limit').value),20)};
+ const payload={recentHistory:true,battletag:$('battleTag').value.trim(),roleId:$('roleId').value.trim(),token:$('token').value.trim(),dts:$('dts').value.trim(),server:$('serverId').value.trim(),limit:Math.min(Number($('limit').value),20),pool:$('pool').value};
  try{if(!payload.battletag.includes('#'))throw Error('请输入完整战网昵称（昵称#编号）');if(!$('useSaved').checked&&(!payload.roleId||!payload.token))throw Error('请展开“大神查询凭据”填写 Role ID 和 Token');payload.useSaved=$('useSaved').checked;if(!payload.useSaved&&$('remember').checked)await request('/api/credentials/save',payload);busy(true);status('正在建立查询…');const result=await request('/api/query',payload);activeJob=result.id;$('token').value='';$('credentialJson').value='';await credentialState();poll();}catch(e){busy(false);status(e.message,true);}finally{payload.token='';}
 };
 $('cancel').onclick=async()=>{if(activeJob){try{await request('/api/job/'+activeJob+'/cancel',{});status('已请求停止，正在结束当前请求…');}catch(e){status(e.message,true);}}};

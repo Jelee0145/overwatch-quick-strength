@@ -125,6 +125,7 @@ Content-Type: application/json
 | `battletag` | string | 是 | — | 完整战网昵称，格式 `昵称#编号`，最长 80 字符。也接受 `playerId` 或 `player` 作为别名。 |
 | `limit` | integer | 否 | `10` | 搜索场次，只能是 `5`、`10`、`20`。只决定搜索范围，不决定图表展示范围。 |
 | `mode` | string | 否 | `fast` | `fast` 快查询；`slow` 慢查询，按缺口补充近期对局。 |
+| `pool` | string | 否 | 空 | 快速对局模式：`55` 只查 5v5，`66` 只查 6v6，空为全部快速模式。两种模式在查询、强度预估和个人预测中分开统计。 |
 | `supplementOtherMatches` | boolean | 否 | `false` | `true` 等价于 `mode=slow`，`false` 等价于 `mode=fast`。 |
 | `fast` | boolean | 否 | `true` | `true` 等价于 `mode=fast`，`false` 等价于 `mode=slow`。 |
 | `statisticsRange` | string | 否 | `all` | 分析统计范围：`all`、`5`、`10`、`20`。只影响分析，不影响查询范围。 |
@@ -356,7 +357,9 @@ Authorization: Bearer owqs_...
 | `summary` | 场次强度、可查段位、估算场次、可信度等汇总 |
 | `confidence` | 对局证据评分，不是命中率 |
 | `personalPrediction` | 个人段位预测、逐场记录与排除原因 |
-| `options` | 分析使用的 `side`、`strategy`、`estimate` 等 |
+| `options` | 分析使用的 `side`、`strategy`、`estimate`、`pool` 等 |
+
+`matches` 每场包含 `gameMode`（上游原始值，如 `LeisurePreset`、`Leisure6v6`）与 `gameModeLabel`（`快速 5v5`、`快速 6v6`）。替补按模式人数上限判断：6v6 允许每队 6 人，5v5 允许 5 人，超出才算含替补。
 
 `summary` 常用字段：
 

@@ -14,7 +14,7 @@ from .owqs import (JobQueue, NodeBackend, Renderer, Store, UserError, battle_tag
 HELP = """狸狸天眼查
 /owqs 绑定 昵称#编号
 /owqs 解绑
-/owqs 查询 [昵称#编号] [5|10|20] [快|慢]
+/owqs 查询 [昵称#编号] [5|10|20] [快|慢] [5v5|6v6]
 /owqs 取消
 默认查 10 场、快模式；不填昵称时使用绑定。
 图片展示并统计最近 10 场；选择 20 场扩大查询范围。
@@ -93,8 +93,7 @@ class Main(Star):
                 credentials = credentials_from(self.config)
                 await self.ensure_ready()
                 job, position = self.queue.submit(owner, query, credentials)
-                label = "慢" if query.mode == "slow" else "快"
-                yield event.plain_result(f"已接收查询：{query.tag} · {query.limit} 场 · {label}模式" + (f"，前面有 {position} 个任务" if position else ""))
+                yield event.plain_result(f"已接收查询：{query.tag} · {query.limit} 场 · {query.label}" + (f"，前面有 {position} 个任务" if position else ""))
                 last_progress = time.monotonic()
                 while True:
                     message = await job.events.get()

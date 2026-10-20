@@ -50,11 +50,16 @@ def owner_key(event):
     return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
 
 
+POOLS = {"5v5": "55", "55": "55", "6v6": "66", "66": "66"}
+POOL_LABELS = {"55": "快速 5v5", "66": "快速 6v6", "": "全部快速模式"}
+
+
 @dataclass(frozen=True)
 class Query:
     tag: str
     limit: int = 10
     mode: str = "fast"
+    pool: str = ""
 
     def __post_init__(self):
         object.__setattr__(self, "tag", battle_tag(self.tag))
@@ -62,27 +67,41 @@ class Query:
             raise UserError("查询场数只支持 5、10、20")
         if self.mode not in ("fast", "slow"):
             raise UserError("查询模式只支持 fast/slow（快/慢）")
+        if self.pool not in ("", "55", "66"):
+            raise UserError("对局模式只支持 5v5 / 6v6")
+
+    @property
+    def label(self):
+        return f"{POOL_LABELS[self.pool]} · {'慢' if self.mode == 'slow' else '快'}模式"
 
 
 def parse_query(text, binding=None):
     if re.search(r"[\x00-\x1f\x7f]", text):
         raise UserError("查询参数不能包含换行或控制字符")
     parts = text.strip().split()
-    limit, mode, seen = 10, "fast", set()
-    while parts and parts[-1] in ("5", "10", "20", "快", "慢", "fast", "slow"):
-        value = parts.pop()
-        kind = "limit" if value in ("5", "10", "20") else "mode"
+    limit, mode, pool, seen = 10, "fast", "", set()
+    options = ("5", "10", "20", "快", "慢", "fast", "slow", "55", "66", "5v5", "6v6")
+    while parts and parts[-1].lower() in options:
+        value = parts.pop().lower()
+        if value in ("5v5", "55", "6v6", "66"):
+            kind = "pool"
+        elif value in ("5", "10", "20"):
+            kind = "limit"
+        else:
+            kind = "mode"
         if kind in seen:
-            raise UserError("场数和模式各只能填写一次")
+            raise UserError("场数、快慢和对局模式各只能填写一次")
         seen.add(kind)
-        if kind == "limit":
+        if kind == "pool":
+            pool = POOLS[value]
+        elif kind == "limit":
             limit = int(value)
         else:
             mode = "slow" if value in ("慢", "slow") else "fast"
     tag = " ".join(parts) if parts else binding
     if not tag:
         raise UserError("请在查询时填写完整游戏 ID（昵称#编号）；绑定 Key 后可使用上次查询的 ID")
-    return Query(tag, limit, mode)
+    return Query(tag, limit, mode, pool)
 
 
 class Bindings:
@@ -318,7 +337,7 @@ class ApiClient:
 
     async def create(self, query):
         value = await self.request("POST", "/api/v1/query", {
-            "battletag": query.tag, "limit": query.limit, "mode": query.mode,
+            "battletag": query.tag, "limit": query.limit, "mode": query.mode, "pool": query.pool,
             "statisticsRange": "10", "side": "all", "strategy": "legacy", "estimate": True,
             "syncHistory": self.sync_history,
         })
@@ -452,11 +471,11 @@ def compact_result(result, query):
     matches = analysis.get("matches") or []
     # Tools receive bounded summaries, never full rosters, signed archives or credentials.
     return {
-        "battletag": query.tag, "mode": query.mode, "searchLimit": query.limit,
+        "battletag": query.tag, "mode": query.mode, "pool": query.pool, "searchLimit": query.limit,
         "statisticsLabel": analysis.get("statisticsLabel"),
         "summary": {k: summary.get(k) for k in ("mean", "observedMean", "confidencePercent", "known", "total", "estimated")},
         "prediction": {k: selected.get(k) for k in ("rank", "confidence", "games", "mean", "range", "reasons")},
-        "matches": [{k: m.get(k) for k in ("mid", "t", "ret", "mapName", "mean", "observedMean")} for m in matches[-10:]],
+        "matches": [{k: m.get(k) for k in ("mid", "t", "ret", "mapName", "gameModeLabel", "mean", "observedMean")} for m in matches[-10:]],
         "note": "规则评分参考，不代表实际快速 MMR；不可据此推断官方隐藏分。",
     }
 
@@ -465,7 +484,7 @@ def format_result(result, query):
     value = compact_result(result, query)
     summary, prediction, matches = value["summary"], value["prediction"], value["matches"]
     score = lambda x: str(round(x)) if type(x) in (int, float) and math.isfinite(x) else "暂无"
-    lines = [f"狸狸天眼查 · {query.tag}", f"搜索最近 {query.limit} 场 · {'慢' if query.mode == 'slow' else '快'}模式",
+    lines = [f"狸狸天眼查 · {query.tag}", f"搜索最近 {query.limit} 场 · {query.label}",
              f"分析最近 {len(matches)} 场 · {sum(m.get('ret') == 1 for m in matches)} 胜 / {sum(m.get('ret') == -1 for m in matches)} 负",
              "对局强度均值：" + score(summary.get("mean")),
              "证据可信度：" + score(summary.get("confidencePercent")) + "%"]
@@ -481,6 +500,7 @@ def format_result(result, query):
             when = "时间未知"
         outcome = {1: "胜", -1: "负", 0: "平/未知"}.get(match.get("ret"), "未知")
         map_name = str(match.get("mapName") or "快速对局").replace("\n", " ")[:40]
-        lines.append(f"{when} {outcome} · {map_name} · 强度 {score(match.get('mean'))}")
+        mode = str(match.get("gameModeLabel") or "").replace("\n", " ")[:12]
+        lines.append(f"{when} {outcome} · {map_name}{' · ' + mode if mode else ''} · 强度 {score(match.get('mean'))}")
     lines.append(value["note"])
     return "\n".join(lines)

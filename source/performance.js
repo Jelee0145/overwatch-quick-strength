@@ -10,6 +10,13 @@ const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 const median=xs=>{const a=[...xs].sort((x,y)=>x-y),i=Math.floor(a.length/2);return a.length?(a.length%2?a[i]:(a[i-1]+a[i])/2):null;};
 const metricScore=ratio=>clamp(60+35*Math.log2(Math.max(.001,ratio)),0,100);
 const letter=score=>score>=85?'S':score>=72?'A':score>=55?'B':score>=40?'C':'D';
+// Quick play arrives as LeisurePreset (5v5) or Leisure6v6 (6v6); only a team
+// larger than the mode's roster is a substitute. Missing mode keeps the old 5.
+const substitutes=match=>{
+ const mode=String(match?.gameMode||''),found=/^leisure(\d+)v(\d+)$/i.exec(mode);
+ const limit=found?Math.max(Number(found[1]),Number(found[2])):5;
+ return ['T','E'].some(side=>(match?.players||[]).filter(p=>p.side===side).length>limit);
+};
 const cache=new WeakMap();
 function categoryBaselines(benchmarks){
  if(cache.has(benchmarks))return cache.get(benchmarks);
@@ -99,7 +106,7 @@ function evaluateBase(player,match,heroes,benchmarks){
  if(coverage<1)base.warnings.push('部分指标缺失；维度内重分配，整个维度缺失则用 60 分中性参考占位，不增加生存预算');
  if(!config.configured)base.warnings.push('未配置该英雄定位，暂用通用职责参考，不参与强度辅助');
  if(override.note)base.warnings.push(override.note);
- if(['T','E'].some(s=>(match.players||[]).filter(p=>p.side===s).length>5))base.warnings.push('含替补记录；整场时长可能低估个人效率');
+ if(substitutes(match))base.warnings.push('含替补记录；整场时长可能低估个人效率');
  base.warnings.push('整局估评；打法标签为默认定位，换英雄与实际参战时长未核验');
  const sEligible=balanced&&coreOK&&metric('death')?.score>=55&&survival?.score>=65&&coverage>=.8;
  const scoreCeiling=Object.keys(primary).every(key=>values[key]===0)?39.9:sEligible?100:84.9;

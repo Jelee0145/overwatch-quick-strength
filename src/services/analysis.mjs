@@ -1,9 +1,9 @@
 import {createDataService} from './data.mjs';
-const RANGES=new Set(['all','5','10','20']),SIDES=new Set(['all','T','E']),STRATEGIES=new Set(['legacy','role','highest']);
+const RANGES=new Set(['all','5','10','20']),SIDES=new Set(['all','T','E']),STRATEGIES=new Set(['legacy','role','highest']),POOLS=new Set(['55','66']);
 /** @typedef {{side?:'all'|'T'|'E',strategy?:'legacy'|'role'|'highest',estimate?:boolean,statisticsRange?:string}} AnalysisOptions */
 /** Bind the existing algorithms once; no I/O or global runtime lookups in callers. */
 export function createAnalysisService({core,performance,heroes,benchmarks,data=createDataService({normalizeSnapshot:core.normalize})}){
- const common=options=>({side:SIDES.has(options.side)?options.side:'all',strategy:STRATEGIES.has(options.strategy)?options.strategy:'legacy',estimate:options.estimate!==false});
+ const common=options=>({side:SIDES.has(options.side)?options.side:'all',strategy:STRATEGIES.has(options.strategy)?options.strategy:'legacy',estimate:options.estimate!==false,pool:POOLS.has(String(options.pool||''))?String(options.pool):''});
  const evaluate=(p,m)=>performance.evaluate(p,m,heroes,benchmarks);
  const buildNormalized=(raw,options)=>core.build(raw,{...common(options),limit:50},heroes,evaluate);
  /** @param {import('./data.mjs').Snapshot} input @param {AnalysisOptions} options */

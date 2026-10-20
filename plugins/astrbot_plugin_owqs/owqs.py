@@ -48,24 +48,40 @@ def cache_scope(credentials):
     return hashlib.sha256(json.dumps(raw, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
+POOLS = {"5v5": "55", "55": "55", "6v6": "66", "66": "66"}
+POOL_LABELS = {"55": "快速 5v5", "66": "快速 6v6", "": "全部快速模式"}
+
+
 @dataclass(frozen=True)
 class Query:
     tag: str
     limit: int = 10
     mode: str = "fast"
+    pool: str = ""
+
+    @property
+    def label(self):
+        return f"{POOL_LABELS[self.pool]} · {'慢' if self.mode == 'slow' else '快'}模式"
 
 
 def parse_query(arguments, binding=None):
     # Consume options from the right, so names containing spaces are preserved.
     tokens = arguments.strip().split()
-    limit, mode, seen = 10, "fast", set()
-    while tokens and tokens[-1] in ("5", "10", "20", "快", "慢"):
-        option = tokens.pop()
-        kind = "mode" if option in ("快", "慢") else "limit"
+    limit, mode, pool, seen = 10, "fast", "", set()
+    while tokens and tokens[-1].lower() in ("5", "10", "20", "快", "慢", "55", "66", "5v5", "6v6"):
+        option = tokens.pop().lower()
+        if option in POOLS:
+            kind = "pool"
+        elif option in ("快", "慢"):
+            kind = "mode"
+        else:
+            kind = "limit"
         if kind in seen:
-            raise UserError("场数和快慢模式各只能填写一次")
+            raise UserError("场数、快慢和对局模式各只能填写一次")
         seen.add(kind)
-        if kind == "mode":
+        if kind == "pool":
+            pool = POOLS[option]
+        elif kind == "mode":
             mode = "slow" if option == "慢" else "fast"
         else:
             limit = int(option)
@@ -73,9 +89,9 @@ def parse_query(arguments, binding=None):
     if not tag:
         raise UserError("请先 /owqs 绑定 昵称#编号，或在查询时指定昵称")
     try:
-        return Query(battle_tag(tag), limit, mode)
+        return Query(battle_tag(tag), limit, mode, pool)
     except UserError:
-        raise UserError("查询格式：/owqs 查询 [昵称#编号] [5|10|20] [快|慢]") from None
+        raise UserError("查询格式：/owqs 查询 [昵称#编号] [5|10|20] [快|慢] [5v5|6v6]") from None
 
 
 class Store:
@@ -184,7 +200,8 @@ class NodeBackend:
         self.processes.add(process)
         try:
             payload = {"version": 1, "credentials": credentials,
-                       "request": {"tag": request.tag, "limit": request.limit, "mode": request.mode}, "prior": prior}
+                       "request": {"tag": request.tag, "limit": request.limit, "mode": request.mode,
+                                   "pool": getattr(request, "pool", "")}, "prior": prior}
             process.stdin.write(json.dumps(payload, ensure_ascii=False).encode())
             await process.stdin.drain()
             process.stdin.close()

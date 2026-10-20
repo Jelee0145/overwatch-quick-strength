@@ -22,6 +22,13 @@ const HOUR=3600000, POLICY=2, tagOK=name=>typeof name==='string'&&/^.+#\d+$/.tes
 const fresh=(date,ttl)=>{const age=now()-Date.parse(date);return age>=0&&age<ttl;};
 const usable=usableMatch;
 const rankFresh=r=>Array.isArray(r?.rows)&&!r.error&&fresh(r.rankQueriedAt,6*HOUR);
+// Pools are '55' or '66'; an empty pool keeps both quick-play modes.
+const poolOf=pool=>pool==='55'?5:pool==='66'?6:null;
+// LeisurePreset is 5v5; other leisure modes carry their size in the name.
+const sizeOf=mode=>{const value=String(mode||''),found=/^leisure(\d+)v(\d+)$/i.exec(value);if(found)return Math.max(Number(found[1]),Number(found[2]));return /^leisure/i.test(value)?5:null;};
+// A record without a mode cannot be proven to belong to the chosen pool.
+const poolMatch=(m,pool)=>{const size=poolOf(pool);return !size||sizeOf(m?.gameMode)===size;};
+const poolFilter=(list,pool)=>list.filter(m=>poolMatch(m,pool));
 const search=(env,name)=>({name,token:env.DASHEN_TOKEN,roleId:env.DASHEN_ROLE_ID,dts:env.DASHEN_DTS,server:env.DASHEN_SERVER});
 function cacheHit(s,type,key){const value=type+'|'+key;if(!s.cacheHits.includes(value))s.cacheHits.push(value);}
 function identityProfile(s,key,res){if(key&&res&&(!s.identityProfiles[key]||Date.parse(res.rankQueriedAt)>Date.parse(s.identityProfiles[key].rankQueriedAt||0)))s.identityProfiles[key]=res;}
@@ -65,7 +72,7 @@ function createQuery(tag,limit,prior={matches:[]},accounts=[],options={}){
  prior=structuredClone(prior);accounts=structuredClone(accounts);options=structuredClone(options);
  tag=nameKey(tag);
  if(!tagOK(tag)||tag.length>80)throw new Fault('请输入完整战网昵称（昵称#编号）');
- const s={supplementOtherMatches:options.supplementOtherMatches!==false,cacheManifest:options.cacheManifest||null,cacheConsumed:{},cacheMissing:[],rankRequests:0,identityProfiles:{},identityByName:{},cacheHits:[],version:2,phase:'account',tag,limit:Math.min(20,Math.max(1,Number(limit)||10)),prior,page:1,listed:{},out:[],mainIndex:{},mainDone:{},wanted:{},rowTokens:{},tokens:{},tokenTimes:{},ranks:{},profiles:{},battles:{},generatedBattles:{},historyIndex:{},actors:{},receipts:{},checkpointRevision:0,minIntervalMs:500,nextStartAt:0,now:new Date(now()).toISOString(),fetched:0,reused:0,rankFetched:0,rankReused:0,historyCalls:0,historyRanks:0,histories:[],historyErrors:0,historyHits:0,requests:0,deduped:0,accountHits:0,concurrency:3};
+ const s={pool:options.pool==='55'||options.pool==='66'?options.pool:'',supplementOtherMatches:options.supplementOtherMatches!==false,cacheManifest:options.cacheManifest||null,cacheConsumed:{},cacheMissing:[],rankRequests:0,identityProfiles:{},identityByName:{},cacheHits:[],version:2,phase:'account',tag,limit:Math.min(20,Math.max(1,Number(limit)||10)),prior,page:1,listed:{},out:[],mainIndex:{},mainDone:{},wanted:{},rowTokens:{},tokens:{},tokenTimes:{},ranks:{},profiles:{},battles:{},generatedBattles:{},historyIndex:{},actors:{},receipts:{},checkpointRevision:0,minIntervalMs:500,nextStartAt:0,now:new Date(now()).toISOString(),fetched:0,reused:0,rankFetched:0,rankReused:0,historyCalls:0,historyRanks:0,histories:[],historyErrors:0,historyHits:0,requests:0,deduped:0,accountHits:0,concurrency:3};
  for(const a of accounts)if(tagOK(a.name)&&fresh(a.queriedAt,HOUR/2)){s.tokens[a.name]=a.token;s.tokenTimes[a.name]=a.queriedAt;}
  for(const m of prior.matches||[]){s.mainIndex[m.mid]=m;storeBattle(s,{owner:tag,game:m});for(const p of m.players||[])profile(s,p.name,p.res);}
  for(const record of prior.queryCache?.battles||[])if(record?.owner&&record.game?.mid)storeBattle(s,record);
@@ -196,17 +203,18 @@ async function apply(s,o,v,env){const t=o.target;
   if(o.kind==='account'){s.mainToken=v.customerToken;s.phase='list';}else if(o.kind==='rank-account')t.ct=v.customerToken;else s.actors[t.name].phase='list';return;
  }
  if(o.kind==='list'){
-  const games=data.matchList(v);for(const m of games)s.listed[m.mid]=m;
-  const priorIndex=s.prior.matchIndex||[];const overlaps=games.some(m=>priorIndex.some(p=>p.mid===m.mid));
-  if(Object.keys(s.listed).length<s.limit&&!(overlaps&&new Set([...Object.keys(s.listed),...priorIndex.map(m=>m.mid)]).size>=s.limit)&&games.length&&s.page<5){s.page++;return;}
-  const a=new Map(priorIndex.map(m=>[m.mid,m]));for(const [key,value] of Object.values(s.mainIndex).filter(m=>usable(m,s.tag)).map(m=>[m.mid,{mid:m.mid,t:m.t,ret:m.ret,mapGuid:m.mapGuid}]))a.set(key,value);for(const m of Object.values(s.listed))a.set(m.mid,m);
+  // Upstream returns 5v5 and 6v6 in one list; keep the rows matching the chosen pool.
+  const games=poolFilter(data.matchList(v),s.pool);for(const m of games)s.listed[m.mid]=m;
+  const priorIndex=(s.prior.matchIndex||[]).filter(m=>poolMatch(m,s.pool));const overlaps=games.some(m=>priorIndex.some(p=>p.mid===m.mid));
+  if(Object.keys(s.listed).length<s.limit&&!(overlaps&&new Set([...Object.keys(s.listed),...priorIndex.map(m=>m.mid)]).size>=s.limit)&&data.matchList(v).length&&s.page<5){s.page++;return;}
+  const a=new Map(priorIndex.map(m=>[m.mid,m]));for(const [key,value] of Object.values(s.mainIndex).filter(m=>usable(m,s.tag)&&poolMatch(m,s.pool)).map(m=>[m.mid,{mid:m.mid,t:m.t,ret:m.ret,mapGuid:m.mapGuid,gameMode:m.gameMode||''}]))a.set(key,value);for(const m of Object.values(s.listed))a.set(m.mid,m);
   s.selected=[...a.values()].sort((a,b)=>b.t-a.t).slice(0,s.limit);s.phase='details';return;
  }
  if(o.kind==='detail'){const record=await detail(v,t,s.tag,s,env);storeBattle(s,record,true);s.mainDone[t.mid]=record.game;s.fetched++;return;}
  if(o.kind==='rank'||o.kind==='history-rank'){const res={rows:data.rankRows(v),rankQueriedAt:new Date(now()).toISOString()};rankUpdate(s,t,res);if(o.kind==='rank')s.rankFetched++;else{s.historyRankDone[t.key]=true;s.historyRanks++;}return;}
- if(o.kind==='history-list'){const h=s.actors[t.name];h.list=data.matchList(v).sort((a,b)=>b.t-a.t).filter(m=>!s.excluded.includes(m.mid)).slice(0,3);h.phase='details';return;}
+ if(o.kind==='history-list'){const h=s.actors[t.name];h.list=poolFilter(data.matchList(v),s.pool).sort((a,b)=>b.t-a.t).filter(m=>!s.excluded.includes(m.mid)).slice(0,3);h.phase='details';return;}
  if(o.kind==='history-detail'){
-  const record=await detail(v,{mid:t.mid,t:t.t,ret:t.ret,mapGuid:t.mapGuid},t.name,s,env);storeBattle(s,record,true);const game=project(record,t.name,{mid:t.mid,t:t.t,ret:t.ret,mapGuid:t.mapGuid});
+  const record=await detail(v,{mid:t.mid,t:t.t,ret:t.ret,mapGuid:t.mapGuid,gameMode:t.gameMode||''},t.name,s,env);storeBattle(s,record,true);const game=project(record,t.name,{mid:t.mid,t:t.t,ret:t.ret,mapGuid:t.mapGuid,gameMode:t.gameMode||''});
   if(game)s.actors[t.name].matches.push(game);else{const h=s.actors[t.name];(h.bad||=[]).push(t.mid);h.error=true;s.historyErrors++;}
  }
 }
@@ -227,9 +235,9 @@ function finish(s){
  const rankExpires=s.histories.flatMap(h=>h.matches.flatMap(m=>m.players.filter(p=>rankFresh(p.res)).map(p=>Date.parse(p.res.rankQueriedAt)+6*HOUR)));
  const expires=Math.min(now()+6*HOUR,...rankExpires,...s.histories.map(h=>h.error?0:Date.parse(h.queriedAt)+(h.matches.length?6*HOUR:900000)));
  const profileList=Object.entries(s.profiles).filter(([,res])=>rankFresh(res)).map(([name,res])=>({name,res,playerKey:s.identityByName[name]})).sort((a,b)=>Date.parse(b.res.rankQueriedAt)-Date.parse(a.res.rankQueriedAt)).slice(0,500);
- const queryIndexMatches=[...new Map([...(s.prior.matchIndex||[]),...(s.prior.matches||[]),...matches,...Object.values(s.listed)].map(m=>[m.mid,{mid:m.mid,t:m.t,ret:m.ret,mapGuid:m.mapGuid}])).values()].sort((a,b)=>b.t-a.t).slice(0,50);
+ const queryIndexMatches=[...new Map([...(s.prior.matchIndex||[]),...(s.prior.matches||[]),...matches,...Object.values(s.listed)].map(m=>[m.mid,{mid:m.mid,t:m.t,ret:m.ret,mapGuid:m.mapGuid,gameMode:m.gameMode||''}])).values()].sort((a,b)=>b.t-a.t).slice(0,50);
  const result={queryIndexMatches,schemaVersion:3,battletag:s.tag,source:'网易大神 · 云端增量查询',queriedAt:s.now,used_previous_season_fallback:s.out.some(m=>m.players.some(p=>p.res.previousRows?.length)),matches,recentHistory:s.histories,historyQueriedAt:s.now,
-  queryCache:{version:POLICY,profiles:profileList,histories:pool.map(({name,matches,queriedAt,savedAt})=>({name,refs:matches.map(({mid,t,ret,mapGuid})=>({mid,t,ret,mapGuid})),queriedAt,savedAt})),battles:cachedBattles,historyPlan:{version:POLICY,input:s.historyInput,names:s.histories.map(h=>h.name),until:expires}},
+  queryCache:{version:POLICY,profiles:profileList,histories:pool.map(({name,matches,queriedAt,savedAt})=>({name,refs:matches.map(({mid,t,ret,mapGuid,gameMode})=>({mid,t,ret,mapGuid,gameMode:gameMode||''})),queriedAt,savedAt})),battles:cachedBattles,historyPlan:{version:POLICY,input:s.historyInput,names:s.histories.map(h=>h.name),until:expires}},
   syncStatus:{mode:s.supplementOtherMatches?'slow':'fast',rankRequests:s.rankRequests,cacheMissing:s.cacheMissing.length,historyRequests:s.historyCalls,historyCacheHits:s.historyHits,playerSlots:s.out.reduce((n,m)=>n+m.players.length,0),uniquePlayers:s.rankTargets?.length||0,cacheHitKeys:s.cacheHits,fetchedMatches:s.fetched,reusedMatches:s.reused,totalMatches:s.out.length,listedMatches:Object.keys(s.listed).length,rankFetches:s.rankFetched,rankReuses:s.rankReused,cachedOnly:!s.fetched&&!s.rankFetched&&!s.historyCalls,requests:s.requests,accountCacheHits:s.accountHits,deduplicatedRequests:s.deduped},
   historyStatus:{sampledPlayers:s.candidates?.length||s.histories.length,playersWithGames:s.histories.filter(h=>h.matches.length).length,games:new Set(s.histories.flatMap(h=>h.matches.map(m=>m.mid))).size,cacheHits:s.historyHits,requests:s.historyCalls,requestBudget:64,errors:s.historyErrors,maxPlayers:12,gamesPerPlayer:2}};
  s.result=result;s.phase='done';

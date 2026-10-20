@@ -14,7 +14,7 @@ async function openHistory(tag,mid){
 function timelineWindow(){return QS_HISTORY_MODEL.windowRange(timeline.all.length,TIMELINE_WINDOW,timeline.start);}
 function calculateStatistics(){
  const window=timelineWindow(),range=QS_HISTORY_MODEL.statisticsRange(timeline.all.length,window.end,$('statisticsRange').value),matches=timeline.all.slice(range.start,range.end);
- const key=[range.start,range.end,$('statisticsRange').value,options().side,options().strategy,options().estimate].join('|');
+ const key=[range.start,range.end,$('statisticsRange').value,options().side,options().strategy,options().estimate,options().pool].join('|');
  if(timeline.statisticsRaw===raw&&timeline.statisticsKey===key)return false;
  timeline.statistics=OWQS_SERVICES.analysis.summarize(raw,matches,options(),timeline.archive?{records:timeline.personalRecords,excluded:timeline.personalExcluded}:undefined);
  const dates=matches.length?new Date(matches[0].t).toLocaleDateString('zh-CN')+'—'+new Date(matches.at(-1).t).toLocaleDateString('zh-CN'):'';

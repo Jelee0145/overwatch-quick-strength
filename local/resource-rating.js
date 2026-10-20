@@ -19,7 +19,7 @@ function evaluate(base,player,match,rows,configs,policy){
  if(h===null||d===null)return skip('受治疗量或承伤未返回；不加减分');
  if(seconds<policy.minDuration)return skip('不足两分钟；只展示资源数据，不调整评分');
  const roster=match.players||[];
- if(['T','E'].some(side=>roster.filter(p=>p.side===side).length>5))return skip('含替补；个人参战时长不明，不作资源修正');
+ if(root.QS?.hasSubstitutes?root.QS.hasSubstitutes(roster,match.gameMode):['T','E'].some(side=>roster.filter(p=>p.side===side).length>5))return skip('含替补；个人参战时长不明，不作资源修正');
  const need=(i,healing)=>{const c=configs[i];if(!c?.configured)return null;return (policy.needs[c.id]??1)*(healing?(policy.selfSustain[c.record?.slug]?.healingNeed??1):1);};
  const allies=roster.map((p,i)=>({p,i})).filter(x=>x.p.side===player.side&&x.i!==index);
  const valid=allies.filter(x=>number(x.p.stats?.healingTaken)!==null&&number(x.p.stats?.damageTaken)!==null&&need(x.i,true)!==null&&rows[x.i]?.coverage>=.8);

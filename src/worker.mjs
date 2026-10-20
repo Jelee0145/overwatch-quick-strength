@@ -17,11 +17,12 @@ function apiOptions(b){
  if(b.fast!==undefined){if(typeof b.fast!=='boolean')throw new Fault('快查询选项格式错误');if(b.mode!==undefined&&b.fast!==!slow)throw new Fault('查询模式与快查询选项冲突');slow=!b.fast;}
  if(b.supplementOtherMatches!==undefined){if(typeof b.supplementOtherMatches!=='boolean')throw new Fault('补充对局选项格式错误');if((b.mode!==undefined||b.fast!==undefined)&&b.supplementOtherMatches!==slow)throw new Fault('查询模式与补充对局选项冲突');slow=b.supplementOtherMatches;}
  const statisticsRange=b.statisticsRange===undefined?'all':String(b.statisticsRange);if(!['all','5','10','20'].includes(statisticsRange))throw new Fault('统计范围只能是 all、5、10 或 20');
+ const pool=b.pool===undefined||b.pool===''?'':String(b.pool);if(!['','55','66'].includes(pool))throw new Fault('对局模式只能是 55、66 或留空');
  const side=b.side===undefined?'all':String(b.side);if(!['all','T','E'].includes(side))throw new Fault('玩家范围只能是 all、T 或 E');
  const strategy=b.strategy===undefined?'legacy':String(b.strategy);if(!['legacy','role','highest'].includes(strategy))throw new Fault('段位选取方式无效');
  if(b.estimate!==undefined&&typeof b.estimate!=='boolean')throw new Fault('估算选项格式错误');
  if(b.syncHistory!==undefined&&typeof b.syncHistory!=='boolean')throw new Fault('历史同步选项格式错误');
- return {battletag,limit,supplementOtherMatches:slow,mode:slow?'slow':'fast',statisticsRange,side,strategy,estimate:b.estimate!==false,syncHistory:b.syncHistory!==false};
+ return {battletag,limit,supplementOtherMatches:slow,mode:slow?'slow':'fast',pool,statisticsRange,side,strategy,estimate:b.estimate!==false,syncHistory:b.syncHistory!==false};
 }
 async function apiV1(request,env,url){
  if(request.method==='OPTIONS')throw new Fault('接口不开放浏览器跨域调用',405);

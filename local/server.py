@@ -6,6 +6,7 @@ import datetime as dt
 import http.server
 import json
 from pathlib import Path
+import re
 import secrets
 import threading
 import time
@@ -126,6 +127,23 @@ class Client:
             except json.JSONDecodeError:
                 raise QueryError('大神请求超时、网络不可用或返回格式异常') from None
 
+def pool_size(mode):
+    mode = str(mode or '')
+    match = re.fullmatch(r'(?i)leisure(\d+)v(\d+)', mode)
+    if match:
+        return max(int(match.group(1)), int(match.group(2)))
+    return 5 if mode.lower().startswith('leisure') else None
+
+
+def in_pool(match, pool):
+    """5v5 and 6v6 quick play are one upstream list; keep only the chosen size."""
+    wanted = {'55': 5, '66': 6}.get(pool or '')
+    if not wanted:
+        return True
+    size = pool_size(match.get('gameMode'))
+    return size == wanted
+
+
 def collect(config, job, client_factory=Client, cache_root=None):
     private = cache_root if cache_root is not None else PRIVATE
     previous = query_cache.load(private, config)
@@ -150,13 +168,16 @@ def collect(config, job, client_factory=Client, cache_root=None):
             mid = str(match.get('matchId') or '')[:100]
             if mid and mid not in listed:
                 listed[mid] = {'matchId': mid, 'beginTs': number(match.get('beginTs')) or 0,
-                               'matchRet': match.get('matchRet', 0), 'mapGuid': str(match.get('mapGuid', ''))[:80]}
-        if len(listed) >= config['limit'] or not result:
+                               'matchRet': match.get('matchRet', 0), 'mapGuid': str(match.get('mapGuid', ''))[:80],
+                               'gameMode': str(match.get('gameMode', ''))[:40]}
+        if sum(1 for m in listed.values() if in_pool(m, config.get('pool', ''))) >= config['limit'] or not result:
             break
-    candidates = {mid: {'matchId': mid, 'beginTs': m['t'], 'matchRet': m['ret'], 'mapGuid': m['mapGuid']}
+    candidates = {mid: {'matchId': mid, 'beginTs': m['t'], 'matchRet': m['ret'], 'mapGuid': m['mapGuid'],
+                        'gameMode': m.get('gameMode', '')}
                   for mid, m in cached.items() if query_cache.usable(m, config['battletag'])}
     candidates.update(listed)
-    selected = sorted(candidates.values(), key=lambda m: m['beginTs'], reverse=True)[:config['limit']]
+    selected = sorted((m for m in candidates.values() if in_pool(m, config.get('pool', ''))),
+                      key=lambda m: m['beginTs'], reverse=True)[:config['limit']]
     now = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).isoformat()
     now_ts = time.time()
     rank_cache = {}
@@ -182,6 +203,7 @@ def collect(config, job, client_factory=Client, cache_root=None):
         if consistent and query_cache.usable(saved, config['battletag']) and saved.get('resourceDataChecked'):
             m = copy.deepcopy(saved)
             m['ret'] = match['matchRet'] if match['matchRet'] in (-1, 0, 1) else m['ret']
+            if match.get('gameMode'): m['gameMode'] = match['gameMode']
             out.append(m)
             reused += 1
             job['message'] = f'复用已获取对局 {reused} 场 · 新读取 {fetched} 场…'
@@ -201,6 +223,7 @@ def collect(config, job, client_factory=Client, cache_root=None):
                 players.append({**public, '_token': ct})
         metadata = match_data(detail)
         out.append({'mid': mid, 't': match['beginTs'], 'ret': match['matchRet'], 'mapGuid': match['mapGuid'],
+                    'gameMode': match.get('gameMode', ''),
                     'players': players, 'hasGameData': True, 'dataQueriedAt': now,
                     **{k: metadata[k] for k in ('duration', 'teamScore', 'opponentScore', 'resourceDataChecked')}})
         fetched += 1
@@ -294,6 +317,7 @@ def validate(body):
     except (ValueError, TypeError):
         raise QueryError('场数格式错误') from None
     config['recentHistory'] = body.get('recentHistory') is True
+    config['pool'] = body.get('pool') if body.get('pool') in ('55', '66') else ''
     return config
 
 class Handler(http.server.SimpleHTTPRequestHandler):

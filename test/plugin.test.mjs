@@ -101,3 +101,12 @@ test('ZIP is self-contained, contains only allowlisted paths and runs outside th
  assert.match(picture.svg,/&lt;长昵称&amp;中文&gt;/);assert.equal(picture.displayed,3);
  await writeFile(path.join(temp,'preview.svg'),picture.svg);
 });
+test('standalone plugin charts only the requested quick-play pool',async()=>{
+ const mock=fixture({mixedModes:true}),request={version:1,credentials,request:{tag:'Main#100',limit:10,mode:'fast',pool:'66'}};
+ const result=await runJob(request,{assetRoot:assets,provider:mock.call,emit:()=>{},sleep:async()=>{},serviceOptions:{sleep:async()=>{},now:Date.now}});
+ assert.ok(result.cache.snapshot.matches.length>0);
+ assert.ok(result.cache.snapshot.matches.every(m=>m.gameMode==='Leisure6v6'),JSON.stringify(result.cache.snapshot.matches.map(m=>m.gameMode)));
+ const chart=chartModel(result.cache.snapshot,'66');
+ assert.ok(chart.matches.every(m=>m.gameMode==='Leisure6v6'));
+ assert.equal(chartModel(result.cache.snapshot,'55').matches.length,0);
+});

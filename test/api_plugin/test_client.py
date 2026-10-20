@@ -58,6 +58,19 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(client.UserError):
             client.Query("昵称#12", True)
 
+    def test_quick_play_pool_options(self):
+        for arguments, pool in (("昵称#12 66", "66"), ("昵称#12 6v6", "66"), ("昵称#12 55", "55"), ("昵称#12 5v5", "55"), ("昵称#12", "")):
+            query = client.parse_query(arguments)
+            self.assertEqual(query.pool, pool, arguments)
+            self.assertEqual(query.tag, "昵称#12")
+        query = client.parse_query("含 空格#12345 20 慢 6v6")
+        self.assertEqual((query.tag, query.limit, query.mode, query.pool), ("含 空格#12345", 20, "slow", "66"))
+        self.assertEqual(query.label, "快速 6v6 · 慢模式")
+        with self.assertRaises(client.UserError):
+            client.parse_query("昵称#12 55 66")
+        with self.assertRaises(client.UserError):
+            client.Query("昵称#12", 10, "fast", "77")
+
     def test_bindings_persist_and_isolate_senders(self):
         with tempfile.TemporaryDirectory() as directory:
             store = client.Bindings(directory)
