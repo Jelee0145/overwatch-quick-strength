@@ -47,7 +47,8 @@ await writeFile(path.join(base,'public',faviconURL.slice(1)),favicon);
 const brandPage=page=>page.replace(/<title>([^<]+)<\/title>/,(_,title)=>'<title>'+(/^(守望工具箱|快速强度图)/.test(title)?(/英雄抽取/.test(title)?'随机英雄 · ':'快速强度图'===title||title.includes('Quick Strength')?'对局分析 · ':'')+'狸狸天眼查':title.replace(/快速强度图|守望工具箱/g,'狸狸天眼查'))+'</title>').replace(/<link\b[^>]*rel="(?:shortcut )?icon"[^>]*>/g,'').replace('</head>',`<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"></head>`);
 const installHead='<link rel="manifest" href="/manifest.json"><script defer src="/install.js"></script>';
 await writeFile(path.join(base,'public/app-icon.svg'),await readFile(path.join(base,'web/app-icon.svg')));
-await writeFile(path.join(base,'public/install.js'),await readFile(path.join(base,'web/install.js')));
+// Minified so the install prompt stays inside the page startup budget.
+await writeFile(path.join(base,'public/install.js'),(await transform(await readFile(path.join(base,'web/install.js'),'utf8'),{loader:'js',minify:true,target:'es2022'})).code);
 await writeFile(path.join(base,'public/event-reminders-sw.js'),await readFile(path.join(base,'web/event-reminders-sw.js')));
 await writeFile(path.join(base,'public/manifest.json'),JSON.stringify({id:'/',name:'狸狸天眼查',short_name:'天眼查',description:'守望先锋对局分析、英雄抽取与赛事中心',lang:'zh-CN',start_url:'/',scope:'/',display:'standalone',background_color:'#ffffff',theme_color:'#f58220',icons:[{src:'/app-icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]}));
 const withInstall=page=>page.replace('</head>',installHead+'</head>');
