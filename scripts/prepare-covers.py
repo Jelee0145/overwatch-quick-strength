@@ -15,8 +15,8 @@ from PIL import Image, ImageOps
 
 BASE = Path(__file__).resolve().parent.parent
 SOURCE = BASE / 'web' / 'covers'
-EDGE = 1200
-QUALITY = 88
+EDGE = 900
+QUALITY = 82
 # The card art box is 285px tall and roughly 330-390px wide; 4:3 keeps headroom for cropping.
 RATIO = 4 / 3
 # Vertical crop anchor per cover; higher values keep more of the bottom (trophy, podium).

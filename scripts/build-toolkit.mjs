@@ -1,4 +1,4 @@
-import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {mkdir,readdir,readFile,rm,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 
@@ -29,6 +29,8 @@ export async function buildToolkit({base,brandPage,logo,staticFile,releaseNotes,
   covers[name]=entry.image;
  }
  for(const name of ['analysis','draw','events'])if(!covers[name])throw Error('Missing cover: '+name);
+ const liveCovers=new Set(Object.values(covers).map(url=>path.basename(url)));
+ for(const name of await readdir(coverTarget))if(name.endsWith('.webp')&&!liveCovers.has(name))await rm(path.join(coverTarget,name));
  const css=await staticFile(await readFile(path.join(base,'web/cloud.css'),'utf8')+'\n'+await readFile(path.join(base,'web/toolkit.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile-shell.css'),'utf8')+'\n'+await readFile(path.join(base,'web/event-reminders.css'),'utf8'),'css','toolkit');
  const common=['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/toolkit-session.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/changelog.js'),'utf8')].join('\n');
  // Reminders stay out of the page bundles; the events page needs the engine before its own script.
