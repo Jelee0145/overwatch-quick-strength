@@ -91,6 +91,10 @@ html=html.replace(/<\/head>/,'<link rel="stylesheet" href="cloud.css"></head>');
 let app=await readFile(path.join(local,'app.js'),'utf8');
 const cutStart=app.indexOf('function credentialPayload()'),cutEnd=app.indexOf('async function loadGameData');
 app=app.slice(0,cutStart)+app.slice(cutEnd);
+// The only loadGameData call site is replaced below; keep the credentials marker for the boot rewrite at the end.
+const deadStart=app.indexOf('async function loadGameData'),deadEnd=app.indexOf("$('credentials').open=false;",deadStart);
+if(deadStart<0||deadEnd<0)throw Error('Dead game-data adapter changed');
+app=app.slice(0,deadStart)+app.slice(deadEnd);
 app=app.replace(/\$\('onlinePanel'\)\.onsubmit=[\s\S]*?(?=\$\('cancel'\)\.onclick)/,`$('onlinePanel').onsubmit=async e=>{e.preventDefault();if(activeJob)return;try{busy(true);status('正在建立查询…');const r=await Cloud.startQuery($('battleTag').value.trim(),Number($('limit').value),$('supplementOtherMatches').checked,$('pool').value);activeJob=r.id;poll();}catch(e){busy(false);status(e.message,true);}};\n`);
 {const start=app.indexOf('async function request('),end=app.indexOf('function busy(',start);if(start<0||end<0)throw Error('Local request adapter changed');app=app.slice(0,start)+'async function request(path,body){return Cloud.api(path,body);}\n'+app.slice(end);}
 app=app.replace("raw=QS.normalize(job.result);activeJob=null", "await Cloud.save(job.envelope,job.cacheRecords,job.queryIndex);raw=QS.normalize(job.result||job.envelope.content.data);await openHistory(raw.battletag);activeJob=null");
@@ -99,9 +103,7 @@ app=app.replace("request('/api/job/'+activeJob)","request('/api/job/'+activeJob+
 app=app.replace("}else pollTimer=setTimeout(poll,1000);", "}else if(job.state==='paused'){$('resumeQuery').hidden=false;}else pollTimer=setTimeout(poll,1000);");
 app=app.replace("function busy(value){", "$('resumeQuery').onclick=async()=>{try{await request('/api/job/'+activeJob+'/resume',{});$('resumeQuery').hidden=true;poll();}catch(e){status(e.message,true);}};\nfunction busy(value){$('resumeQuery').hidden=true;");
 app=app.replace(/\$\('credentials'\)\.open=false;[\s\S]*$/,'(async()=>{try{await Cloud.boot();const latest=await Cloud.latest();if(latest.historyTag){await openHistory(latest.historyTag);}else if(latest.result){raw=QS.normalize(latest.result);$("battleTag").value=raw.battletag;generate();}if(latest.activeJob){activeJob=latest.activeJob;busy(true);poll();}}catch(e){status(e.message,true);}})();');
-app=app.replace(/const payload=\{\.\.\.credentialPayload\(\),battletag:tag,matchId:match.mid\}/,'const payload={battletag:tag,matchId:match.mid,envelope:await CloudHistory.envelope(tag,match.mid)||await Cloud.snapshot(tag)}');
 app=app.replace('if(m&&(!m.hasGameData||!m.resourceDataChecked))loadGameData(m);',"if(m&&(!m.hasGameData||!m.resourceDataChecked)){$('gameDataStatus').textContent='历史记录缺少部分游戏数据；不会自动补查';}");
-app=app.replace("payload.token='';",'');
 app=app.replace("status('已请求停止，正在结束当前请求…');", "status('已请求停止，正在结束当前请求…');poll();");
 const exportStart=app.indexOf('function svgBlob()'),exportEnd=app.indexOf("$('json').onclick",exportStart);
 if(exportStart<0||exportEnd<0)throw Error('Export adapter changed');
