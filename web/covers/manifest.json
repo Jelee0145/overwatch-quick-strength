@@ -1,0 +1,17 @@
+{
+ "analysis": {
+  "source": "web/covers/analysis-cover.png",
+  "sha256": "ef90f3e8cb217fc5ff2df23fa0f0198c00ff034d01e7866870fb618b7d607aa4",
+  "image": "/media/covers/analysis.3a5063fc5c933c0d.webp"
+ },
+ "draw": {
+  "source": "web/covers/draw-cover.png",
+  "sha256": "e7009a34d98de176201da841116578672781d2965ab002df33113425219ef86e",
+  "image": "/media/covers/draw.f2b62ee0ffea7086.webp"
+ },
+ "events": {
+  "source": "web/covers/events-cover.png",
+  "sha256": "cd868f533d781e79b1ffd16c77f210ca7cdee5ba43aa5a2129d279093cb913bc",
+  "image": "/media/covers/events.658435cfb8d54c2d.webp"
+ }
+}
