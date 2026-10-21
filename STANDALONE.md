@@ -70,6 +70,8 @@ node scripts/package-server.mjs
 
 `deploy/nginx-http.conf` 仅提供 ACME 校验与 HTTPS 跳转，`deploy/nginx-https.conf` 通过 8443 代理应用，当前 `PUBLIC_ORIGIN` 为 `https://106.55.47.68:8443`。Cookie 始终带 Secure。公网 IP 使用 Let's Encrypt shortlived 证书，必须启用 `owqs-cert-renew.timer` 每 12 小时检查并在续期后重载 Nginx。安全组需允许 IPv4 TCP 80 和 8443（来源 `0.0.0.0/0`）；IPv6 的 `::/0` 不会放行 IPv4。不要把应用的 8788 端口暴露公网。
 
+`deploy/nginx-https.conf` 的 server 块启用 gzip：应用把脚本标为 `text/javascript`，且响应经过反向代理，因此 `gzip_types` 必须包含 `text/javascript`，并设置 `gzip_proxied any`；否则 JS/CSS 会以原始体积传输（首屏约 300 KB，压缩后约 92 KB）。修改后用 `nginx -t && nginx -s reload` 生效。
+
 配置域名后，将 `PUBLIC_ORIGIN`、Nginx server_name、证书配置和 HTTP 跳转一起更新。原 IP 浏览器站点数据不会自动出现在新域名；云端账号历史保留。
 
 非标准端口不替代内地网站正式对外服务所需的备案；域名准备好后再完善正式入口。
