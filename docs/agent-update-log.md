@@ -199,3 +199,9 @@
 - Measured production first load: `app.js` 234869 B, `app.css` 41702 B, `strength.html` 16992 B and `install.js` 3379 B were all sent raw (about 300 KB). The host had `gzip on` but `gzip_types` commented out, and proxied responses were not compressed; the app also labels scripts `text/javascript`, which is not in nginx's default type list.
 - Enabled gzip in the `owqs-https.conf` server block and mirrored it in `deploy/nginx-https.conf`: `gzip_vary`, `gzip_proxied any`, `gzip_comp_level 6`, `gzip_min_length 1024`, and types including `text/javascript` and `application/manifest+json`. `nginx -t` passed and the service reloaded without a restart.
 - Verified externally: JS transfer 234869 → 74268 B, CSS 41702 → 9312 B, login HTML → 814 B, `Vary: Accept-Encoding` present, immutable cache headers unchanged. No application rebuild or release switch was needed, and the Cloudflare deployment is unaffected.
+
+## 2026-10-21 Cover image weight trim
+
+- `scripts/prepare-covers.py` now outputs 900×675 WebP at quality 82 (previously 1200×900 at 88), and `scripts/build-toolkit.mjs` prunes stale cover WebP files so only the manifest's three hashes ship.
+- Sizes: analysis 97 → 53 KB, draw 137 → 73 KB, events 216 → 115 KB (total 450 → 247 KB, about −45%); the standalone package dropped from 32.5 MB to 31.6 MB.
+- `npm run build`, `npm test` (182/182) and `npm run check` passed. Deployed Tencent `/opt/owqs/releases/20261021-3c81298`, previous `116cf7f` retained; public health reports the new revision, the three covers return 200 `image/webp`, the superseded cover URL returns 404, and gzip delivery is unchanged.
