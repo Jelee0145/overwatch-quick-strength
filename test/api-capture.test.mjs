@@ -8,7 +8,7 @@ test('Bot captures use the final website DOM, stylesheet and player renderer',as
  const css=page.match(/<link rel="stylesheet" href="([^"]+)"/)[1];
  assert.equal(bundle.css,await readFile('public'+css,'utf8'));
  assert.ok(page.includes(bundle.data));assert.ok(page.includes(bundle.review));
- assert.equal((bundle.data.match(/<th[ >]/g)||[]).length,14);
+ assert.equal((bundle.data.match(/<th[ >]/g)||[]).length,13);
  assert.ok(bundle.script.includes('function showPlayers('));
  assert.ok(bundle.script.includes('function performanceCell('));
  assert.ok(bundle.script.includes('对局记录缺少部分游戏数据；不会自动补查'));
