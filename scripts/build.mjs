@@ -109,6 +109,8 @@ if(mapStart<0||mapEnd<0)throw Error('Map adapter changed');
 app=app.slice(0,mapStart)+"function queueMapArt(){QS_ASSETS.render($('chart').querySelector('svg'),$('art').checked);}\n"+app.slice(mapEnd);
 app=app.replace('empty||mapLoading','empty').replace('mapAttempts.clear();generate();','generate();');
 app+="\n$('limit').onchange=null;\n";
+// The phone layout loads on demand; expose only the state and renderers it shares with this bundle.
+app+="window.OWQS_APP={get model(){return model},get activeJob(){return activeJob},timeline,showPlayers,showPerformance,settleTimeline};\n";
 app=app.replaceAll('QS.normalize(', 'OWQS_SERVICES.data.normalize(');
 let chart=await readFile(path.join(local,'chart.js'),'utf8');
 chart=chart.replace('if(showArt&&art[m.mapGuid])','if(showArt)').replace('href="${esc(art[m.mapGuid])}"','data-map-art="${esc(m.mapGuid)}"');
@@ -135,6 +137,9 @@ const reminderLoader=await staticFile((await readFile(path.join(base,'web/event-
 // Secondary panels load right after the main chunk; only the tiny loader counts toward the startup budget.
 const extras=await staticFile(rewriteCopy([await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),await readFile(path.join(base,'web/changelog.js'),'utf8')].join('\n')),'js','app-extras');
 const extrasLoader=await staticFile((await readFile(path.join(base,'web/app-extras-loader.js'),'utf8')).replace('__APP_EXTRAS_URL__',extras),'js','app-extras-loader');
+// Phone chrome and analysis layout are desktop-irrelevant; the loader only fetches them when the media query matches.
+const mobile=await staticFile(rewriteCopy([await readFile(path.join(base,'web/mobile-shell.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app-mobile');
+const mobileLoader=await staticFile((await readFile(path.join(base,'web/app-mobile-loader.js'),'utf8')).replace('__APP_MOBILE_URL__',mobile),'js','app-mobile-loader');
 const css=await staticFile(await readFile(path.join(local,'style.css'),'utf8')+'\n'+await readFile(path.join(base,'web/cloud.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile-shell.css'),'utf8')+'\n'+await readFile(path.join(base,'web/mobile.css'),'utf8')+'\n'+await readFile(path.join(base,'web/event-reminders.css'),'utf8'),'css','app');
 const files=async names=>Promise.all(names.map(name=>readFile(path.join(local,name),'utf8')));
 const browserData=await readFile(path.join(local,'data.js'),'utf8');
@@ -142,8 +147,8 @@ const runtime=await files(shared);
 const services=await build({entryPoints:[path.join(base,'web/services.js')],bundle:true,format:'iife',platform:'browser',target:'es2022',write:false});
 runtime.push(services.outputFiles[0].text);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
-const main=await staticFile(rewriteCopy([httpClient,browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/server-analysis.js'),'utf8'),app,await readFile(path.join(base,'web/mobile-shell.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
-html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${extrasLoader}"></script><script defer src="${reminderLoader}"></script><script defer src="/install.js"></script></head>`);
+const main=await staticFile(rewriteCopy([httpClient,browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/server-analysis.js'),'utf8'),app].join('\n')),'js','app');
+html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="preload" as="script" href="${mobile}" media="(max-width:760px), (max-height:500px) and (pointer:coarse)"><link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${mobileLoader}"></script><script defer src="${extrasLoader}"></script><script defer src="${reminderLoader}"></script><script defer src="/install.js"></script></head>`);
 await mkdir(path.join(base,'public/tools'),{recursive:true});
 await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDecorativeEnglish(html)));
 if(capture)await buildApiCapture({base,html:rewriteCopy(cleanDecorativeEnglish(html)),app:rewriteCopy(app),css});
