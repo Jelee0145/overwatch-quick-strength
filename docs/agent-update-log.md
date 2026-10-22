@@ -1,6 +1,15 @@
 # Agent update log
 
-## 2026-10-22 Unified backend, clients and code simplification (in progress)
+## 2026-10-22 Unified backend release on Tencent
+
+- User explicitly authorized pushing and deploying all pending changes. `main` pushed through `d8e804a` (feature `b66e858`, Nginx template fix `d8e804a`, including previously local `27be8db`). Final build/full tests 216/216/native runtime checks/dry-run and backend/web packaging passed at release revision.
+- deployed: backend `/opt/owqs/current -> /opt/owqs/releases/20261022-d8e804a`; web `/opt/owqs/web-current -> /opt/owqs/web-releases/20261022-d8e804a`. Previous combined release `/opt/owqs/releases/20261021-3c81298` retained. Same config, database path and cryptographic keys; consistent SQLite backup and config/Nginx backups retained server-side in protected deployment staging.
+- First candidate was rejected by target `nginx -t` because map regex quantifier braces needed quotes; old config/service restored before activation. Quoted patterns passed target configuration test; final coordinated backend/web/Nginx bootstrap accepted.
+- verified publicly: HTTPS health revision `d8e804a02d485c7b60eb7b0962607a16ed37badf`, API capability version 1.1; login 200, protected aliases/direct HTML 302, trailing tool slash 308, internal auth probe externally 404, anonymous v1 requests 401, SW/release-notes no-store, hash assets immutable and matching deployed SHA256. Current login JS/CSS bytes verified; both services active. Chinese release notes contain the new entries.
+- API Bot allowlisted files updated through `scripts/deploy-api-plugin.mjs`; AstrBot returned reload success. Container was not restarted. Cloudflare push triggered its deployment; Cloudflare completion was not separately verified.
+- Rollback of this first split must restore the old backend pointer AND prior Nginx configuration, restart owqs and reload validated Nginx; database is not automatically rewound. Production logged-in real-user query and real-device closed-page Web Push were not exercised, to avoid spending user quota or sending notifications.
+
+## 2026-10-22 Unified backend implementation (completed before release)
 
 - Scope: implement the approved unified `/api/v1` backend plan, shared account/history/reservations/quota, cache-only refunds, server-side analysis, client migration, independent build/package boundaries and related code simplification. No push or production deployment is authorized.
 - confirmed-current: root `D:/project/owqs`, `main` at `27be8db` (one local commit ahead of origin); only pre-existing untracked `dist/`. The latest commit removes dead startup code and duplicate browser chart exports; preserve those changes. `source/` remains the cloud algorithm authority, `src/shared/` generated; do not sync `local/`.
