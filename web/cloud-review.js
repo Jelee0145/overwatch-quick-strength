@@ -11,6 +11,9 @@
  }
  el('aiReviewGenerate').onclick=()=>generate();el('aiReviewAgain').onclick=()=>generate(true);
  root.QS_REVIEW={render};
+ // The app may auto-open history before this chunk loads; replay the match it already rendered.
+ const last=root.OWQS_LAST_ANALYSIS;
+ if(last?.model?.matches?.[last.index])render(last.model.matches[last.index],last.raw);
  // Resume only an already-started generation after a refresh; never initiate a model call here.
  (async()=>{try{await Cloud.boot();const tasks=await Cloud.jobs(),active=tasks.find(job=>['ai-review','review','ai'].includes(job.kind)&&!['done','failed','cancelled'].includes(job.state));if(active){busy=true;const job=await Cloud.api('/api/v1/jobs/'+active.id);if(job.reviewKey)await wait(job.id,{key:job.reviewKey});busy=false;paint(current?.review);}}catch(e){busy=false;if(current)el('aiReviewStatus').textContent=e.message;}})();
 })(window);
