@@ -4,20 +4,21 @@ const QS_CHART_VERSION='3.4.1';
 function createChartService({core:QS,maps={},avatar='',rankArt={}}){
  const QS_DATA={maps},QS_AVATAR=avatar,QS_RANK_ART=rankArt;
 function renderChart(model,art,showArt,title){
- const {esc,rank,bands}=QS,s=model.summary,matches=model.matches,n=matches.length;
+ const {esc,rank,bands}=QS,s=model.summary,matches=model.matches,n=matches.length,statsMatches=model.statsMatches||matches,statsCount=statsMatches.length;
  const W=Math.max(1440,n*120+220),H=1100,left=136,right=W-72,top=256,bottom=698,cw=(right-left)/Math.max(1,n);
  const ink='#eff3f7',muted='#93a2b3',observed='#82e4df',estimated='#ffb466',grid='#34404c';
  const colors=['#c89071','#aeb8c4','#e2bb63','#92c9b3','#47cba4','#72a7dc','#a1cc78','#aa9bc9','#ba9bd4'];
  const values=matches.flatMap(m=>[...m.scores,...m.allRoleScores,...(m.estimateRange?[m.estimateRange.min,m.estimateRange.max]:[]),...(m.mean!==null?[m.mean]:[])]).filter(Number.isFinite);
  let lo=values.length?Math.max(500,Math.floor((Math.min(...values)-100)/500)*500):500,hi=values.length?Math.min(5000,Math.ceil((Math.max(...values)+150)/500)*500):3000;
  if(hi<=lo)hi=Math.min(5000,lo+500);
+ if(model.plotScale&&Number.isFinite(model.plotScale.min)&&Number.isFinite(model.plotScale.max)&&model.plotScale.max>model.plotScale.min){lo=model.plotScale.min;hi=model.plotScale.max;}
  const y=v=>bottom-(v-lo)/(hi-lo)*(bottom-top),center=i=>left+(i+.5)*cw;
  const z=[],text=(x,y,t,size=16,color=muted,extra='')=>z.push(`<text x="${x}" y="${y}" font-size="${size}" fill="${color}" ${extra}>${esc(t)}</text>`);
  const line=(x1,y1,x2,y2,stroke,w=1,extra='')=>z.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" ${extra}/>`);
  const rect=(x,y,w,h,fill,extra='')=>z.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" ${extra}/>`);
  const panel=(x,y,w,h)=>rect(x,y,w,h,'#151d27','rx="10" stroke="#303b47"');
  const value=v=>Number.isFinite(v)?v.toFixed(1):'—',pointValue=v=>Number.isFinite(v)?Math.round(v):'—';
- const observedMatches=matches.filter(m=>m.observedMean!==null).length,metricStart=425,metricWidth=(W-metricStart-46)/3;
+ const observedMatches=statsMatches.filter(m=>m.observedMean!==null).length,metricStart=425,metricWidth=(W-metricStart-46)/3;
  z.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)}：顶部为强度预估、个人段位预测和预估可信度；轨迹青色为实测，橙色为估算" data-chart-version="${QS_CHART_VERSION}" style="font-family:Microsoft YaHei,PingFang SC,sans-serif;font-variant-numeric:tabular-nums"><defs>
  <linearGradient id="chart-back" x2="1" y2="1"><stop stop-color="#27303a"/><stop offset="1" stop-color="#111822"/></linearGradient>
  <linearGradient id="map-shade" x2="0" y2="1"><stop stop-color="#121b26" stop-opacity=".26"/><stop offset=".55" stop-color="#121b26" stop-opacity=".50"/><stop offset="1" stop-color="#121b26" stop-opacity=".93"/></linearGradient>
@@ -36,7 +37,7 @@ function renderChart(model,art,showArt,title){
  const rolesLabel=r=>QS.roles[r]||'未知职责';
  const personal=model.personalPrediction?.selected;
  const metrics=[
-  {x:metricStart,label:'强度预估',number:s.mean,color:s.unanchored?muted:s.estimated?estimated:observed,detail:s.unanchored?'动态规则参考 · 缺少段位依据':`${rank(s.mean)} · ${n} 场 / ${s.estimated} 场融合`},
+  {x:metricStart,label:'强度预估',number:s.mean,color:s.unanchored?muted:s.estimated?estimated:observed,detail:s.unanchored?'动态规则参考 · 缺少段位依据':`${rank(s.mean)} · ${statsCount} 场 / ${s.estimated} 场融合`},
   {x:metricStart+metricWidth,label:'个人段位预测',number:personal?.mean??null,color:observed,detail:personal?.mean!==null&&personal?.mean!==undefined?`${rolesLabel(personal.role)} · ${personal.rank}`:`${personal?rolesLabel(personal.role)+' · ':''}样本不足${personal?' · '+personal.games+'/3 场':''}`}
 
  ];
@@ -89,7 +90,7 @@ function renderChart(model,art,showArt,title){
   text(c,Math.max(top+43,py-16),pointValue(m.mean),19,isEstimate?estimated:observed,'text-anchor="middle" font-weight="650" stroke="#14202b" stroke-width="4" paint-order="stroke" pointer-events="none"');
  });
  panel(34,837,W-68,102);text(61,865,'实测段位分布',17,ink);text(W-61,865,`${s.known} 个可查玩家位 · 玩家位均值 ${value(s.playerMean)} · 不含估算`,14,muted,'text-anchor="end"');
- const bins=Array(45).fill(0);matches.flatMap(m=>m.scores).forEach(v=>bins[Math.min(44,Math.max(0,Math.floor((v-500)/100)))]++);
+ const bins=Array(45).fill(0);statsMatches.flatMap(m=>m.scores).forEach(v=>bins[Math.min(44,Math.max(0,Math.floor((v-500)/100)))]++);
  const peak=Math.max(1,...bins),bw=(W-126)/45;
  bins.forEach((count,i)=>{const x=63+i*bw+2;rect(x,910-(count?count/peak*31:1),bw-4,count?count/peak*31:1,colors[Math.floor(i/5)],'rx="1"');});bands.forEach((b,i)=>text(63+(i*5+2.5)*bw,929,b,14,colors[i],'text-anchor="middle"'));
  panel(34,957,W-68,110);

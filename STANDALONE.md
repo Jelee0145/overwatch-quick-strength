@@ -2,6 +2,12 @@
 
 网站与 Bot 共用原有 `/api/v1/query`、`/api/v1/jobs/{id}` 和账户 API 密钥。网页登录、授权、额度、签名缓存、跨设备历史及 AI 仍使用同一套服务代码。Cloudflare 构建根目录保持 `/`。
 
+## 独立前后端（本次代码，尚未上线）
+
+后端 `npm run server:build` 只生成 Node 业务与出图资源包，不包含完整网页；网页由 `npm run web:package` 生成独立包。Node 默认仅提供 API，组合开发预览设 `OWQS_SERVE_WEB=1`。`deploy/nginx-https.conf` 将静态网页放在 `/opt/owqs/web-current/public`，API 仍转发原回环端口；受保护页面通过只读会话检查保持登录跳转。操作与契约见 [统一后端说明](docs/unified-backend.md)。
+
+数据库、配置、密钥和公网 origin 不因拆分变更。更新 `deploy/owqs.service` 的后端 release 指针和 Nginx 模板前，需分别验证安装包和 `nginx -t`。`deploy/split-release.mjs` 提供显式校验/激活流程；没有激活参数不切换。代码回滚不回滚数据库，兼容状态迁移是独立回退的前提。此文不代表已获上线授权。
+
 ## 运行与数据
 
 - Node.js 24；进程由 `owqs.service` 管理，监听 `127.0.0.1:8788`，Nginx 提供公网 HTTPS。
@@ -19,7 +25,7 @@
 
 **状态：2026-10-20 已发布至腾讯云 `/opt/owqs/releases/20261020-c9a7a5f`。** 该版本分离快速 5v5／6v6 查询与替补判定；网站公网健康、版本标识与 Bot 插件热重载已核验。 预约路由、官方直播入口和全站三秒悬浮提醒已上线；服务器已生成并配置 `WEB_PUSH_*`，原配置项保留。公网健康、未登录鉴权、脚本与版本更新日志已核验。真实设备的系统通知及关页送达尚未完成验收，仍受浏览器授权、系统设置和推送网络影响。
 
-比赛中心的开赛提醒由网站进程直接发送，不经过 Cloudflare。`server/runtime.mjs` 只有在 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY`、`WEB_PUSH_SUBJECT` 三项非空时才创建推送发送器；缺少任一项时页面显示提醒服务未启用，订阅和预约接口返回 503。配置只在启动时读取，首次启用或修改后必须重启 `owqs.service`。运行环境为 Node.js 24。
+比赛中心的开赛提醒由网站进程直接发送，不经过 Cloudflare。`server/runtime.mjs` 只有在 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY`、`WEB_PUSH_SUBJECT` 三项非空时才创建推送发送器；缺少任一项时提醒投递未启用，设备订阅接口返回 503；当前新代码允许独立保存账号预约，并通过 `deliveryReady` 明确没有可投递设备。配置只在启动时读取，首次启用或修改后必须重启 `owqs.service`。运行环境为 Node.js 24。
 
 ### 配置工具
 

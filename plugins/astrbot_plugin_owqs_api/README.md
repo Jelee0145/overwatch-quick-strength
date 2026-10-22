@@ -53,11 +53,19 @@ apt-get install -y fonts-noto-cjk
 
 ## 任务与错误
 
-自然语言查询在后台执行，不受 AstrBot 工具调用时限影响；完成后由插件主动发回同一会话，因此不要因为模型没看到结果就重复查询。插件最多保留 5 个排队/运行中的请求，每位发送者一个，同时向网站运行最多 3 个。网站另外限制每个 API 密钥最多 5 个未完成查询。API 创建请求不自动重发；网站限流暂停时持续轮询现有任务。取消、超时和插件卸载会请求服务端取消未完成任务。网络中断导致取消请求无法到达时，网站仍按原有任务过期规则处理。
+自然语言查询在后台执行，不受 AstrBot 工具调用时限影响；完成后由插件主动发回同一会话，因此不要因为模型没看到结果就重复查询。插件最多保留 5 个排队/运行中的请求，每位发送者一个，同时向网站运行最多 3 个。网站另外限制每个 API 密钥最多 5 个未完成查询。API 创建请求不自动重发；网站限流暂停时持续轮询现有任务。每次逻辑查询在私有 SQLite 中保存 requestId、参数指纹、已确认的任务 ID 和免费预留。网络结果不明时保留这些状态；用户用相同账号和参数手动重试会轮询原任务，尚未收到任务 ID 则使用相同 requestId 请求原操作，不重复预留免费次数。明确完成／失败后才结束该逻辑查询，下一次查询使用新标识。服务端去重仅覆盖仍保留的任务（约一小时），并非永久承诺；不要在任务过期后自动重放不确定请求。取消、超时和插件卸载会请求服务端取消未完成任务。网络中断导致取消请求无法到达时，网站仍按原有任务过期规则处理。
 
-网站返回 401/403 时检查密钥和账号授权；429 时检查额度或未完成查询。API 仅允许 HTTPS，拒绝自动跟随重定向，避免将密钥转发到其他地址。配置文件和 `data/plugin_data/astrbot_plugin_owqs_api/bindings.sqlite3` 仅供管理员访问，不要提交或公开。
+网站返回 401/403 时检查密钥和账号授权；429 时检查额度或未完成查询；409 表示请求标识对应的参数冲突、任务尚未完成或历史版本已变化，应先核对原任务／刷新历史。API 仅允许 HTTPS，拒绝自动跟随重定向，避免将密钥转发到其他地址。配置文件和 `data/plugin_data/astrbot_plugin_owqs_api/bindings.sqlite3` 仅供管理员访问，不要提交或公开。
 
 插件轮询 `/api/v1/jobs/{id}?render=svg&compact=1`，获取内嵌公开素材的 SVG 和精简分析，不传输原始阵容、签名历史或密钥给出图浏览器。浏览器断网渲染，拒绝脚本、外部链接和超大 SVG。PNG 保存在私有 `plugin_data/astrbot_plugin_owqs_api/images` 目录，下次出图时清理超过 24 小时的图片。
+
+## 统一后端接口
+
+插件的绑定验证、查询、赛程和锐评共用有大小与超时限制的 HTTPS JSON 传输，锐评任务轮询由 API 客户端统一处理。网站 Cookie 登录与个人 Bearer Key 指向同一网站账号的任务、额度和签名历史，不另建 Bot 账号额度；免费服务账号仍额外受 Bot 本地发送者额度约束，查询始终发送 `syncHistory:false`，不允许个人历史分析或预约。
+
+客户端还提供 `active_jobs()`、`history_analysis(battletag, options)`、`historical_match(battletag, mid, revision, options)` 和 `historical_review(battletag, mid, revision, request_id, options)`，对应 `/api/v1/jobs`、`/history/analysis`、`/matches/detail` 与 `/matches/review`。历史定位使用游戏 ID、对局 mid 和归档 revision；版本变化返回 409，需要刷新后重新确认目标。这些方法供集成使用，未新增聊天指令。现有查询图片继续使用 `render=svg&compact=1`，统计固定最近 10 场，不会切换成全部历史统计。
+
+`GET /api/v1/account` 可返回 `apiVersion` 和 `capabilities`；当前统一接口版本为 1.1，历史分析 DTO 自带 `version:1`。接口以仓库 `contracts/openapi.yaml` 为准；v1 auth/admin 为原有 Cookie 接口别名，保持旧请求体。后台图片发送确认成功后才替换最近图片窗口和上次 ID；文字回退成功后更新上次 ID，保留原图编号。
 
 ## 从仓库打包
 

@@ -51,8 +51,6 @@ export class EventReminders{
   }else if(action==='unsubscribe'){
    if(typeof body.endpoint!=='string')throw new Fault('通知设备格式错误');delete account.subscriptions[hash(body.endpoint)];
   }else if(action==='reserve'){
-   if(!this.send)throw new Fault('比赛通知尚未配置，请联系管理员',503);
-   if(!Object.keys(account.subscriptions).length)throw new Fault('请先启用浏览器通知');
    const found=Object.entries(state.catalog).find(([key,v])=>key===body.matchId||v.match.id===body.matchId),[id,entry]=found||[];
    if(!entry||entry.ambiguous||entry.match.status==='completed'||(entry.match.startsAt&&Date.parse(entry.match.startsAt)<=this.now()))throw new Fault('这场比赛暂不支持预约，请刷新赛程');
    if(!account.reservations[id]&&Object.keys(account.reservations).length>=100)throw new Fault('最多保留 100 场预约，请先清理旧预约');
@@ -62,7 +60,7 @@ export class EventReminders{
   }else if(action!=='list')throw new Fault('接口不存在',404);
   account.notices=account.notices.filter(n=>this.now()-n.createdAt<3*MINUTE);
   await this.save(state);
-  return {enabled:!!this.send,publicKey:this.publicKey,reservations:Object.values(account.reservations).map(r=>{const entry=state.catalog[r.id];return {id:r.id,match:entry?.match,changed:r.originalStartsAt!==entry?.match.startsAt,state:r.finished?'completed':r.notifiedAt?'notified':!entry?.checkedAt||entry.ambiguous?'unverified':'active'};}),notices:account.notices};
+  return {enabled:!!this.send,publicKey:this.publicKey,deviceCount:Object.keys(account.subscriptions).length,deliveryReady:!!this.send&&Object.keys(account.subscriptions).length>0,reservations:Object.values(account.reservations).map(r=>{const entry=state.catalog[r.id];return {id:r.id,match:entry?.match,changed:r.originalStartsAt!==entry?.match.startsAt,state:r.finished?'completed':r.notifiedAt?'notified':!entry?.checkedAt||entry.ambiguous?'unverified':'active'};}),notices:account.notices};
  });}
  alarm(){return this.exclusive(async()=>{
   const state=await this.state(),now=this.now(),ids=new Set(Object.values(state.users).flatMap(u=>Object.values(u.reservations).filter(r=>!r.finished).map(r=>r.id)));

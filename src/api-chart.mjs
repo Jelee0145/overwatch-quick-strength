@@ -10,6 +10,15 @@ export function compactAnalysis(analysis){
 /** Render only the existing latest-ten analysis; static assets never need a user's credentials. */
 export async function renderApiChart(snapshot,options,assets){
  const raw=dataService.normalize(snapshot),all=analysisService.analyzeBatch(raw,options),model=analysisService.summarize(raw,all.matches.slice(-10),options);
+ return renderModel(model,assets,{statisticsRange:'10'});
+}
+
+/** Render a server-analyzed archive view without selecting or evaluating matches again. */
+export async function renderAnalysisChart(view,assets){
+ if(!view||view.version!==1||!view.chartView||!Array.isArray(view.chartView.matches)||view.chartView.matches.length>10)throw Error('历史分析视图无效');
+ return renderModel(view.chartView,assets,{statisticsRange:view.statisticsRange,revision:view.revision,window:view.window,statistics:view.statistics,axis:view.axis});
+}
+async function renderModel(model,assets,metadata){
  if(!model.matches.length)return null;
  const needed=new Set([media.avatar,...Object.values(media.ranks),...model.matches.map(m=>media.maps[m.mapGuid]?.export)].filter(Boolean));
  const embedded=new Map(),missing=[];let total=0;
@@ -29,5 +38,5 @@ export async function renderApiChart(snapshot,options,assets){
  const art=Object.fromEntries(model.matches.map(m=>[m.mapGuid,embedded.get(media.maps[m.mapGuid]?.export)||'']));
  const rankArt=Object.fromEntries(Object.entries(media.ranks).map(([rank,url])=>[rank,embedded.get(url)||'']));
  const chart=createChartService({core:globalThis.QS,maps,avatar:embedded.get(media.avatar)||'',rankArt});
- return {version:1,format:'svg',mimeType:'image/svg+xml',width:1440,height:1100,displayed:model.matches.length,statisticsRange:'10',missingAssets:missing.length,svg:chart.render(model,{art,title:'狸狸天眼查 · 快速强度图'})};
+ return {version:1,format:'svg',mimeType:'image/svg+xml',width:1440,height:1100,displayed:model.matches.length,...metadata,missingAssets:missing.length,svg:chart.render(model,{art,title:'狸狸天眼查 · 快速强度图'})};
 }

@@ -40,7 +40,7 @@ class Main(Star):
         self.bindings = Bindings(directory)
         self.renderer = Renderer(directory)
         self.client = ApiClient(config.get("api_base", ""), config.get("free_api_key", ""), sync_history=False)
-        self.manager = QueryManager(self.client, timeout=config.get("query_timeout", 600), max_pending=config.get("max_pending", 5))
+        self.manager = QueryManager(self.client, timeout=config.get("query_timeout", 600), max_pending=config.get("max_pending", 5), store=self.bindings)
         self.review_pending = set()
         self.query_pending = set()
         self.background = set()
@@ -92,7 +92,13 @@ class Main(Star):
             if not free and not default and '#' not in arguments:
                 account=await client.account();default=account.get('lastBattletag')
             query=parse_query(arguments,default)
-            reservation=self.bindings.reserve(owner,'query',self.config.get('free_daily_limit',10)) if free else None
+            pending=self.bindings.pending_query(owner,scope,query)
+            reservation=pending['reservation'] if pending else (self.bindings.reserve(owner,'query',self.config.get('free_daily_limit',10)) if free else None)
+            try:
+                self.bindings.start_query(owner,scope,query,reservation)
+            except BaseException:
+                if reservation and not pending:self.bindings.release(reservation)
+                raise
             return client,query,scope,reservation,free
         except BaseException:
             self.query_pending.discard(owner)
@@ -105,10 +111,12 @@ class Main(Star):
             canonical=result.get('battletag')
             if isinstance(canonical,str) and canonical.casefold()==query.tag.casefold():
                 query=Query(canonical,query.limit,query.mode,query.pool)
-            if not free:self.bindings.save_last(owner,scope,query.tag)
+            self.bindings.finish_query(owner)
             return result,query,scope
         except UserError as error:
-            if reservation and not error.uncertain:self.bindings.release(reservation)
+            if not error.uncertain:
+                self.bindings.finish_query(owner)
+                if reservation:self.bindings.release(reservation)
             raise
         finally:self.query_pending.discard(owner)
 
@@ -122,10 +130,12 @@ class Main(Star):
             result,query,scope=await self.execute_query(owner,client,query,scope,reservation,free)
             try:
                 image=await self.renderer.render(result.get("chart"))
-                self.bindings.remember(owner,result,scope)
-                await self.notify(session,None,image)
+                if await self.notify(session,None,image):
+                    self.bindings.remember(owner,result,scope)
+                    if not free:self.bindings.save_last(owner,scope,query.tag)
             except Exception:
-                await self.notify(session,"本次图片生成失败，改用文字结果（不会重复查询）。\n"+format_result(result,query))
+                if await self.notify(session,"本次图片生成失败，改用文字结果（不会重复查询）。\n"+format_result(result,query)):
+                    if not free:self.bindings.save_last(owner,scope,query.tag)
         except UserError as error:
             await self.notify(session,f'{label} 查询失败：{error}')
         except Exception:
@@ -138,10 +148,13 @@ class Main(Star):
                 chain=MessageChain().file_image(image)
             else:
                 chain=MessageChain().message(text)
-            if not await self.context.send_message(session,chain):
+            sent=bool(await self.context.send_message(session,chain))
+            if not sent:
                 logger.warning('OWQS 后台结果发送失败：没有匹配的平台会话')
+            return sent
         except Exception:
             logger.exception('OWQS 后台结果发送失败')
+            return False
 
     async def _render_data_image(self, client, job, n):
         async with self.data_slot:
@@ -200,20 +213,14 @@ class Main(Star):
                         await client.match(job,n)
                         reservation=self.bindings.reserve(owner,'review',self.config.get('free_review_daily_limit',10))
                     value=await client.review(job,n,uuid.uuid4().hex)
-                    deadline=asyncio.get_running_loop().time()+90
                     if value.get('cached'):
                         if reservation:self.bindings.release(reservation);reservation=None
                     else:
                         dispatched=True
-                        review_id=value.get('id')
-                        while True:
-                            value=await client.review_status(review_id)
-                            if value.get('state')=='done':break
-                            if value.get('state') in ('failed','cancelled'):
-                                failed=True
-                                raise UserError("锐评生成失败，网站 AI 额度已释放，请稍后手动重试")
-                            if asyncio.get_running_loop().time()>=deadline:raise UserError("锐评仍在生成，请稍后再试；不会自动重复发起 AI 请求",uncertain=True)
-                            await asyncio.sleep(1.5)
+                        try:value=await client.wait_review(value)
+                        except UserError as error:
+                            failed=not error.uncertain
+                            raise
                     completed=True
                     if free:self.bindings.cache_review(owner,job,n,scope,value)
                 detail=value.get('match') or {};report=value.get('review') or {}
@@ -253,11 +260,12 @@ class Main(Star):
                 result,query,scope = await self.run_query(owner, arguments)
                 try:
                     image = await self.renderer.render(result.get("chart"))
-                    message=event.image_result(image)
+                    yield event.image_result(image)
                     self.bindings.remember(owner,result,scope)
-                    yield message
+                    if scope.startswith('bound:'):self.bindings.save_last(owner,scope,query.tag)
                 except Exception:
                     yield event.plain_result("本次图片生成失败，改用文字结果（不会重复查询）。\n" + format_result(result, query))
+                    if scope.startswith('bound:'):self.bindings.save_last(owner,scope,query.tag)
             elif action in ('数据','锐评'):
                 # Validate the selected window before acknowledging or creating a paid task.
                 if not re.fullmatch(r'[0-9]{1,2}',arguments):raise UserError('用法：/owqs '+action+' n，n 为图中从左到右的编号')

@@ -117,7 +117,37 @@ class Bindings:
         CREATE TABLE IF NOT EXISTS last_queries(owner TEXT PRIMARY KEY, scope TEXT NOT NULL, tag TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS free_usage(token TEXT PRIMARY KEY, owner TEXT NOT NULL, day TEXT NOT NULL, kind TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS usage_owner_day ON free_usage(owner,day,kind);
-        CREATE TABLE IF NOT EXISTS local_reviews(owner TEXT NOT NULL, job TEXT NOT NULL, idx INTEGER NOT NULL, scope TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(owner,job,idx,scope));''')
+        CREATE TABLE IF NOT EXISTS local_reviews(owner TEXT NOT NULL, job TEXT NOT NULL, idx INTEGER NOT NULL, scope TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(owner,job,idx,scope));
+        CREATE TABLE IF NOT EXISTS query_requests(owner TEXT PRIMARY KEY, scope TEXT NOT NULL, fingerprint TEXT NOT NULL, request_id TEXT NOT NULL, job TEXT NOT NULL, reservation TEXT, created INTEGER NOT NULL);''')
+
+    def pending_query(self, owner, scope, query):
+        fingerprint = hashlib.sha256(json.dumps([query.tag, query.limit, query.mode, query.pool], ensure_ascii=False).encode()).hexdigest()
+        row = self.db.execute('SELECT scope,fingerprint,request_id,job,reservation,created FROM query_requests WHERE owner=?', (owner,)).fetchone()
+        if row:
+            if row[0] != scope or row[1] != fingerprint:
+                raise UserError('上次查询结果尚未确认，请先用相同账号和参数重试，避免重复扣费')
+            if not row[3] and datetime.now(timezone.utc).timestamp() - row[5] >= 3500:
+                raise UserError('上次请求结果不明且已接近任务保留期限，为避免再次扣费已停止重发；请管理员核对网站任务后处理本地待确认记录')
+            return {'requestId': row[2], 'job': row[3], 'reservation': row[4]}
+        return None
+
+    def start_query(self, owner, scope, query, reservation=None):
+        pending = self.pending_query(owner, scope, query)
+        if pending:
+            return pending
+        request_id = getattr(uuid, 'uuid4')().hex
+        fingerprint = hashlib.sha256(json.dumps([query.tag, query.limit, query.mode, query.pool], ensure_ascii=False).encode()).hexdigest()
+        with self.db:
+            self.db.execute('INSERT INTO query_requests VALUES(?,?,?,?,?,?,?)', (owner, scope, fingerprint, request_id, '', reservation, int(datetime.now(timezone.utc).timestamp())))
+        return {'requestId': request_id, 'job': '', 'reservation': reservation}
+
+    def query_job(self, owner, request_id, job):
+        with self.db:
+            self.db.execute('UPDATE query_requests SET job=? WHERE owner=? AND request_id=?', (job, owner, request_id))
+
+    def finish_query(self, owner):
+        with self.db:
+            self.db.execute('DELETE FROM query_requests WHERE owner=?', (owner,))
 
     def key(self, owner):
         row=self.db.execute('SELECT secret FROM api_bindings WHERE owner=?',(owner,)).fetchone()
@@ -130,7 +160,7 @@ class Bindings:
             self.db.execute('INSERT OR REPLACE INTO api_bindings VALUES(?,?)',(owner,key))
 
     def clear_context(self, owner):
-        for table in ('recent','last_queries','local_reviews'):
+        for table in ('recent','last_queries','local_reviews','query_requests'):
             self.db.execute('DELETE FROM '+table+' WHERE owner=?',(owner,))
 
     def last_tag(self, owner, scope):
@@ -277,7 +307,8 @@ def format_events(value):
     return '\n'.join(lines)
 
 
-class ApiClient:
+class JsonTransport:
+    """Bounded HTTPS JSON transport shared by binding and all API operations."""
     def __init__(self, base_url, api_key, request_timeout=15, sync_history=True):
         self.base = str(base_url).strip().rstrip("/")
         self.key = str(api_key).strip()
@@ -335,8 +366,11 @@ class ApiClient:
     async def request(self, method, route, body=None):
         return await asyncio.to_thread(self._request, method, route, body)
 
-    async def create(self, query):
+
+class ApiClient(JsonTransport):
+    async def create(self, query, request_id=None):
         value = await self.request("POST", "/api/v1/query", {
+            "requestId": request_id or getattr(uuid, 'uuid4')().hex,
             "battletag": query.tag, "limit": query.limit, "mode": query.mode, "pool": query.pool,
             "statisticsRange": "10", "side": "all", "strategy": "legacy", "estimate": True,
             "syncHistory": self.sync_history,
@@ -348,6 +382,44 @@ class ApiClient:
 
     async def account(self):
         return await self.request('GET','/api/v1/account')
+
+    async def active_jobs(self):
+        return await self.request('GET', '/api/v1/jobs')
+
+    async def history_analysis(self, battletag, options=None):
+        if not self.sync_history:
+            raise UserError('免费服务账号不支持云端历史分析')
+        return await self.request('POST', '/api/v1/history/analysis', {'battletag': battle_tag(battletag), 'options': options or {}})
+
+    async def historical_match(self, battletag, mid, revision, options=None):
+        if not self.sync_history:
+            raise UserError('免费服务账号不支持云端历史对局')
+        return await self.request('POST', '/api/v1/matches/detail', {'battletag': battle_tag(battletag), 'mid': mid, 'revision': revision, 'options': options or {}})
+
+    async def historical_review(self, battletag, mid, revision, request_id, options=None):
+        if not self.sync_history:
+            raise UserError('免费服务账号不支持云端历史锐评')
+        return await self.request('POST', '/api/v1/matches/review', {'battletag': battle_tag(battletag), 'mid': mid, 'revision': revision, 'options': options or {}, 'requestId': request_id})
+
+    async def wait_review(self, value, timeout=90, poll_interval=1.5):
+        """Only poll an acknowledged job; never repeat a mutation after uncertainty."""
+        if value.get('cached'):
+            return value
+        review_id = value.get('id')
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            try:
+                value = await self.review_status(review_id)
+            except UserError as error:
+                error.uncertain = True
+                raise
+            if value.get('state') == 'done':
+                return value
+            if value.get('state') in ('failed', 'cancelled'):
+                raise UserError('锐评生成失败，网站 AI 额度已释放，请稍后手动重试')
+            if asyncio.get_running_loop().time() >= deadline:
+                raise UserError('锐评仍在生成，请稍后再试；不会自动重复发起 AI 请求', uncertain=True)
+            await asyncio.sleep(poll_interval)
 
     async def events(self, **filters):
         values = event_filters(**filters)
@@ -389,8 +461,9 @@ class Job:
 
 
 class QueryManager:
-    def __init__(self, client, timeout=600, poll_interval=1.5, max_pending=5):
+    def __init__(self, client, timeout=600, poll_interval=1.5, max_pending=5, store=None):
         self.client = client
+        self.store = store
         self.timeout = max(1, float(timeout))
         self.poll_interval = max(0.01, float(poll_interval))
         self.max_pending = max(1, min(5, int(max_pending)))
@@ -398,9 +471,15 @@ class QueryManager:
         self.semaphore = asyncio.Semaphore(min(3, self.max_pending))
         self.closed = False
 
-    async def query(self, owner, query, client=None):
+    async def query(self, owner, query, client=None, request_id=None, job_id='', on_created=None):
         client=client or self.client
         client.validate()
+        if self.store:
+            scope = ('bound:' if client.sync_history else 'free:') + credential_scope(client.key)
+            pending = self.store.pending_query(owner, scope, query)
+            if pending:
+                request_id, job_id = pending['requestId'], pending['job']
+                on_created = lambda job: self.store.query_job(owner, request_id, job)
         if self.closed:
             raise UserError("插件正在重载，请稍后再试")
         if owner in self.active:
@@ -415,7 +494,9 @@ class QueryManager:
                 if job.cancelled.is_set():
                     raise UserError("查询已取消")
                 deadline = asyncio.get_running_loop().time() + self.timeout
-                job.id = await client.create(query)
+                job.id = job_id or (await client.create(query, request_id=request_id) if request_id else await client.create(query))
+                if on_created:
+                    on_created(job.id)
                 while asyncio.get_running_loop().time() < deadline:
                     if job.cancelled.is_set():
                         raise UserError("查询已取消")

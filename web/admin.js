@@ -1,6 +1,7 @@
 'use strict';const el=id=>document.getElementById(id);let csrf='',users=[],busy=false;
 function message(text){el('adminMessage').textContent=text;}
-async function call(path,body){const r=await fetch('/api/admin/'+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json','X-CSRF-Token':csrf}:undefined,body:body?JSON.stringify(body):undefined});const v=await r.json();if(!r.ok){if(r.status===401){el('panel').hidden=true;el('login').hidden=false;}throw Error(v.error);}return v;}
+const request=OWQS_HTTP.create({csrf:()=>csrf,unauthorized:()=>{el('panel').hidden=true;el('login').hidden=false;}});
+const call=(path,body)=>request('/api/v1/admin/'+path,body);
 const button=(label,handler)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=async()=>{if(busy)return;busy=true;b.disabled=true;try{await handler();await load();message('操作已完成');}catch(e){message(e.message);}finally{busy=false;b.disabled=false;}};return b;};
 function row(u,reset=false){const box=document.createElement('div');box.className='admin-row';const info=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');strong.textContent=u.email;small.textContent=({pending:'等待批准',approved:'已授权',rejected:'已拒绝',revoked:'已撤销'})[u.status]+' · '+new Date(reset?u.resetRequestedAt:u.createdAt).toLocaleString('zh-CN');info.append(strong,small);box.append(info);const actions=document.createElement('div');
  if(reset){actions.append(button('核验后生成重置链接',async()=>{const r=await call('reset',{id:u.id,action:'issue'});el('resetLink').value=location.origin+'/reset#code='+r.code;el('resetDialog').showModal();}),button('关闭申请',()=>call('reset',{id:u.id,action:'close'})));}

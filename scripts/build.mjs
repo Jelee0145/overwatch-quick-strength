@@ -1,6 +1,6 @@
 import {mkdir,readFile,writeFile,copyFile,cp,rm} from 'node:fs/promises';
 import path from 'node:path';
-import {execFileSync} from 'node:child_process';
+import {buildBackend,sharedSources} from './build-backend.mjs';
 import {createHash} from 'node:crypto';
 import {transform,build} from 'esbuild';
 import {gitNotes} from './release-notes.mjs';
@@ -9,31 +9,18 @@ import {buildAssetPreload} from './build-asset-preload.mjs';
 import {buildApiCapture} from './build-api-capture.mjs';
 import {rewriteCopy,cleanDecorativeEnglish} from './ui-copy.mjs';
 const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source');
-const shared=['core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'];
-let revision='local';try{revision=execFileSync('git',['rev-parse','HEAD'],{cwd:base,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{}
-await writeFile(path.join(base,'src/release.mjs'),'export const release='+JSON.stringify({revision,builtAt:new Date().toISOString(),version:'cloud-1.1.0'})+';');
+const shared=sharedSources;
+const capture=process.argv.includes('--bot-capture');
+if(!process.argv.includes('--web-only'))await buildBackend({base});
 // Remove known legacy outputs, keeping the directory itself usable by Windows dev watchers.
 const outputDirectory=path.resolve(base,'public');if(path.dirname(outputDirectory)!==base)throw Error('Unexpected build output directory');
 for(const name of ['art.js','data.js','chart.js','style.css','app.js','cloud.css','cloud-client.js','cloud-review.js','login.js','admin.js',...shared]){const target=path.resolve(outputDirectory,name);if(path.dirname(target)!==outputDirectory)throw Error('Unexpected legacy output');await rm(target,{force:true});}
 const legacyAssets=path.resolve(outputDirectory,'assets');if(path.dirname(legacyAssets)!==outputDirectory)throw Error('Unexpected legacy assets');await rm(legacyAssets,{recursive:true,force:true});
-await mkdir(path.join(base,'public/static'),{recursive:true});await mkdir(path.join(base,'src/shared'),{recursive:true});
-// Ship the HTML parser as a self-contained module for both Worker and standalone archives.
-const parserNotices=await Promise.all(['parse5','entities'].map(name=>readFile(path.join(base,'node_modules',name,'LICENSE'),'utf8')));
-await build({stdin:{contents:"export {parseFragment} from 'parse5';",resolveDir:base},bundle:true,format:'esm',platform:'neutral',target:'es2022',minify:true,banner:{js:'/*! Bundled parser notices\n'+parserNotices.join('\n\n')+'\n*/'},outfile:path.join(base,'src/shared/events-html.mjs')});
+await mkdir(path.join(base,'public/static'),{recursive:true});
 const noteConfig=JSON.parse(await readFile(path.join(base,'web/release-notes.json'),'utf8'));
 const releaseNotes=gitNotes(noteConfig.baseline,noteConfig.entries);
 await writeFile(path.join(base,'public/release-notes.json'),JSON.stringify(releaseNotes));
-// Remove only the unused CommonJS export adapter; scoring bodies stay identical.
-for(const file of shared){const code=await readFile(path.join(local,file),'utf8');await writeFile(path.join(base,'src/shared',file),code.replace(/if\s*\(typeof module\s*!==?\s*['"]undefined['"]\)\s*module\.exports\s*=[^;]+;/g,''));}
-const heroes=JSON.parse(await readFile(path.join(local,'data/heroes.json'),'utf8'));
-const maps=JSON.parse(await readFile(path.join(local,'data/maps.json'),'utf8'));
-await writeFile(path.join(base,'src/shared/data.mjs'),'export const heroes='+JSON.stringify(Object.fromEntries(heroes.map(h=>[String(h.heroGuid),{...h,role:h.roleType}])))+';\nexport const maps='+JSON.stringify(Object.fromEntries(maps.map(m=>[String(m.guid),m])))+';');
-const ai=await readFile(path.join(local,'ai_review.py'),'utf8'), prompt=ai.match(/PROMPT = '''([\s\S]*?)'''/)[1];
-const knowledge=await readFile(path.join(local,'AI锐评-游戏常识.md'),'utf8');
-await writeFile(path.join(base,'src/prompt.mjs'),'export const prompt='+JSON.stringify(prompt+'\n\n'+knowledge)+';export const version="1.6-cloud.1";');
 const media=JSON.parse(await readFile(path.join(local,'media/manifest.json'),'utf8'));
-await writeFile(path.join(base,'src/shared/media.mjs'),'export default '+JSON.stringify(media)+';');
-await writeFile(path.join(base,'src/shared/chart.mjs'),await readFile(path.join(local,'chart.js'),'utf8'));
 for(const dir of ['maps','icons'])await cp(path.join(local,'media',dir),path.join(base,'public/media',dir),{recursive:true});
 let html=await readFile(path.join(local,'index.html'),'utf8');
 const oldLogo=html.match(/<svg class="mark"[\s\S]*?<\/svg>/)?.[0];
@@ -45,6 +32,7 @@ const favicon=logo.replace(' class="mark"','').replace('width="42" height="42"',
 const faviconURL='/static/logo.'+createHash('sha256').update(favicon).digest('hex').slice(0,16)+'.svg';
 await writeFile(path.join(base,'public',faviconURL.slice(1)),favicon);
 const brandPage=page=>page.replace(/<title>([^<]+)<\/title>/,(_,title)=>'<title>'+(/^(守望工具箱|快速强度图)/.test(title)?(/英雄抽取/.test(title)?'随机英雄 · ':'快速强度图'===title||title.includes('Quick Strength')?'对局分析 · ':'')+'狸狸天眼查':title.replace(/快速强度图|守望工具箱/g,'狸狸天眼查'))+'</title>').replace(/<link\b[^>]*rel="(?:shortcut )?icon"[^>]*>/g,'').replace('</head>',`<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"></head>`);
+const httpClient=await readFile(path.join(base,'web/http-client.js'),'utf8');
 const installHead='<link rel="manifest" href="/manifest.json"><script defer src="/install.js"></script>';
 await writeFile(path.join(base,'public/app-icon.svg'),await readFile(path.join(base,'web/app-icon.svg')));
 // Minified so the install prompt stays inside the page startup budget.
@@ -97,10 +85,9 @@ if(deadStart<0||deadEnd<0)throw Error('Dead game-data adapter changed');
 app=app.slice(0,deadStart)+app.slice(deadEnd);
 app=app.replace(/\$\('onlinePanel'\)\.onsubmit=[\s\S]*?(?=\$\('cancel'\)\.onclick)/,`$('onlinePanel').onsubmit=async e=>{e.preventDefault();if(activeJob)return;try{busy(true);status('正在建立查询…');const r=await Cloud.startQuery($('battleTag').value.trim(),Number($('limit').value),$('supplementOtherMatches').checked,$('pool').value);activeJob=r.id;poll();}catch(e){busy(false);status(e.message,true);}};\n`);
 {const start=app.indexOf('async function request('),end=app.indexOf('function busy(',start);if(start<0||end<0)throw Error('Local request adapter changed');app=app.slice(0,start)+'async function request(path,body){return Cloud.api(path,body);}\n'+app.slice(end);}
-app=app.replace("raw=QS.normalize(job.result);activeJob=null", "await Cloud.save(job.envelope,job.cacheRecords,job.queryIndex);raw=QS.normalize(job.result||job.envelope.content.data);await openHistory(raw.battletag);activeJob=null");
-app=app.replace("status(job.message||'查询中…');","status(job.message||'查询中…');if(job.cacheRequest){await CloudCache.fulfill(job);pollTimer=setTimeout(poll,50);return;}");
-app=app.replace("request('/api/job/'+activeJob)","request('/api/job/'+activeJob+'?compact=1')");
-app=app.replace("}else pollTimer=setTimeout(poll,1000);", "}else if(job.state==='paused'){$('resumeQuery').hidden=false;}else pollTimer=setTimeout(poll,1000);");
+const pollStart=app.indexOf('async function poll(){'),pollEnd=app.indexOf("$('onlinePanel').onsubmit",pollStart);
+if(pollStart<0||pollEnd<0)throw Error('Query polling adapter changed');
+app=app.slice(0,pollStart)+await readFile(path.join(base,'web/cloud-query.js'),'utf8')+'\n'+app.slice(pollEnd);
 app=app.replace("function busy(value){", "$('resumeQuery').onclick=async()=>{try{await request('/api/job/'+activeJob+'/resume',{});$('resumeQuery').hidden=true;poll();}catch(e){status(e.message,true);}};\nfunction busy(value){$('resumeQuery').hidden=true;");
 app=app.replace(/\$\('credentials'\)\.open=false;[\s\S]*$/,'(async()=>{try{await Cloud.boot();const latest=await Cloud.latest();if(latest.historyTag){await openHistory(latest.historyTag);}else if(latest.result){raw=QS.normalize(latest.result);$("battleTag").value=raw.battletag;generate();}if(latest.activeJob){activeJob=latest.activeJob;busy(true);poll();}}catch(e){status(e.message,true);}})();');
 app=app.replace('if(m&&(!m.hasGameData||!m.resourceDataChecked))loadGameData(m);',"if(m&&(!m.hasGameData||!m.resourceDataChecked)){$('gameDataStatus').textContent='历史记录缺少部分游戏数据；不会自动补查';}");
@@ -125,11 +112,8 @@ app+="\n$('limit').onchange=null;\n";
 app=app.replaceAll('QS.normalize(', 'OWQS_SERVICES.data.normalize(');
 let chart=await readFile(path.join(local,'chart.js'),'utf8');
 chart=chart.replace('if(showArt&&art[m.mapGuid])','if(showArt)').replace('href="${esc(art[m.mapGuid])}"','data-map-art="${esc(m.mapGuid)}"');
-chart=chart.replace('n=matches.length;', 'n=matches.length,statsMatches=model.statsMatches||matches,statsCount=statsMatches.length;');
-chart=chart.replace('const observedMatches=matches.filter', 'const observedMatches=statsMatches.filter');
-chart=chart.replace('`${rank(s.mean)} · ${n} 场 / ${s.estimated} 场融合`','`${rank(s.mean)} · ${statsCount} 场 / ${s.estimated} 场融合`');
+// Shared source renderer already supports statsMatches and plotScale for server/browser parity.
 chart=chart.replace("text(confidenceX,156,'对局证据评分'", "text(confidenceX,156,model.statisticsLabel?.split(' · ').slice(0,2).join(' · ')||'对局证据评分'");
-chart=chart.replace('matches.flatMap(m=>m.scores)', 'statsMatches.flatMap(m=>m.scores)');
 // The axis and clipping window stay fixed; only the trajectory moves within it.
 const axisLine=chart.split('\n').find(line=>line.includes('for(let v=lo;v<=hi;v+=500)'));
 if(!axisLine)throw Error('Chart axis adapter changed');
@@ -141,7 +125,6 @@ chart=chart.replace('panel(34,837,W-68,102);',"z.push('</g></g>');panel(34,837,W
 chart=chart.replace('n*120+220','(model.windowSize||n)*120+220').replace('cw=(right-left)/Math.max(1,n)','cw=(right-left)/Math.max(1,model.windowSize||n)');
 chart=chart.replace('center=i=>left+(i+.5)*cw','center=i=>left+(i+.5+(model.columnOffset||0))*cw').replaceAll('left+i*cw+3','left+(i+(model.columnOffset||0))*cw+3');
 chart=chart.replace('`${n} 场`','`${model.windowSize||n} 场`');
-chart=chart.replace('if(hi<=lo)hi=Math.min(5000,lo+500);','if(hi<=lo)hi=Math.min(5000,lo+500);if(model.plotScale){lo=model.plotScale.min;hi=model.plotScale.max;}');
 chart=chart.replace('data-chart-version="${QS_CHART_VERSION}"','data-chart-version="${QS_CHART_VERSION}" data-plot-min="${lo}" data-plot-max="${hi}"');
 chart=chart.replace("String(i+1).padStart", "String((model.windowOffset||0)+i+1).padStart");
 const hash=value=>createHash('sha256').update(value).digest('hex').slice(0,16);
@@ -156,13 +139,13 @@ const runtime=await files(shared);
 const services=await build({entryPoints:[path.join(base,'web/services.js')],bundle:true,format:'iife',platform:'browser',target:'es2022',write:false});
 runtime.push(services.outputFiles[0].text);
 const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
-const main=await staticFile(rewriteCopy(['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile-shell.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
+const main=await staticFile(rewriteCopy([httpClient,'window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/server-analysis.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/cloud-review.js'),'utf8'),app,await readFile(path.join(base,'web/changelog.js'),'utf8'),await readFile(path.join(base,'web/mobile-shell.js'),'utf8'),await readFile(path.join(base,'web/mobile.js'),'utf8')].join('\n')),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${reminderLoader}"></script><script defer src="/install.js"></script></head>`);
 await mkdir(path.join(base,'public/tools'),{recursive:true});
 await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDecorativeEnglish(html)));
-await buildApiCapture({base,html:rewriteCopy(cleanDecorativeEnglish(html)),app:rewriteCopy(app),css});
+if(capture)await buildApiCapture({base,html:rewriteCopy(cleanDecorativeEnglish(html)),app:rewriteCopy(app),css});
 await buildToolkit({base,brandPage:page=>withInstall(brandPage(page)),logo,staticFile,releaseNotes,rewriteCopy,cleanDecorativeEnglish});
-for(const page of ['login','admin']){let content=withInstall(brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8')));const js=await staticFile(rewriteCopy(await readFile(path.join(base,'web',page+'.js'),'utf8')),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script><script defer src="/install.js"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),rewriteCopy(cleanDecorativeEnglish(content)));}
+for(const page of ['login','admin']){let content=withInstall(brandPage(await readFile(path.join(base,'web',page+'.html'),'utf8')));const js=await staticFile(rewriteCopy(httpClient+'\n'+await readFile(path.join(base,'web',page+'.js'),'utf8')),'js',page);content=content.replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace('</head>',`<link rel="stylesheet" href="${css}"><script defer src="${js}"></script><script defer src="/install.js"></script></head>`);await writeFile(path.join(base,'public',page+'.html'),rewriteCopy(cleanDecorativeEnglish(content)));}
 await writeFile(path.join(base,'public/_headers'),`/release-notes.json\n  Cache-Control: no-store\n/event-reminders-sw.js\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`);
 await buildAssetPreload({base,media,staticFile});
 console.log('Cloud build complete: hashed scripts, lazy CDN media, idle browser prewarming; original local tool preserved.');

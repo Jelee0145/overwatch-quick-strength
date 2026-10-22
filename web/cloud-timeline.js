@@ -1,25 +1,25 @@
 const TIMELINE_WINDOW=10;
 const timeline={archive:null,all:[],start:0,selected:null,serial:0,drag:null,suppressUntil:0,scrollTimer:null,frame:null,statistics:null};
-async function openHistory(tag,mid){
- const serial=++timeline.serial,archive=await CloudHistory.load(tag);if(serial!==timeline.serial)return;
- cancelTimelineMotion();timeline.archive=archive;timeline.statisticsRaw=null;timeline.detailMatch=null;timeline.selected=mid||null;
- if(!archive){timeline.all=[];generate();return;}
- $('battleTag').value=archive.tag;
- const history=OWQS_SERVICES.analysis.analyzeHistory(archive,options());
- raw=history.raw;timeline.all=history.matches;timeline.personalRecords=history.personalRecords;timeline.personalExcluded=history.personalExcluded;timeline.axis=QS_HISTORY_MODEL.axisRange(timeline.all);
- const capacity=TIMELINE_WINDOW,index=mid?timeline.all.findIndex(m=>m.mid===mid):-1;
- timeline.start=Math.max(0,(index>=0?index+1:timeline.all.length)-capacity);timeline.selected=mid||timeline.all.at(-1)?.mid||null;
- generate();
+async function openHistory(tag,mid,sourceJob){
+ const serial=++timeline.serial;cancelTimelineMotion();const analysisSerial=timeline.analysisSerial=(timeline.analysisSerial||0)+1;
+ const view=await OWQS_SERVER_ANALYSIS.load(tag,{...options(),sourceJob,statisticsRange:$('statisticsRange').value});if(serial!==timeline.serial||analysisSerial!==timeline.analysisSerial)return;
+ timeline.archive={tag,sourceJob};timeline.detailMatch=null;timeline.selected=mid||view.matches.at(-1)?.mid||null;
+ $('battleTag').value=tag;applyServerAnalysis(view);
+ const index=mid?timeline.all.findIndex(m=>m.mid===mid):-1;timeline.start=index>=0?Math.max(0,index+1-TIMELINE_WINDOW):view.window.start;
+ if(timeline.start!==view.window.start)await generate();else renderServerTimeline();
 }
+function applyServerAnalysis(view){
+ timeline.analysis=view;raw=view.raw;timeline.all=view.matches;timeline.axis=view.axis;timeline.start=view.window.start;
+ timeline.statistics=view.model;
+ timeline.statistics.statisticsLabel=view.statisticsLabel;$('statisticsNote').textContent=view.statisticsLabel;
+}
+function matchReference(mid){return {sourceJob:timeline.archive?.sourceJob,...(timeline.analysis?.matchRefs?.find(ref=>ref.mid===mid)||{battletag:raw.battletag,mid,revision:timeline.analysis?.revision})};}
+window.OWQS_MATCH_REFERENCE=matchReference;
 function timelineWindow(){return QS_HISTORY_MODEL.windowRange(timeline.all.length,TIMELINE_WINDOW,timeline.start);}
-function calculateStatistics(){
- const window=timelineWindow(),range=QS_HISTORY_MODEL.statisticsRange(timeline.all.length,window.end,$('statisticsRange').value),matches=timeline.all.slice(range.start,range.end);
- const key=[range.start,range.end,$('statisticsRange').value,options().side,options().strategy,options().estimate,options().pool].join('|');
- if(timeline.statisticsRaw===raw&&timeline.statisticsKey===key)return false;
- timeline.statistics=OWQS_SERVICES.analysis.summarize(raw,matches,options(),timeline.archive?{records:timeline.personalRecords,excluded:timeline.personalExcluded}:undefined);
- const dates=matches.length?new Date(matches[0].t).toLocaleDateString('zh-CN')+'—'+new Date(matches.at(-1).t).toLocaleDateString('zh-CN'):'';
- timeline.statistics.statisticsLabel=($('statisticsRange').value==='all'?'全部历史':'窗口末尾向前')+' · '+matches.length+' 场'+(dates?' · '+dates:'');
- $('statisticsNote').textContent=timeline.statistics.statisticsLabel;timeline.statisticsRaw=raw;timeline.statisticsKey=key;return true;
+function renderServerTimeline(){
+ if(!timeline.statistics){$('chart').innerHTML='<div class="empty-state"><strong>查看最近快速对局</strong><span>输入战网昵称，查询并生成你的强度图</span></div>';return;}
+ paintTimeline();showPersonal();configureScroll();const w=timelineWindow();
+ status((timeline.analysis?.offline?'离线缓存 · ':'')+(timeline.all.length?`已保留 ${timeline.all.length} 场历史 · 当前显示 ${w.end-w.start} 场`:'请输入战网昵称开始查询'));
 }
 function chartView(){const w=timelineWindow();return {...timeline.statistics,matches:timeline.all.slice(w.start,w.end),statsMatches:timeline.statistics.matches,windowOffset:w.start,plotScale:timeline.axis};}
 function paintTimeline(){
@@ -47,10 +47,15 @@ function configureScroll(){const scroll=$('timelineScroll'),max=Math.max(0,timel
  timeline.unit=$('chart').clientWidth*(width-208)/width/Math.max(1,timelineWindow().end-timelineWindow().start);scroll.hidden=!max;$('timelineTrack').style.width=(scroll.clientWidth+max*timeline.unit)+'px';timeline.visualOffset=timeline.start;scroll.scrollLeft=timeline.start*timeline.unit;
 }
 function cancelTimelineMotion(){timeline.motionGeneration=(timeline.motionGeneration||0)+1;clearTimeout(timeline.scrollTimer);for(const key of ['frame','snapFrame','afterSnapFrame']){if(timeline[key])cancelAnimationFrame(timeline[key]);timeline[key]=null;}timeline.pendingOffset=null;timeline.snap=null;$('chart').classList.remove('timeline-moving');}
-function generate(){cancelTimelineMotion();
- if(!timeline.archive){timeline.all=OWQS_SERVICES.analysis.analyzeBatch(raw,options()).matches;timeline.axis=QS_HISTORY_MODEL.axisRange(timeline.all);}
- const w=timelineWindow();timeline.start=w.start;const changed=calculateStatistics();paintTimeline();if(changed)showPersonal();configureScroll();
- status(timeline.all.length?`已保留 ${timeline.all.length} 场历史 · 当前显示 ${w.end-w.start} 场`:'请输入战网昵称开始查询');
+async function generate(){
+ cancelTimelineMotion();const tag=timeline.archive?.tag||raw.battletag;
+ if(!tag){renderServerTimeline();return;}
+ const serial=timeline.analysisSerial=(timeline.analysisSerial||0)+1,archiveSerial=timeline.serial;
+ try{
+  const view=await OWQS_SERVER_ANALYSIS.load(tag,{...options(),sourceJob:timeline.archive?.sourceJob,start:timeline.start,statisticsRange:$('statisticsRange').value});
+  if(serial!==timeline.analysisSerial||archiveSerial!==timeline.serial)return;
+  applyServerAnalysis(view);renderServerTimeline();
+ }catch(error){if(serial!==timeline.analysisSerial||archiveSerial!==timeline.serial)return;timeline.start=timeline.analysis?.window.start||0;if(timeline.statistics)renderServerTimeline();status('历史分析未能更新：'+error.message,true);}
 }
 function replaceTimelinePool(offset){
  const range=QS_HISTORY_MODEL.bufferedRange(timeline.all.length,TIMELINE_WINDOW,offset),svg=$('chart').querySelector('svg');if(!svg)return;
@@ -65,7 +70,7 @@ function previewTimeline(offset,mirror=false){
  $('chart').classList.add('timeline-moving');if(mirror)$('timelineScroll').scrollLeft=offset*timelineUnit();
 }
 function scheduleTimelinePreview(offset){timeline.pendingOffset=offset;if(timeline.frame)return;timeline.frame=requestAnimationFrame(()=>{timeline.frame=null;previewTimeline(timeline.pendingOffset,true);});}
-function commitTimeline(start){cancelTimelineMotion();timeline.start=QS_HISTORY_MODEL.windowRange(timeline.all.length,TIMELINE_WINDOW,start).start;const changed=calculateStatistics();paintTimeline();if(changed)showPersonal();configureScroll();}
+function commitTimeline(start){cancelTimelineMotion();timeline.start=QS_HISTORY_MODEL.windowRange(timeline.all.length,TIMELINE_WINDOW,start).start;void generate();}
 function settleTimeline(){const offset=timeline.pendingOffset??timeline.visualOffset??timeline.start;timeline.pendingOffset=null;commitTimeline(offset);}
 function snapTimeline(target){
  const from=timeline.pendingOffset??timeline.visualOffset??timeline.start;timeline.pendingOffset=null;cancelTimelineMotion();target=QS_HISTORY_MODEL.windowRange(timeline.all.length,TIMELINE_WINDOW,target??from).start;

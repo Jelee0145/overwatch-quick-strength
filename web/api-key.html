@@ -7,7 +7,7 @@
     <button id="apiKeyReveal" type="button">查看</button>
     <button id="apiKeyCopy" type="button">复制</button>
   </div>
-  <p class="hint">重新生成后旧密钥立即失效。每次成功查询扣 1 次查询额度；失败、取消或超时不扣。纯缓存结果同样扣 1 次。</p>
+  <p class="hint">重新生成后旧密钥立即失效。同一账号各端共用额度：获取新数据的成功查询扣 1 次；纯缓存查询、查看历史和重绘不扣。失败、取消或超时释放预占额度。</p>
   <div class="api-key-actions">
     <button id="apiKeyRegenerate" type="button">生成密钥</button>
     <button id="apiKeyClose" type="button">关闭</button>

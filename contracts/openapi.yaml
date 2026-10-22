@@ -1,0 +1,413 @@
+openapi: 3.1.0
+info:
+  title: OWQS unified backend API
+  version: '1.1'
+  description: |
+    Website cookie sessions and Bot Bearer keys use the same user tasks, quota and signed history.
+    Cookie POST requires same-origin Origin, application/json and X-CSRF-Token.
+    Supplying both credentials requires the same user. Never follow redirects with a Bearer key.
+    Free service keys may query with syncHistory=false and use temporary job data/reviews/events;
+    personal history, historical analysis/matches and reminders are forbidden (403).
+    Query and AI requestId reuse returns the existing retained operation without charging again;
+    query parameter changes under the same requestId, conflicting header/body IDs, and stale
+    archive revisions return 409. Retention is finite (query jobs approximately one hour),
+    so clients must not automatically retry an uncertain mutation or assume permanent deduplication.
+    /api/v1/auth/* and /api/v1/admin/* are cookie-only aliases with legacy bodies and cookies.
+    Version 1.1 retains v1 legacy job SVG: render=svg&compact=1, recent 10 statistics for Bot.
+    Historical analysis has a separate version:1 DTO and explicit window/statistics options.
+servers:
+  - url: /api/v1
+security:
+  - bearerKey: []
+  - userSession: []
+paths:
+  /account:
+    get:
+      summary: Read account validity, tier, lastBattletag, apiVersion and capabilities
+      responses:
+        '200':
+          description: Account and capability flags (history, analysis, idempotency, sharedQuota, reservations, webPush)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: {type: boolean}
+                  tier: {type: string}
+                  lastBattletag: {type: [string, 'null']}
+                  apiVersion: {type: string}
+                  capabilities: {type: object, additionalProperties: {type: boolean}}
+  /query:
+    post:
+      summary: Create or recover a user query task
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Query'
+      responses:
+        '200': {$ref: '#/components/responses/Task'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /jobs:
+    get:
+      summary: List current user active jobs
+      responses:
+        '200': {description: 'Object containing tasks, jobs, activeJob, activeAI and result'}
+  /jobs/{id}:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      summary: Read a query or AI task
+      parameters:
+        - {name: render, in: query, schema: {type: string, enum: [svg]}}
+        - {name: compact, in: query, schema: {type: string, enum: ['1']}}
+      responses:
+        '200': {description: 'Task state, quota status and available result/analysis/chart; compact=1 removes raw signed data'}
+  /jobs/{id}/analysis:
+    parameters: [{$ref: '#/components/parameters/JobId'}]
+    post:
+      summary: Analyze the authenticated retained query result when historical archival is unavailable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                battletag: {type: string}
+                options: {$ref: '#/components/schemas/AnalysisOptions'}
+      responses:
+        '200': {description: Analysis view with sourceJob and archiveWarning; references retain the job source}
+        '404': {description: Query not found, expired or owned by another account}
+        '409': {description: Query not completed or account/revision conflict}
+  /jobs/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    post:
+      summary: Cancel owned task
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Cancellation result}
+  /jobs/{id}/resume:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    post:
+      summary: Resume owned task using legacy resume body
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Task status}
+  /jobs/{id}/cache:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    post:
+      summary: Supply owned task cache using legacy cache body
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Cache acceptance result}
+  /jobs/{id}/matches/{index}:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+      - $ref: '#/components/parameters/Index'
+    get:
+      summary: Read match from the legacy fixed recent query window
+      responses:
+        '200': {description: Object containing match display DTO}
+  /jobs/{id}/matches/{index}/review:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+      - $ref: '#/components/parameters/Index'
+    post:
+      summary: Request or reuse a review of a legacy query-window match
+      requestBody: {$ref: '#/components/requestBodies/RequestId'}
+      responses:
+        '200': {description: Cached review and match or AI task id/state/status}
+  /history:
+    post:
+      summary: Legacy signed history list/pull/push (personal accounts)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: {type: string, enum: [list, pull, push]}
+              additionalProperties: true
+      responses:
+        '200': {description: Legacy history response; original signed envelopes are preserved}
+  /history/accounts:
+    get:
+      summary: List personal synchronized history accounts
+      responses:
+        '200': {description: Legacy history list response containing accounts}
+  /history/analysis:
+    post:
+      summary: Analyze owned signed history without a new upstream query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [battletag]
+              properties:
+                battletag: {type: string}
+                options: {$ref: '#/components/schemas/AnalysisOptions'}
+                render: {type: string, enum: [svg]}
+      responses:
+        '200':
+          description: Server history analysis DTO
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryAnalysis'
+        '409': {$ref: '#/components/responses/Conflict'}
+  /matches/detail:
+    post:
+      summary: Select an owned historical match by stable reference
+      requestBody: {$ref: '#/components/requestBodies/MatchReference'}
+      responses:
+        '200': {description: 'Historical match projection (raw, match, ref, detail); detail includes ref'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /matches/review:
+    post:
+      summary: Request AI review using original signed historical match envelope
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody: {$ref: '#/components/requestBodies/MatchReference'}
+      responses:
+        '200': {description: Cached signed review or AI task id/state}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /reviews:
+    post:
+      summary: Legacy signed AI review request
+      description: 'Retains legacy battletag, matchId, envelope, cachedReview, force and reviewKey fields; requestId identifies the operation.'
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Cached review or AI task id/state}
+  /reviews/{id}:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      summary: Poll owned AI task
+      responses:
+        '200': {description: 'AI task state, match, review and quota status'}
+  /events:
+    get:
+      summary: Read centrally cached events and date-range backfill progress
+      description: 'Query filters: from/to (Beijing YYYY-MM-DD, at most 366 days), region, tournament, team, status, limit, series, paginate. Pending results are not empty schedules.'
+      responses:
+        '200': {description: Event results or pending backfill state/retryAfter}
+  /events/refresh:
+    post:
+      summary: Request centrally limited event refresh using the same query filters
+      responses:
+        '200': {description: Event results or refresh state}
+  /events/reminders:
+    get:
+      summary: List personal reservations, notices and Web Push availability
+      responses:
+        '200': {description: 'enabled, publicKey, reservations, notices'}
+  /events/reminders/subscribe:
+    post:
+      summary: Register personal Web Push subscription (legacy body)
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Subscription result}
+  /events/reminders/unsubscribe:
+    post:
+      summary: Remove personal Web Push subscription (legacy body)
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Subscription result}
+  /events/reminders/reserve:
+    post:
+      summary: Reserve a published event (legacy body)
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Reservation result}
+  /events/reminders/cancel:
+    post:
+      summary: Cancel personal event reservation (legacy body)
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Cancellation result}
+  /auth/register:
+    post: &authWrite
+      summary: Cookie authentication alias with unchanged legacy JSON body
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Legacy auth response; session cookie set when applicable}
+  /auth/login:
+    post: *authWrite
+  /auth/reset/request:
+    post: *authWrite
+  /auth/reset/confirm:
+    post: *authWrite
+  /auth/session:
+    get:
+      summary: Read cookie session (legacy response plus scope)
+      security: [{userSession: []}]
+      responses:
+        '200': {description: Session response}
+  /auth/logout:
+    post: &cookieWrite
+      summary: Cookie-only alias with unchanged legacy body and CSRF requirements
+      security: [{userSession: []}]
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Legacy cookie operation response}
+  /auth/api-key:
+    post: *cookieWrite
+  /admin/login:
+    post: *authWrite
+  /admin/session:
+    get: &adminRead
+      summary: Admin cookie-only alias with unchanged legacy response
+      security: [{adminSession: []}]
+      responses:
+        '200': {description: Legacy admin response}
+  /admin/users:
+    get: *adminRead
+  /admin/logout:
+    post: &adminWrite
+      summary: Admin cookie-only alias with unchanged legacy body and CSRF requirements
+      security: [{adminSession: []}]
+      requestBody: {$ref: '#/components/requestBodies/LegacyJson'}
+      responses:
+        '200': {description: Legacy admin response}
+  /admin/access:
+    post: *adminWrite
+  /admin/quota:
+    post: *adminWrite
+  /admin/reset:
+    post: *adminWrite
+components:
+  securitySchemes:
+    bearerKey: {type: http, scheme: bearer, bearerFormat: 'owqs_<64 lowercase hex>'}
+    userSession: {type: apiKey, in: cookie, name: qs_session}
+    adminSession: {type: apiKey, in: cookie, name: qs_admin}
+  parameters:
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[a-f0-9]{64}$'}
+    Index:
+      name: index
+      in: path
+      required: true
+      schema: {type: integer, minimum: 1, maximum: 10}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: {type: string, maxLength: 100}
+      description: Must equal requestId when both are supplied
+  requestBodies:
+    LegacyJson:
+      required: true
+      content:
+        application/json:
+          schema: {type: object, additionalProperties: true}
+    RequestId:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [requestId]
+            properties:
+              requestId: {type: string, maxLength: 100}
+    MatchReference:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [battletag, mid, revision]
+            properties:
+              battletag: {type: string}
+              mid: {type: string, minLength: 1, maxLength: 150}
+              sourceJob: {type: string, pattern: '^[a-f0-9]{64}$', description: Optional retained job source for results not archived}
+              revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+              options: {$ref: '#/components/schemas/AnalysisOptions'}
+              requestId: {type: string, maxLength: 100, description: Required for AI review operation identity}
+  responses:
+    Task:
+      description: Existing or newly created task
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              id: {type: string}
+              state: {type: string}
+              status: {type: string}
+    Conflict:
+      description: Request identity parameters conflict or archive revision changed; refresh or reconcile before retry
+  schemas:
+    Query:
+      type: object
+      required: [battletag]
+      properties:
+        battletag: {type: string}
+        requestId: {type: string, maxLength: 100}
+        limit: {type: integer, enum: [5, 10, 20], default: 10}
+        mode: {type: string, enum: [fast, slow], default: fast}
+        pool: {type: string, enum: ['', '55', '66']}
+        statisticsRange: {type: string, enum: ['5', '10', '20', all]}
+        side: {type: string, enum: [all, T, E]}
+        strategy: {type: string, enum: [legacy, role, highest]}
+        estimate: {type: boolean}
+        syncHistory: {type: boolean, default: true, description: Forced false for free service keys}
+    AnalysisOptions:
+      type: object
+      properties:
+        start: {type: integer, description: Zero-based window start; clamped to available history}
+        statisticsRange: {type: string, enum: [all, '5', '10', '20'], default: all}
+        pool: {type: string, enum: ['', '55', '66']}
+        side: {type: string, enum: [all, T, E], default: all}
+        strategy: {type: string, enum: [legacy, role, highest], default: legacy}
+        estimate: {type: boolean, default: true}
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+    HistoryAnalysis:
+      type: object
+      required: [version, revision, tag, options, total, window, statistics, axis, model, chartView, matchRefs]
+      properties:
+        version: {type: integer, const: 1}
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+        scope: {description: Authenticated signed history partition}
+        tag: {type: string}
+        options: {$ref: '#/components/schemas/AnalysisOptions'}
+        total: {type: integer}
+        window: {$ref: '#/components/schemas/Range'}
+        statistics: {$ref: '#/components/schemas/Range'}
+        axis: {type: object, properties: {min: {type: number}, max: {type: number}}}
+        model: {type: object, description: Server summary for the selected statistics range}
+        chartView: {type: object, description: Server chart model with a display window of at most 10 matches}
+        statisticsRange: {type: string}
+        statisticsLabel: {type: string}
+        chart: {description: Optional server SVG chart envelope}
+        matchRefs:
+          type: array
+          items:
+            type: object
+            required: [scope, tag, mid, revision]
+            properties:
+              scope: {}
+              tag: {type: string}
+              mid: {type: string}
+              revision: {type: string}
+    Range:
+      type: object
+      required: [start, end]
+      properties:
+        start: {type: integer}
+        end: {type: integer, description: Exclusive end}

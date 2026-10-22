@@ -4,6 +4,7 @@ import {service} from './query-fixture.mjs';
 import {mintCacheRecords,cacheEntries} from '../src/cache-records.mjs';
 export class MemoryStorage{
  constructor(){this.map=new Map();this.alarmTime=null;}
+ async transaction(fn){const before=structuredClone(this.map);try{return await fn(this);}catch(error){this.map=before;throw error;}}
  async get(k){return structuredClone(this.map.get(k));}async put(k,v){this.map.set(k,structuredClone(v));}async delete(keys){for(const k of Array.isArray(keys)?keys:[keys])this.map.delete(k);}async list({prefix=''}){return new Map([...this.map].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)]));}async setAlarm(t){this.alarmTime=t;}async getAlarm(){return this.alarmTime;}
 }
 const hero=Object.keys(heroes)[0],player=(name,side='T')=>({name,hero,side,stats:{kill:20,assist:8,death:4,heroDamage:10000,cure:500,resistDamage:6000,finalHit:10,soloKill:null,targetCompetingTime:10,healingTaken:5000,damageTaken:9000},res:{rows:[]}});

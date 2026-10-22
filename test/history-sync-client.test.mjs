@@ -1,4 +1,5 @@
 import {createDataService} from '../src/services/data.mjs';
+import * as historyGeometry from '../src/services/history-geometry.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -77,7 +78,7 @@ function syncServer() {
    return scopes.get(key);
   },
   async api(value, path, body) {
-   assert.equal(path, '/api/history');
+   assert.equal(path, '/api/v1/history');
    calls.push({scope: scopeKey(value), body: clone(body)});
    if (server.offline) throw Error('offline');
    const accounts = server.accounts(value);
@@ -112,7 +113,7 @@ function syncServer() {
 
 async function device(server, db = memoryDB(), value = session) {
  const status = {textContent: ''};
- const window = {OWQS_SERVICES:{data:createDataService()},document: {getElementById: id => id === 'historySyncStatus' ? status : null}};
+ const window = {OWQS_SERVICES:{data:createDataService(),historyGeometry},document: {getElementById: id => id === 'historySyncStatus' ? status : null}};
  const context = vm.createContext({
   window,
   Cloud: {key: async envelope => batchId(envelope), api: (path, body) => server.api(value, path, body)}

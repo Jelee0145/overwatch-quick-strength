@@ -131,25 +131,26 @@ test('indexed match data and AI review share the displayed left-to-right window,
   assert.equal((await api(ctx,'/api/v1/jobs/'+short+'/matches/1',{key:otherKey})).status,404);
  }finally{globalThis.fetch=original;}
 });
-test('API warm query reuses archived history while still charging one query',async()=>{
+test('API warm query reuses archived history and releases the cached-only reservation',async()=>{
  const ctx=await setup(),register=await approve(ctx),key=await createKey(ctx,register),task=taskFor(ctx,register.user.id),original=globalThis.fetch;
  const mock=service({newGames:5});globalThis.fetch=async(url,init)=>{const u=new URL(url),path=u.pathname.replace('/v1/a19ld5tool',''),body=init?.body?JSON.parse(init.body):undefined;return Response.json({code:0,data:await mock.call(ctx.env,path,Object.fromEntries(u.searchParams),body)});};
  try{
   const first=await start(ctx,key,{battletag:'Main#100',limit:5});await speed(task,first);const one=await finish(task,first);assert.equal(one.state,'done');assert.equal(mock.details.length,5);
   const second=await start(ctx,key,{battletag:'Main#100',limit:5});await speed(task,second);const two=await finish(task,second);assert.equal(two.state,'done');
   const status=await api(ctx,'/api/v1/jobs/'+second,{key}),value=await status.json();
-  assert.equal(value.result.syncStatus.cachedOnly,true);assert.equal(mock.details.length,5);
-  assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,2);
+  assert.equal(value.result.syncStatus.cachedOnly,true);assert.equal(mock.details.length,5);assert.equal(value.quota,'released');
+  assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,1);
  }finally{globalThis.fetch=original;}
 });
-test('cached-only API success still charges one query',async()=>{
+test('cached-only API success releases its reservation exactly once',async()=>{
  const ctx=await setup(),register=await approve(ctx),key=await createKey(ctx,register),task=taskFor(ctx,register.user.id);
  const id=await start(ctx,key,{battletag:'Cache#100',limit:5});
  const result={battletag:'Cache#100',queriedAt:new Date().toISOString(),matches:[],recentHistory:[],syncStatus:{fetchedMatches:0,rankFetches:0},historyStatus:{requests:0},queryCache:{}};
  await putBlob(task.storage,'data:'+id,{version:2,tag:'Cache#100',limit:5,phase:'done',selected:[],mainDone:{},result});
  const job=await finish(task,id);assert.equal(job.state,'done');
- assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,1);
- const status=await api(ctx,'/api/v1/jobs/'+id,{key}),value=await status.json();assert.equal(value.quota,'charged');
+ assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,0);
+ const status=await api(ctx,'/api/v1/jobs/'+id,{key}),value=await status.json();assert.equal(value.quota,'released');
+ await task.alarm();assert.equal((await ctx.storage.get('usage:'+register.user.id)).query,0);
 });
 test('API failure and timeout release the reserved quota',async()=>{
  const ctx=await setup(),register=await approve(ctx),key=await createKey(ctx,register),task=taskFor(ctx,register.user.id),user=register.user.id;
@@ -180,7 +181,7 @@ test('API pause keeps the reservation and retries without charging again',async(
 test('account validates Keys without charging; history opt-out leaves no synchronized history or default ID',async()=>{
  const ctx=await setup(),user=await approve(ctx),key=await createKey(ctx,user),task=taskFor(ctx,user.user.id),original=globalThis.fetch;
  assert.equal((await api(ctx,'/api/v1/account')).status,401);
- assert.deepEqual(await(await api(ctx,'/api/v1/account',{key})).json(),{valid:true,lastBattletag:null,tier:'standard'});
+ const account=await(await api(ctx,'/api/v1/account',{key})).json();assert.deepEqual({valid:account.valid,lastBattletag:account.lastBattletag,tier:account.tier},{valid:true,lastBattletag:null,tier:'standard'});assert.equal(account.apiVersion,'1.1');assert.equal(account.capabilities.sharedQuota,true);
  assert.equal((await api(ctx,'/api/v1/account',{key,method:'POST'})).status,405);
  assert.equal((await api(ctx,'/api/v1/query',{key,method:'POST',body:{battletag:'Free#100',limit:5,syncHistory:'false'}})).status,400);
  const mock=service({newGames:5});
@@ -206,7 +207,7 @@ test('dedicated free-tier provisioning isolates personal quota and forces histor
  const free=await provisionFree(ctx.storage,ctx.env),again=await provisionFree(ctx.storage,ctx.env);
  assert.equal(free.key,again.key);assert.notEqual(free.key,personalKey);assert.notEqual(free.id,personal.user.id);
  assert.ok(!JSON.stringify(await ctx.storage.get('user:'+free.id)).includes(free.key));
- assert.deepEqual(await(await api(ctx,'/api/v1/account',{key:free.key})).json(),{valid:true,lastBattletag:null,tier:'free'});
+ const freeAccount=await(await api(ctx,'/api/v1/account',{key:free.key})).json();assert.deepEqual({valid:freeAccount.valid,lastBattletag:freeAccount.lastBattletag,tier:freeAccount.tier},{valid:true,lastBattletag:null,tier:'free'});assert.equal(freeAccount.capabilities.history,false);
  const id=await start(ctx,free.key,{battletag:'Free#100',limit:5,syncHistory:true});
  assert.equal((await taskFor(ctx,free.id).storage.get('job:'+id)).apiOptions.syncHistory,false);
  assert.equal((await ctx.storage.get('usage:'+free.id)).query,1);

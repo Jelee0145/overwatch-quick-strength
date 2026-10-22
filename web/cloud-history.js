@@ -8,7 +8,7 @@
    if(envelope?.content?.user!==session.user.id||envelope.content.scope?.server!==session.scope.server||envelope.content.scope?.dts!==session.scope.dts)throw Error('历史归档签名范围不匹配');
    const batchId=await Cloud.key(envelope),id=key(envelope.content.data.battletag),previous=await read(id);
    const merged=QS_HISTORY_MODEL.merge(previous,envelope,batchId,scope);
-   if(!previous||JSON.stringify(previous)!==JSON.stringify(merged))await write(id,merged);
+   if(!previous||JSON.stringify(previous)!==JSON.stringify(merged)){await write(id,merged);root.OWQS_SERVER_ANALYSIS?.invalidate(merged.tag);}
   });writeChain=work.catch(()=>{});return work;
  }
  async function initialize(database,value){db=database;session=value;scope=session.user.id+'|'+session.scope.server+'|'+session.scope.dts;
@@ -21,23 +21,23 @@
  function notice(message){syncMessage=message;const el=root.document?.getElementById('historySyncStatus');if(el)el.textContent=message;}
  async function synchronize(){
   notice('正在同步云端历史…');
-  const remote=await Cloud.api('/api/history',{action:'list'}),known=new Map(remote.accounts.map(a=>[a.tag,new Set(a.batchIds||[])])),errors=[];
+  const remote=await Cloud.api('/api/v1/history',{action:'list'}),known=new Map(remote.accounts.map(a=>[a.tag,new Set(a.batchIds||[])])),errors=[];
   // Only upload signed batches absent from the server; acknowledgements survive reloads.
   for(const row of await list()){
    const account=await load(row.tag),ids=known.get(row.tag)||new Set();
    for(const [id,batch] of Object.entries(account.batches)){
     if(ids.has(id)||await acknowledged(id))continue;
-    try{await Cloud.api('/api/history',{action:'push',envelopes:[batch]});await acknowledge(id);}catch(e){if(!errors.includes(e.message))errors.push(e.message);}
+    try{await Cloud.api('/api/v1/history',{action:'push',envelopes:[batch]});await acknowledge(id);}catch(e){if(!errors.includes(e.message))errors.push(e.message);}
    }
   }
-  const current=await Cloud.api('/api/history',{action:'list'});
+  const current=await Cloud.api('/api/v1/history',{action:'list'});
   for(const row of current.accounts){
    const local=await load(row.tag);
    if(row.batchIds?.every(id=>local?.batches[id]))continue;
    let cursor=0;const seen=new Set();let revision=null;
    do{
     if(seen.has(cursor))throw Error('云端历史分页异常');seen.add(cursor);
-    const page=await Cloud.api('/api/history',{action:'pull',tag:row.tag,cursor});
+    const page=await Cloud.api('/api/v1/history',{action:'pull',tag:row.tag,cursor});
     for(const batch of page.envelopes)await save(batch);
     if(revision!==null&&page.revision!==revision)throw Error('另一设备更新了历史，请再次同步');
     revision=page.revision??null;cursor=page.nextCursor;

@@ -1,0 +1,49 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import worker from '../src/worker.mjs';
+import {createRuntime} from '../server/runtime.mjs';
+import {signSnapshot,putBlob} from '../src/security.mjs';
+import {analysisFixture} from './services-fixture.mjs';
+
+async function setup(){
+ const env={PASSWORD_PEPPER:'fixture-pepper',CACHE_SIGNING_KEY:'fixture-signing',API_KEY_ENCRYPTION_KEY:'fixture-encryption',DASHEN_SERVER:'1',DASHEN_DTS:'2026'};
+ const runtime=createRuntime(env,{filename:':memory:',assets:{fetch:()=>new Response('static')},eventsFetch:async()=>new Response('',{status:503})});
+ async function internal(path,body={},rest={}){const response=await runtime.env.AUTH.get().fetch('https://auth.internal/',{method:'POST',body:JSON.stringify({path,body,ip:'fixture',...rest})});return {status:response.status,value:await response.json()};}
+ const registration=(await internal('/register',{email:'unified@example.test',password:'fixture-password-long'})).value;
+ const store=runtime.database.store('auth'),record=await store.get('user:'+registration.user.id);record.status='approved';await store.put('user:'+record.id,record);
+ const key=(await internal('/api-key',{action:'regenerate'},{userToken:registration.token,csrf:registration.csrf,mutation:true})).value.key;
+ const request=(path,{method='GET',body,bearer=false,csrf=true,origin=true,headers={}}={})=>worker.fetch(new Request('https://site.test'+path,{method,headers:{...(bearer?{Authorization:'Bearer '+key}:{Cookie:'qs_session='+registration.token}),...(method==='POST'?{'Content-Type':'application/json',...(origin?{Origin:'https://site.test'}:{}),...(!bearer&&csrf?{'X-CSRF-Token':registration.csrf}:{})}:{}),...headers},...(body!==undefined?{body:JSON.stringify(body)}:{})}),runtime.env);
+ return {runtime,registration,key,request,internal};
+}
+test('Cookie and Bearer share authenticated API history and analysis while cookie writes require CSRF',async t=>{
+ const ctx=await setup();t.after(()=>ctx.runtime.close());
+ assert.equal((await ctx.request('/api/v1/history',{method:'POST',body:{action:'list'},csrf:false})).status,403);
+ assert.equal((await ctx.request('/api/v1/history',{method:'POST',body:{action:'list'},origin:false})).status,403);
+ const raw=analysisFixture(),envelope=await signSnapshot(ctx.registration.user.id,raw,ctx.runtime.env);
+ const pushed=await ctx.request('/api/v1/history',{method:'POST',body:{action:'push',envelopes:[envelope]}});assert.equal(pushed.status,200,await pushed.text());
+ const web=await (await ctx.request('/api/v1/history/accounts')).json(),bot=await (await ctx.request('/api/v1/history/accounts',{bearer:true})).json();assert.deepEqual(web,bot);assert.equal(web.accounts[0].tag,raw.battletag);
+ const body={battletag:raw.battletag,options:{statisticsRange:'all'}};
+ const left=await ctx.request('/api/v1/history/analysis',{method:'POST',body}),right=await ctx.request('/api/v1/history/analysis',{method:'POST',body,bearer:true});assert.equal(left.status,200);assert.deepEqual(await left.json(),await right.json());
+ const conflictingKey=await ctx.request('/api/v1/query',{method:'POST',body:{battletag:'Main#100',requestId:'one',idempotencyKey:'two'}});assert.equal(conflictingKey.status,409);assert.equal((await conflictingKey.json()).code,'CONFLICT');
+ const stale=await ctx.request('/api/v1/history/analysis',{method:'POST',body:{...body,revision:'0'.repeat(64)}});assert.equal(stale.status,409);
+ const auth=await ctx.request('/api/v1/auth/session');assert.equal(auth.status,200);assert.equal((await auth.json()).user.id,ctx.registration.user.id);
+ const page=await ctx.request('/api/internal/page-session');assert.equal(page.status,204);
+ const anonymous=await worker.fetch(new Request('https://site.test/api/internal/page-session'),ctx.runtime.env);assert.equal(anonymous.status,401);
+});
+test('unified API rejects conflicting identities and backend-only mode serves no webpage assets',async t=>{
+ const ctx=await setup();t.after(()=>ctx.runtime.close());const other=(await ctx.internal('/register',{email:'other-unified@example.test',password:'fixture-password-long'})).value;
+ const response=await ctx.request('/api/v1/account',{bearer:true,headers:{Cookie:'qs_session='+other.token}});assert.ok([401,403].includes(response.status));
+ ctx.runtime.env.BACKEND_ONLY=true;assert.equal((await ctx.request('/')).status,404);assert.equal((await ctx.request('/api/health')).status,200);
+});
+
+test('completed query analysis survives archive failure, retains references and rejects other owners',async t=>{
+ const ctx=await setup();t.after(()=>ctx.runtime.close());
+ const id='a'.repeat(64),raw=analysisFixture(),envelope=await signSnapshot(ctx.registration.user.id,raw,ctx.runtime.env),store=ctx.runtime.database.store('tasks:'+ctx.registration.user.id);
+ await store.put('job:'+id,{id,user:ctx.registration.user.id,version:1,kind:'query',state:'done',until:Date.now()+60000,archiveWarning:'云端历史空间已满'});await putBlob(store,'result:'+id,envelope);
+ const response=await ctx.request('/api/v1/jobs/'+id+'/analysis',{method:'POST',body:{battletag:raw.battletag,options:{statisticsRange:'5'}}});assert.equal(response.status,200);const view=await response.json();assert.equal(view.matches.length,raw.matches.length);assert.equal(view.sourceJob,id);assert.match(view.archiveWarning,/空间已满/);assert.equal(view.matchRefs[0].sourceJob,id);
+ const detail=await ctx.request('/api/v1/matches/detail',{method:'POST',body:{ref:view.matchRefs[0]}});assert.equal(detail.status,200);
+ const stale=await ctx.request('/api/v1/matches/detail',{method:'POST',body:{ref:{...view.matchRefs[0],revision:'0'.repeat(64)}}});assert.equal(stale.status,409);
+ const absent=await ctx.request('/api/v1/history/accounts');assert.deepEqual((await absent.json()).accounts,[]);
+ const other=(await ctx.internal('/register',{email:'job-other@example.test',password:'fixture-password-long'})).value,auth=ctx.runtime.database.store('auth'),record=await auth.get('user:'+other.user.id);record.status='approved';await auth.put('user:'+record.id,record);
+ const denied=await ctx.request('/api/v1/jobs/'+id+'/analysis',{method:'POST',body:{},headers:{Cookie:'qs_session='+other.token,'X-CSRF-Token':other.csrf}});assert.equal(denied.status,404);
+});

@@ -42,13 +42,14 @@ export class AuthDirectory{
   if(i.path==='/logout'||i.path==='/admin/logout'){const admin=i.path.includes('/admin/');await this.authorize(i,admin,false);await this.storage.delete('session:'+await digest(admin?i.adminToken:i.userToken));return {ok:true};}
   if(i.path==='/authorize'){const s=await this.authorize(i);return {user:this.view(s.account),version:s.version};}
   if(i.path==='/check-user'){const u=await this.storage.get('user:'+b.user);if(!u||u.status!=='approved'||u.version!==b.version)throw new Fault('授权或会话已失效',403);return {user:this.view(u)};}
-  if(i.path==='/quota'){
-   const u=await this.storage.get('user:'+b.user);if(!u||(!b.refund&&u.status!=='approved'))throw new Fault('账号未授权',403);
-   const key='usage:'+u.id,old=await this.storage.get(key),r=old?.day===day()?old:{day:day(),query:0,ai:0};const kind=b.kind;
-   if(!['query','ai'].includes(kind)||!b.job)throw new Fault('额度类型错误');const reservation='quota:'+b.job,existing=await this.storage.get(reservation);
-   if(b.refund){if(existing&&!existing.refunded){if(existing.day===r.day){r[kind]=Math.max(0,r[kind]-1);await this.storage.put(key,r);}await this.storage.put(reservation,{...existing,refunded:true});}return {usage:r};}
-   if(existing)return {usage:r};if(r[kind]>=u[kind+'Daily'])throw new Fault('今日'+(kind==='ai'?'AI锐评':'查询')+'额度已用完',429);r[kind]++;await this.storage.put(key,r);await this.storage.put(reservation,{day:r.day,user:u.id,until:Date.now()+2*86400000});return {usage:r};
-  }
+  if(i.path==='/quota')return this.storage.transaction(async storage=>{
+   const u=await storage.get('user:'+b.user);if(!u||(!b.refund&&u.status!=='approved'))throw new Fault('账号未授权',403);
+   const key='usage:'+u.id,old=await storage.get(key),r=old?.day===day()?old:{day:day(),query:0,ai:0};const kind=b.kind;
+   if(!['query','ai'].includes(kind)||!b.job)throw new Fault('额度类型错误');const reservation='quota:'+b.job,existing=await storage.get(reservation);
+   if(existing&&(existing.user!==u.id||existing.kind&&existing.kind!==kind))throw new Fault('额度记录不匹配',409);
+   if(b.refund){if(existing&&!existing.refunded){if(existing.day===r.day){r[kind]=Math.max(0,r[kind]-1);await storage.put(key,r);}await storage.put(reservation,{...existing,refunded:true});}return {usage:r};}
+   if(existing)return {usage:r};if(r[kind]>=u[kind+'Daily'])throw new Fault('今日'+(kind==='ai'?'AI锐评':'查询')+'额度已用完',429);r[kind]++;await storage.put(key,r);await storage.put(reservation,{day:r.day,user:u.id,kind,until:Date.now()+2*86400000});return {usage:r};
+  });
   if(i.path==='/api-key'){
    const s=await this.authorize(i),u=await this.storage.get('user:'+s.user);if(!u||u.status!=='approved')throw new Fault('账号尚未授权',403);
    if(b.action==='reveal'){

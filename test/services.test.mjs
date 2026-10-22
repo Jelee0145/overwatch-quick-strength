@@ -125,13 +125,17 @@ test('acquisition is injectable, checkpoints survive JSON transport and original
  assert.equal(hash(snapshot),snapshotHash);
 });
 
-test('browser bundle and Worker service produce identical batch analysis and historical results',async()=>{
- const compiled=await build({entryPoints:[new URL('../web/services.js',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,format:'iife',platform:'browser',write:false});
+test('browser service bundle preserves display normalization without importing scoring or chart services',async()=>{
+ const compiled=await build({entryPoints:[new URL('../web/services.js',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,format:'iife',platform:'browser',write:false,metafile:true});
  const context=vm.createContext({structuredClone});context.window=context;
- for(const name of ['data.js','core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'])vm.runInContext(await readFile(new URL('../source/'+name,import.meta.url),'utf8'),context);
+ vm.runInContext(await readFile(new URL('../source/core.js',import.meta.url),'utf8'),context);
  vm.runInContext(compiled.outputFiles[0].text,context);
  const browser=context.OWQS_SERVICES,raw=analysisFixture();
- for(const item of baseline.cases)assert.deepEqual(json(browser.analysis.analyzeResult(raw,item.options)),json(analyzeResult(raw,item.options)));
- assert.deepEqual(json(browser.analysis.analyzeHistory(archiveFixture())),json(analysisService.analyzeHistory(archiveFixture())));
+ assert.equal(browser.analysis,undefined);
  assert.deepEqual(json(browser.data.normalize(raw)),json(dataService.normalize(raw)));
+ assert.ok(!Object.keys(compiled.metafile.inputs).some(name=>/[\\/]services[\\/](analysis|chart)\.mjs$/.test(name)));
+ for(const name of ['cloud-timeline.js','server-analysis.js']){
+  const source=await readFile(new URL('../web/'+name,import.meta.url),'utf8');
+  assert.doesNotMatch(source,/\.analyzeBatch\s*\(|\.analyzeHistory\s*\(|\.summarize\s*\(/);
+ }
 });

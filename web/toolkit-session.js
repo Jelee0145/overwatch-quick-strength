@@ -3,13 +3,11 @@
 window.Cloud=(()=>{
  let session,db,bootPromise;
  const login=()=>location.replace('/login?next='+encodeURIComponent(location.pathname));
- async function api(path,body){
-  const response=await fetch(path,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:body===undefined?undefined:{'Content-Type':'application/json','X-CSRF-Token':session?.csrf||''},body:body===undefined?undefined:JSON.stringify(body)});
-  const value=await response.json();if(!response.ok){if(response.status===401)login();throw Error(value.error||'连接失败，请刷新重试');}return value;
- }
+ const transport=OWQS_HTTP.create({csrf:()=>session?.csrf||'',unauthorized:login});
+ const api=(path,body)=>transport(path.replace(/^\/api\/(auth|events)(?=[/?]|$)/,'/api/v1/$1'),body);
  async function verify(){const value=await api('/api/auth/session');if(value.user.status!=='approved'){login();throw Error('账号等待授权');}return value;}
  async function initialize(){
-  session=await verify();db=await CloudCache.initialize(session);
+  session=await verify();try{db=await CloudCache.initialize(session);}catch{db=OWQS_HTTP.memoryDatabase();}
   document.getElementById('cloudIdentity').textContent=session.user.email;
   document.getElementById('cloudLogout').onclick=async()=>{try{await api('/api/auth/logout',{});location.replace('/login');}catch(e){showError(e);}};
   document.body.classList.remove('cloud-pending');return session;

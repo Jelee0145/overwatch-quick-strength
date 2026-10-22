@@ -34,6 +34,12 @@ test('list polling cannot postpone scheduled work and failed final verification 
 test('stable identity can reserve after list time changes and malformed subscriptions return a client error',async()=>{
  const c=setup();try{await assert.rejects(c.service.handle('u','subscribe',{subscription:{}}),e=>e.status===400);await c.service.handle('u','subscribe',{subscription:subscription('a')});const [m]=await c.service.decorate([match()]);c.setTime(base+1000);await c.service.alarm();await c.service.decorate([match(base+300000)]);assert.equal((await c.service.handle('u','reserve',{matchId:m.reminderId})).reservations.length,1);}finally{await c.db.close();}
 });
+test('account reservations can precede a device and report delivery readiness independently',async()=>{
+ const c=setup();try{
+  await c.service.decorate([match()]);const reserved=await c.service.handle('u','reserve',{matchId:match().id});assert.equal(reserved.reservations.length,1);assert.equal(reserved.deliveryReady,false);assert.equal(reserved.deviceCount,0);
+  const subscribed=await c.service.handle('u','subscribe',{subscription:subscription('later')});assert.equal(subscribed.deliveryReady,true);assert.equal(subscribed.deviceCount,1);assert.equal(subscribed.reservations[0].id,reserved.reservations[0].id);
+ }finally{await c.db.close();}
+});
 test('subscriptions move between accounts and reservations recover from persisted state',async()=>{
  const c=setup();try{const s=subscription('shared');await c.service.handle('u','subscribe',{subscription:s});await c.service.decorate([match()]);await c.service.handle('u','reserve',{matchId:match().id});await c.service.handle('other','subscribe',{subscription:s});assert.equal(Object.keys((await c.service.state()).users.u.subscriptions).length,0);const restarted=new EventReminders(c.db.store('reminders'),{},{});assert.equal((await restarted.handle('u','list')).reservations.length,1);}finally{await c.db.close();}
 });
