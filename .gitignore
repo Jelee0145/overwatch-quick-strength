@@ -15,9 +15,4 @@ local/*.png
 local/*.svg
 **/__pycache__/
 *.pyc
-dist/astrbot_plugin_owqs-*
-dist/owqs-server*
-dist/server-stage/
-dist/migration-code-backup/
-dist/astrbot_plugin_owqs_api-*
-dist/astrbot-api-*.jpg
+dist/
