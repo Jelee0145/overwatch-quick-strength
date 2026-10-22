@@ -1,6 +1,6 @@
 # OWQS Bot 查询 API 说明
 
-版本：v1（统一能力契约 1.1，本次代码尚未上线）
+版本：v1（统一能力契约 1.1；2026-10-22 腾讯云上线记录见 [发布日志](docs/agent-update-log.md)）
 
 新增同账号 Cookie/Bearer 业务入口、历史分析/稳定对局引用、共享预约、持久幂等及纯缓存免扣规则。完整新增接口见 [OpenAPI](contracts/openapi.yaml) 和 [统一后端说明](docs/unified-backend.md)。旧 Bot 图片仍固定最近十场；旧已保存任务保留原结算策略。
 腾讯云生产环境：`https://106.55.47.68:8443`

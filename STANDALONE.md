@@ -2,11 +2,15 @@
 
 网站与 Bot 共用原有 `/api/v1/query`、`/api/v1/jobs/{id}` 和账户 API 密钥。网页登录、授权、额度、签名缓存、跨设备历史及 AI 仍使用同一套服务代码。Cloudflare 构建根目录保持 `/`。
 
-## 独立前后端（本次代码，尚未上线）
+## 独立前后端
 
 后端 `npm run server:build` 只生成 Node 业务与出图资源包，不包含完整网页；网页由 `npm run web:package` 生成独立包。Node 默认仅提供 API，组合开发预览设 `OWQS_SERVE_WEB=1`。`deploy/nginx-https.conf` 将静态网页放在 `/opt/owqs/web-current/public`，API 仍转发原回环端口；受保护页面通过只读会话检查保持登录跳转。操作与契约见 [统一后端说明](docs/unified-backend.md)。
 
 数据库、配置、密钥和公网 origin 不因拆分变更。更新 `deploy/owqs.service` 的后端 release 指针和 Nginx 模板前，需分别验证安装包和 `nginx -t`。`deploy/split-release.mjs` 提供显式校验/激活流程；没有激活参数不切换。代码回滚不回滚数据库，兼容状态迁移是独立回退的前提。此文不代表已获上线授权。
+
+2026-10-22 发布日志记录后端 `/opt/owqs/releases/20261022-d8e804a`、网页 `/opt/owqs/web-releases/20261022-d8e804a` 已分别激活；这是历史部署记录，不代表当前 HEAD 或实时线上版本。后端指针为 `/opt/owqs/current`，网页指针为 `/opt/owqs/web-current`。
+
+`deploy/split-release.mjs` 默认仅校验安装包清单；显式 `--activate` 才执行切换，并要求已有可校验的同类回退版本。后端激活前用 SQLite backup API 备份，切换后重启并核验健康版本；网页切换后核验静态资源。验收失败会恢复原指针并再次验收，恢复失败则报错并留下审计记录。它不持续监测线上健康，也不自动回退数据库或 Nginx 配置。首次从旧整包迁入拆包布局需单独协调 Nginx 与双指针；回到旧整包时必须恢复旧 Nginx 配置。
 
 ## 运行与数据
 
@@ -65,10 +69,11 @@ npm ci
 npm run build
 npm test
 npm run check
-node scripts/package-server.mjs
+npm run server:build
+npm run web:package
 ```
 
-`dist/owqs-server.tar.gz` 只包含 `server/`、`src/`、构建后的 `public/`、初始化访问策略及最小 package.json，不含 `local/`、`.private/`、`.dev.vars`、Git 或研究数据。SHA-256 在相邻 `.sha256` 文件中。部署前核对校验值，在新 release 目录解压；不要覆盖数据库或配置。
+`dist/owqs-server.tar.gz` 包含 `server/`、`src/`、白名单 `backend-assets/` 出图媒体、初始化访问策略、最小 package.json 和安装包清单，不含完整 `public/`、`local/`、`.private/`、`.dev.vars`、Git 或研究数据。网页另打包为 `dist/owqs-web.tar.gz`，含 `public/` 和安装包清单，放入 `/opt/owqs/web-releases/<版本>/`。两包各有相邻 `.sha256` 文件；部署前核对校验值并校验清单，在新 release 目录解压，不覆盖数据库或配置。
 
 `npm run server:start` 从 `OWQS_CONFIG` 和 `OWQS_DATA` 指定的目录启动；默认读取上述 Linux 路径。生产配置必须有 `PUBLIC_ORIGIN`、`PASSWORD_PEPPER`、`CACHE_SIGNING_KEY`、`API_KEY_ENCRYPTION_KEY`、`ADMIN_PASSWORD_HASH`；查询需要大神配置，AI 需要 `DEEPSEEK_KEY`。
 

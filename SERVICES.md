@@ -25,7 +25,7 @@ const botResult = analysisService.analyzeResult(snapshot, {
 
 `analyzeBatch` 接收单次快照，最多 50 场；返回完整算法模型，包括 `matches`、`summary`、`confidence`、`personalPrediction`。`analyzeResult` 保持 Bot 响应结构，展示最近 10 场，统计范围支持 `all/5/10/20`。默认 `side=all`、`strategy=legacy`、`estimate=true`。
 
-浏览器构建使用相同服务工厂，通过 `web/services.js` 绑定已有算法与英雄数据，暴露 `OWQS_SERVICES.data` 和 `OWQS_SERVICES.analysis`。`runtime.mjs` 是 Worker/Node 适配器，不应打入浏览器。两个适配器集中读取旧算法全局对象，调用端不再组装算法链。算法正文仍来自 `source/`，`src/shared/` 是构建产物；不要手改或自动同步 `local/`。
+网页通过统一 `/api/v1` 获取服务端分析结果。`web/services.js` 仅暴露 `OWQS_SERVICES.data` 和 `OWQS_SERVICES.historyGeometry`，保留数据规范化与展示几何辅助，不暴露浏览器评分服务。`runtime.mjs` 是 Worker/Node 适配器，不应打入浏览器。算法正文来自 `source/`，`src/shared/` 是构建产物；不要手改或自动同步 `local/`。多端契约与独立构建见 [统一后端说明](docs/unified-backend.md)。
 
 其他运行环境可以从统一入口导入工厂，将 `core`、`performance`、`heroes`、`benchmarks` 显式传入 `createAnalysisService`。`createDataService({normalizeSnapshot: core.normalize})` 绑定分析清洗规则；仅使用上游转换或历史索引时可省略转换器。
 
@@ -52,7 +52,7 @@ const statistics = analysisService.summarize(history.raw, selected, options, {
 
 ## 战绩获取与平台边界
 
-现有 `src/query.mjs` 和 `src/query-engine.mjs` 保留原导出和调用签名。Cloudflare 任务仍负责鉴权、额度、缓存验签、存储、告警调度和最终归档。
+现有 `src/query.mjs` 和 `src/query-engine.mjs` 保留原导出和调用签名。统一后端负责鉴权、额度、缓存验签、存储、告警调度和最终归档；腾讯云通过 Node/SQLite 运行时承载，Cloudflare 保留 Worker/Durable Objects 适配，两者不是自动同步的数据副本。
 
 ```js
 import {createMatchService} from './src/services/index.mjs';

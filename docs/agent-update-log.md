@@ -1,5 +1,26 @@
 # Agent update log
 
+## 2026-10-22 Startup split and on-demand mobile release
+
+- User explicitly authorized pushing and deploying, including the concurrent player-table change. `main` pushed through `3363798`. Web-only release: backend revision remains `d8e804a`.
+- deployed: `/opt/owqs/web-current -> /opt/owqs/web-releases/20261022-3363798`; previous web release `20261022-d8e804a` retained. Config, database, Nginx and backend pointer untouched.
+- package: `dist/owqs-web.tar.gz` uploaded to protected staging, target SHA-256 matched, `split-release.mjs web --activate` validated the artifact manifest and passed canonical web acceptance without rollback.
+- verified publicly: hashed main/mobile/CSS assets match local SHA-256 and are immutable; JS served with gzip; `/api/health` revision `d8e804a02d…`; login 200, analysis 302; `release-notes.json` is no-store and contains all three entries; deployed analysis HTML carries the media-gated `app-mobile` preload and loader order.
+- startup budget: 299,975 B → 239,601 B (HTML + directly referenced defer scripts + first CSS), headroom 60.4 KB; main chunk 234,869 → 173,630 B. Extras (7.3 KB) and mobile (22.9 KB) chunks load outside the budget.
+- checks: `npm test` 216/216 plus four native runtime checks; `npm run check` dry-run; `npm run bot:capture` refreshed `website.json` and the column assertion (14 → 13).
+- browser verified: desktop requests only the mobile loader; phone loads the bottom nav, three tabs and player list; match switching and hero rating work through `OWQS_APP`; changelog auto-open/persist/manual open, API panel and AI-review replay behave.
+- Bot: `scripts/deploy-api-plugin.mjs` copied the allowlisted files and AstrBot hot-reloaded; container `website.json` SHA-256 matches the repository. Container was not restarted.
+- not exercised: real-device phone↔desktop width transition (preview emulation does not dispatch media-query change events), Cloudflare deployment completion, and production real-account query.
+
+## 2026-10-22 Documentation and memory calibration
+
+- Scope: user requests current-code documentation and memory updates. Baseline is `main` at `3363798`; pre-existing untracked `dist/` is preserved. No runtime code, private data, deployment or source/local synchronization changes.
+- confirmed-current: `server/main.mjs` defaults to API-only; `web/services.js` exports data/historyGeometry without scoring; package scripts separate backend renderer assets from public web; Nginx serves web-current and proxies API; split-release validates by default and rolls back failed activation acceptance when possible.
+- Planned changes: correct stale unreleased labels and browser-scoring/package claims in README, SERVICES, STANDALONE, BOT-API and unified-backend docs; add current architecture guidance to AGENTS; write one authorized memory extension note. Existing release entries remain historical evidence, not a new live deployment probe.
+- Hazards: do not equate HEAD with production, promise ongoing health-triggered rollback, imply database rollback or treat mini-program/App clients as implemented. Documentation-only edits do not require artifact rebuild or full runtime regression tests; targeted existing tests and diff checks will verify the referenced boundaries.
+- Completed: updated the seven planned documentation files and wrote the authorized memory extension `20261022-owqs-unified-backend-current.md`. `git diff --check` passed; stale unreleased/browser-analysis claims were removed from current architecture docs.
+- Verification: unified API/tasks tests passed 12/12. The isolated backend runtime test initially exceeded its polling window (`running` instead of `done`) in the combined run; an immediate isolated rerun passed 1/1, including authentication/query/rendering without website files. Timing sensitivity remains noted, with no runtime/test changes. No full build/suite or live production check performed. Next session should recheck branch/status, contracts and runtime code before work, and public health before any current-deployment claim.
+
 ## 2026-10-22 Unified backend release on Tencent
 
 - User explicitly authorized pushing and deploying all pending changes. `main` pushed through `d8e804a` (feature `b66e858`, Nginx template fix `d8e804a`, including previously local `27be8db`). Final build/full tests 216/216/native runtime checks/dry-run and backend/web packaging passed at release revision.

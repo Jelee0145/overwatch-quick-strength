@@ -1,6 +1,8 @@
 # OWQS 项目工作约定
 
 - 主项目在仓库根目录；Cloudflare 构建根目录保持 `/`。
+- 前后端分离与统一后端已完成，网页/API Bot 共用 `/api/v1`，业务计算在后端。架构以 `docs/unified-backend.md`、`contracts/openapi.yaml` 和当前代码为准；不要把旧设计讨论当作待实现任务。
+- 前后端独立构建：`backend:build` / `web:build`；独立打包：`server:build` / `web:package`。腾讯云后端使用 `/opt/owqs/current`，网页使用 `/opt/owqs/web-current/public`；后端包不含完整网页。发布与回滚边界见 `STANDALONE.md`。
 - `local/` 是本机版，`source/` 是云端构建使用的源码快照。更新本机算法后，仅在确有需要时执行 `node scripts/sync-local.mjs`；不要无意覆盖云端改动。
 - 账号接口、缓存签名和评分行为变化需运行 `npm run build`、`npm test`；打包检查为 `npm run check`，它只执行 dry-run。
 - `.private/`、`.dev.vars`、`local/.private/` 包含凭证、日志或真实数据；严禁提交、上传、打印或放进 `public/`。
