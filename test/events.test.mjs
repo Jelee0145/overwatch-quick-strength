@@ -156,7 +156,36 @@ test('failed manual refresh retains data with an explicit notice and five-minute
 
 test('events UI has a manual action, refreshes once on entry and explains pending results',async()=>{
  const html=await readFile(new URL('../web/events.html',import.meta.url),'utf8'),script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');
- assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\)/);assert.ok(!script.includes('setInterval'));assert.match(html,/每小时自动同步/);assert.match(html,/赛果待公布/);
+ assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\)/);assert.match(script,/setInterval\(updateTimeStatus,15000\)/);assert.match(html,/每小时自动同步/);assert.match(html,/赛果待公布/);
+});
+
+test('events local status interval updates due labels without API polling and resumes after BFCache restore',async()=>{
+ const script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');
+ let now=Date.parse('2026-10-24T05:59:50Z'),networkCalls=0,sequence=0;
+ const intervals=new Map(),nodes=new Map(),windowListeners={},documentListeners={};
+ const node=()=>({children:[],value:'',textContent:'',setAttribute(){},addEventListener(){},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;}});
+ const document={visibilityState:'visible',getElementById(id){if(!nodes.has(id))nodes.set(id,node());return nodes.get(id);},createElement:node,querySelectorAll:()=>[],addEventListener(type,fn){(documentListeners[type]||=[]).push(fn);}};
+ const reservation={id:'test',state:'active',deliveryStatus:'pending',match:{startsAt:new Date(now+10000).toISOString(),teams:[{name:'A'},{name:'B'}]}};
+ const state={ready:true,enabled:true,pending:false,deviceEnabled:true,reservations:[reservation]};
+ const cloud={boot:()=>new Promise(()=>{}),api:()=>{networkCalls++;throw Error('local interval must not request data');}};
+ const window={EventsModel:{},EventReminders:{state},addEventListener(type,fn){(windowListeners[type]||=[]).push(fn);}};
+ const context={window,document,Cloud:cloud,Intl,URL,URLSearchParams,Date:class extends Date{static now(){return now;}},setInterval(fn,ms){assert.equal(ms,15000);const id=++sequence;intervals.set(id,fn);return id;},clearInterval(id){intervals.delete(id);},setTimeout(){throw Error('local status updates must not schedule requests');},clearTimeout(){}};
+ vm.runInNewContext(script,context);
+ const text=element=>element.textContent+element.children.map(text).join('');
+ const tick=()=>{now+=15000;for(const fn of [...intervals.values()])fn();};
+ const dispatch=(listeners,type,event={})=>{for(const fn of listeners[type]||[])fn({type,...event});};
+ assert.equal(intervals.size,1);assert.match(text(nodes.get('eventsReservations')),/已预约/);
+ tick();assert.match(text(nodes.get('eventsReservations')),/已到预定开赛时间.*正在核实/);
+ assert.equal(networkCalls,0);assert.equal(state.reservations[0].state,'active','a clock tick does not synthesize a verified notification');
+ document.visibilityState='hidden';reservation.match.startsAt=new Date(now+60000).toISOString();
+ tick();assert.match(text(nodes.get('eventsReservations')),/已到预定开赛时间/,'hidden pages do not redraw');
+ document.visibilityState='visible';dispatch(documentListeners,'visibilitychange');
+ assert.match(text(nodes.get('eventsReservations')),/已预约/);
+ dispatch(windowListeners,'pagehide',{persisted:true});assert.equal(intervals.size,0);
+ now+=120000;dispatch(windowListeners,'pageshow',{persisted:true});assert.equal(intervals.size,1);
+ assert.match(text(nodes.get('eventsReservations')),/已到预定开赛时间/);
+ dispatch(windowListeners,'pageshow',{persisted:true});assert.equal(intervals.size,1,'restore does not duplicate timers');
+ tick();assert.equal(networkCalls,0,'periodic render and lifecycle restoration never fetch the events API');
 });
 
 test('Bot events API combines filters, preserves Beijing date boundaries and caps results without using query tasks',async()=>{

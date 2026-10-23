@@ -11,6 +11,16 @@
   let promise;try{promise=action();}catch(error){promise=Promise.reject(error);}
   Promise.resolve(promise).catch(error=>{if(reminderState())reminderState().error=error.message;$('eventsRemindersError').textContent=error.message;$('eventsRemindersError').hidden=false;});
  }
+ function reservationStatus(r,now=Date.now()){
+  if(r.deliveryStatus==='sent')return '系统推送服务已接收提醒，设备是否展示取决于通知设置。';
+  if(r.deliveryStatus==='failed')return '站内提醒已生成；系统推送失败，请检查通知设置，服务器会在有效期内重试。';
+  if(r.deliveryStatus==='unavailable')return r.state==='notified'?'站内提醒已生成；暂无可用的系统通知设备。':'已预约；暂无可用的系统通知设备。';
+  if(r.state==='notified')return '站内提醒已生成；系统推送待确认。';
+  const start=Date.parse(r.match?.startsAt);
+  if(Number.isFinite(start)&&start<=now)return '已到预定开赛时间，正在核实赛程与提醒状态。';
+  if(r.state==='unverified')return '赛程待核实';
+  return r.changed?'赛程已变更，请核对开赛时间。':'已预约';
+ }
  function renderReminders(){
   const s=reminderState(),ready=s?.ready,list=$('eventsReservations'),enable=$('eventsEnableNotifications');
   list.setAttribute('aria-busy',String(!ready));list.replaceChildren();
@@ -26,7 +36,7 @@
    copy.append(element('strong','',teams||'待确认比赛'));
    const starts=Date.parse(match.startsAt),parts=[Number.isFinite(starts)?dateTime.format(new Date(starts)):'时间待定',match.tournament,match.region].filter(Boolean);
    copy.append(element('span','',parts.join(' · ')));
-   const status={active:r.changed?'赛程已变更，请核对开赛时间。':'已预约',notified:'已发送开赛提醒',unverified:'赛程待核实'}[r.state]||'已预约';
+   const status=reservationStatus(r);
    copy.append(element('span','events-reservation-status',status));
    const cancel=element('button','','取消预约');cancel.type='button';cancel.disabled=!s.enabled||s.pending;cancel.setAttribute('aria-label','取消预约 '+(teams||'待确认比赛'));cancel.onclick=()=>reminderAction(()=>reminders().cancel(r.id));
    item.append(copy,cancel);list.append(item);
@@ -107,6 +117,15 @@
  $('eventsClear').onclick=()=>{$('eventsFilters').reset();queryChanged();render();};
  document.querySelectorAll('[data-view]').forEach(button=>button.onclick=()=>{setView(button.dataset.view);render();});
  $('eventsRefresh').onclick=()=>refresh();
+ // Update scheduled-time labels even when the reminder API is unavailable.
+ // This never creates a notice or claims that an unverified match is live.
+ let statusTimer;
+ const updateTimeStatus=()=>{if(document.visibilityState==='visible'){renderReminders();render();}};
+ const startStatusTimer=()=>{clearInterval(statusTimer);statusTimer=setInterval(updateTimeStatus,15000);updateTimeStatus();};
+ document.addEventListener('visibilitychange',updateTimeStatus);
+ window.addEventListener('pagehide',()=>clearInterval(statusTimer));
+ window.addEventListener('pageshow',startStatusTimer);
+ startStatusTimer();
  renderReminders();
  Cloud.boot().then(async()=>{await refresh(false);if(!scope().get('from')&&scope().get('series')==='owcs')await refresh();}).catch(()=>{});
 })();

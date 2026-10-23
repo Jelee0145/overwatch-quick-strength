@@ -15,41 +15,45 @@
   }catch{return null;}
  }
  const key=name=>'owqs:reminders:'+encodeURIComponent(userId)+':'+name;
- function readSeen(){try{return JSON.parse(localStorage.getItem(key('seen'))||'{}')||{};}catch{return {};}}
+ const memorySeen=Object.create(null);
+ function readSeen(){try{const saved=JSON.parse(localStorage.getItem(key('seen'))||'{}');return {...(saved&&typeof saved==='object'?saved:{}),...memorySeen};}catch{return {...memorySeen};}}
  function showNotice(item){
   const url=safeUrl(item.url),node=document.createElement('aside');node.className='event-reminder-toast';node.setAttribute('role','status');node.setAttribute('aria-label','即将开赛');
-  const title=document.createElement(url?'a':'strong');title.textContent='即将开赛';title.className='event-reminder-toast-title';if(url){title.href=url;title.target='_blank';title.rel='noopener noreferrer';}
+  const title=document.createElement(url?'a':'strong');title.textContent=item.count>1?`${item.count} 条开赛提醒`:Number.isFinite(item.createdAt)&&Date.now()-item.createdAt>5*60000?'开赛提醒（补提醒）':'即将开赛';title.className='event-reminder-toast-title';if(url){title.href=url;title.target='_blank';title.rel='noopener noreferrer';}
   const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','关闭开赛提醒');
   const footer=document.createElement('div');footer.className='event-reminder-toast-countdown';
   footer.setAttribute('aria-hidden','true');node.append(title,close,footer);toast=node;let seconds=3;
   const dismiss=()=>{clearInterval(toastTimer);node.remove();if(toast===node)toast=null;};close.onclick=dismiss;
   document.body.append(node);toastTimer=setInterval(()=>{seconds--;if(seconds<=0)dismiss();},1000);
  }
- async function claim(item){
+ async function claim(item,batch=[item]){
   if(stopped||toast||document.visibilityState!=='visible'||!userId||!item?.id)return;
   const take=()=>{
    if(stopped||toast||document.visibilityState!=='visible')return;
    const seen=readSeen(),id=String(item.id);if(Object.prototype.hasOwnProperty.call(seen,id))return;
    const now=Date.now(),entries=Object.entries(seen).filter(([,t])=>Number(t)>now-30*86400000).sort((a,b)=>b[1]-a[1]).slice(0,999);
-   const next=Object.fromEntries(entries);Object.defineProperty(next,id,{value:now,enumerable:true});
-   // Persist before showing: unavailable storage must not create a toast in every tab.
-   try{localStorage.setItem(key('seen'),JSON.stringify(next));}catch{return;}
-   showNotice(item);
+   const next=Object.fromEntries(entries),unseen=batch.filter(n=>n?.id&&!Object.prototype.hasOwnProperty.call(seen,String(n.id)));
+   for(const notice of unseen){const noticeId=String(notice.id);Object.defineProperty(next,noticeId,{value:now,enumerable:true});memorySeen[noticeId]=now;}
+   // Private browsing/storage limits must not silently discard in-page reminders.
+   // Without shared storage, deduplication is necessarily limited to this tab.
+   try{localStorage.setItem(key('seen'),JSON.stringify(next));}catch{/* Use memorySeen. */}
+   showNotice({...item,count:unseen.length,url:unseen.length>1?'/tools/events':item.url});
   };
   if(navigator.locks?.request){await navigator.locks.request(key('notice-lock'),take);return;}
   // Older browsers use a short storage lease, followed by ownership verification.
   const leaseKey=key('lease');let lease;
   try{lease=JSON.parse(localStorage.getItem(leaseKey)||'null');if(lease?.until>Date.now())return;
    localStorage.setItem(leaseKey,JSON.stringify({owner:tabId,until:Date.now()+2000}));
-  }catch{return;}
+  }catch{take();return;}
   await new Promise(resolve=>setTimeout(resolve,80+Math.random()*80));
   try{if(JSON.parse(localStorage.getItem(leaseKey)||'null')?.owner!==tabId)return;take();
    if(JSON.parse(localStorage.getItem(leaseKey)||'null')?.owner===tabId)localStorage.removeItem(leaseKey);
-  }catch{/* No persistent storage means no cross-tab claim. */}
+  }catch{take();}
  }
  async function deliver(){
   if(!state.enabled||toast||stopped||document.visibilityState!=='visible')return;
-  for(const item of state.notices){await claim(item);if(toast)break;}
+  const seen=readSeen(),unseen=state.notices.filter(item=>item?.id&&!Object.prototype.hasOwnProperty.call(seen,String(item.id))).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(unseen.length)await claim(unseen[0],unseen);
  }
  function schedule(){clearTimeout(timer);if(!stopped)timer=setTimeout(()=>{void refresh().catch(()=>{});},document.visibilityState==='visible'?15000:60000);}
  async function getRegistration(){
@@ -127,5 +131,6 @@
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){void refresh().catch(()=>{});void deliver();}else schedule();});
  window.addEventListener('storage',event=>{if(userId&&event.key===key('seen'))void deliver();});
  navigator.serviceWorker?.addEventListener('message',event=>{if(event.data?.type==='owqs:reminders:poll')void refresh().catch(()=>{});});
- window.addEventListener('pagehide',event=>{if(!event.persisted){stopped=true;clearTimeout(timer);clearInterval(toastTimer);toast?.remove();}});
+ window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(timer);clearInterval(toastTimer);toast?.remove();toast=null;});
+ window.addEventListener('pageshow',()=>{stopped=false;void refresh().catch(()=>{});});
 })();

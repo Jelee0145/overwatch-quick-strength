@@ -146,7 +146,7 @@ function createPage(options = {}) {
   const origin = options.origin || ORIGIN;
   const clock = options.clock || createClock();
   const storage = options.storage || createStorage();
-  const locks = options.locks || createLocks();
+  const locks = options.locks === false ? undefined : options.locks || createLocks();
   const document = createDocument(options.visibility || 'visible');
   const apiCalls = [];
   const page = {storage, locks, clock, document, apiCalls, notices: options.notices || []};
@@ -241,6 +241,7 @@ function createPage(options = {}) {
   vm.createContext(sandbox);
   vm.runInContext(FRONTEND, sandbox, {filename: 'web/event-reminders.js'});
   page.reminders = sandbox.window.EventReminders;
+  page.dispatchWindow = (type, properties = {}) => window.dispatchEvent({type, ...properties});
   return page;
 }
 
@@ -398,6 +399,93 @@ test('a hidden page does not claim a notice until it becomes visible', async () 
   assert.equal(page.document.body.children.length, 1);
   const seen = JSON.parse(page.storage.getItem('owqs:reminders:user-1:seen'));
   assert.deepEqual(Object.keys(seen), ['hidden-notice']);
+});
+
+test('unavailable local storage falls back to per-tab memory, with and without Web Locks', async () => {
+  for (const locks of [createLocks(), false]) {
+    const storage = {
+      getItem() { throw Error('Storage blocked'); },
+      setItem() { throw Error('Storage blocked'); },
+      removeItem() { throw Error('Storage blocked'); }
+    };
+    const page = createPage({storage, locks, notices: [{id: 'memory-only', url: '/tools/events'}]});
+    await page.reminders.getReady();
+    assert.equal(page.document.body.children.length, 1);
+    page.clock.advance(3000);
+    await page.reminders.refresh();
+    assert.equal(page.document.body.children.length, 0, 'the same notice does not replay in this tab');
+  }
+});
+
+test('quota errors writing the seen set do not suppress a notice', async () => {
+  const storage = createStorage();
+  storage.setItem = () => { throw Error('Quota exceeded'); };
+  const page = createPage({storage, notices: [{id: 'quota-notice', url: '/tools/events'}]});
+  await page.reminders.getReady();
+  assert.equal(page.document.body.children.length, 1);
+  page.clock.advance(3000);
+  await page.reminders.refresh();
+  assert.equal(page.document.body.children.length, 0);
+});
+
+test('pagehide suspends polling and pageshow resumes with a fresh backend read', async () => {
+  const page = createPage();
+  await page.reminders.getReady();
+  const before = page.apiCalls.length;
+  page.dispatchWindow('pagehide', {persisted: true});
+  page.notices = [{id: 'returned-notice', url: '/tools/events'}];
+  page.clock.advance(60000);
+  await settle();
+  assert.equal(page.apiCalls.length, before);
+  assert.equal(page.document.body.children.length, 0);
+  page.dispatchWindow('pageshow', {persisted: true});
+  await settle();
+  assert.ok(page.apiCalls.length > before);
+  assert.equal(page.document.body.children.length, 1);
+  page.clock.advance(15000);
+  await settle();
+  assert.equal(page.document.body.children.length, 0, 'returning does not replay a seen notice');
+});
+
+test('retained notices are summarized once instead of replaying a backlog of toasts', async () => {
+  const page = createPage({notices: [
+    {id: 'old-1', createdAt: 100000, url: 'https://twitch.tv/one'},
+    {id: 'old-2', createdAt: 200000, url: 'https://twitch.tv/two'}
+  ]});
+  await page.reminders.getReady();
+  const toast = page.document.body.children[0];
+  assert.deepEqual(textsOf(toast), ['2 条开赛提醒', '×']);
+  assert.equal(toast.children[0].href, ORIGIN + '/tools/events');
+  assert.deepEqual(Object.keys(JSON.parse(page.storage.getItem('owqs:reminders:user-1:seen'))).sort(), ['old-1', 'old-2']);
+  page.clock.advance(3000);
+  await page.reminders.refresh();
+  assert.equal(page.document.body.children.length, 0);
+});
+
+test('a delayed retained notice is labeled as a catch-up reminder', async () => {
+  const page = createPage({notices: [{id: 'late', createdAt: 100000, url: '/tools/events'}]});
+  await page.reminders.getReady();
+  assert.deepEqual(textsOf(page.document.body.children[0]), ['开赛提醒（补提醒）', '×']);
+});
+
+test('reservation status distinguishes generated notices from push acceptance and unverified due times', () => {
+  const events = fs.readFileSync(new URL('../web/events.js', import.meta.url), 'utf8');
+  const statusFunction = events.match(/ function reservationStatus\(r,now=Date\.now\(\)\)\{[\s\S]*?\n \}/)?.[0];
+  assert.ok(statusFunction);
+  const sandbox = {};
+  vm.createContext(sandbox);
+  vm.runInContext(statusFunction + ';globalThis.statusFor=reservationStatus;', sandbox);
+  const pending = {state: 'notified', deliveryStatus: 'pending'};
+  assert.match(sandbox.statusFor(pending, 1000), /站内提醒已生成.*系统推送待确认/);
+  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'sent'}, 1000), /推送服务已接收.*设备是否展示/);
+  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'failed'}, 1000), /系统推送失败/);
+  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'unavailable'}, 1000), /站内提醒已生成.*暂无可用/);
+  const withoutDevice = sandbox.statusFor({state: 'active', deliveryStatus: 'unavailable', match: {startsAt: new Date(2000).toISOString()}}, 1000);
+  assert.equal(withoutDevice, '已预约；暂无可用的系统通知设备。');
+  assert.doesNotMatch(withoutDevice, /已生成/);
+  assert.doesNotMatch(sandbox.statusFor({state: 'unverified', deliveryStatus: 'unavailable'}, 1000), /已生成/);
+  assert.match(sandbox.statusFor({state: 'active', match: {startsAt: new Date(500).toISOString()}}, 1000), /已到预定开赛时间.*正在核实/);
+  assert.equal(sandbox.statusFor({state: 'active', match: {startsAt: new Date(2000).toISOString()}}, 1000), '已预约');
 });
 
 test('the service worker uses a fixed title without a body and falls back on unsafe click URLs', async () => {

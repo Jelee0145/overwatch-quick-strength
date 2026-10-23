@@ -6,7 +6,7 @@ import path from 'node:path';
 export class SqliteDatabase{
  constructor(filename){
   if(filename!==':memory:'){mkdirSync(path.dirname(filename),{recursive:true,mode:0o700});}
-  this.db=new DatabaseSync(filename);this.chain=Promise.resolve();
+  this.db=new DatabaseSync(filename);this.chain=Promise.resolve();this.alarmRevisions=new Map();
   this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;
    CREATE TABLE IF NOT EXISTS kv(ns TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(ns,key));
    CREATE TABLE IF NOT EXISTS blobs(ns TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(ns,key));
@@ -30,7 +30,14 @@ export class SqliteStorage{
  putBlob(key,value){const body=JSON.stringify(value);return this.run(()=>this.database.db.prepare('INSERT OR REPLACE INTO blobs VALUES(?,?,?)').run(this.ns,key,body));}
  deleteBlob(key){return this.run(()=>this.database.db.prepare('DELETE FROM blobs WHERE ns=? AND key=?').run(this.ns,key));}
  getAlarm(){return this.run(()=>this.database.db.prepare('SELECT at FROM alarms WHERE ns=?').get(this.ns)?.at??null);}
- setAlarm(at){return this.run(()=>this.database.db.prepare('INSERT OR REPLACE INTO alarms VALUES(?,?)').run(this.ns,Number(at)));}
- deleteAlarm(){return this.run(()=>this.database.db.prepare('DELETE FROM alarms WHERE ns=?').run(this.ns));}
+ alarmRevision(){return this.database.alarmRevisions.get(this.ns)||0;}
+ clearUnchangedAlarm(at,revision){return this.run(()=>{
+  if(this.alarmRevision()!==revision)return false;
+  const result=this.database.db.prepare('DELETE FROM alarms WHERE ns=? AND at=?').run(this.ns,Number(at));
+  if(result.changes)this.database.alarmRevisions.set(this.ns,this.alarmRevision()+1);
+  return !!result.changes;
+ });}
+ setAlarm(at){return this.run(()=>{const result=this.database.db.prepare('INSERT OR REPLACE INTO alarms VALUES(?,?)').run(this.ns,Number(at));this.database.alarmRevisions.set(this.ns,this.alarmRevision()+1);return result;});}
+ deleteAlarm(){return this.run(()=>{const result=this.database.db.prepare('DELETE FROM alarms WHERE ns=?').run(this.ns);this.database.alarmRevisions.set(this.ns,this.alarmRevision()+1);return result;});}
  transaction(fn){if(this.inTransaction)return fn(this);return this.database.exclusive(async()=>{this.database.db.exec('BEGIN IMMEDIATE');try{const value=await fn(this.database.store(this.ns,true));this.database.db.exec('COMMIT');return value;}catch(error){this.database.db.exec('ROLLBACK');throw error;}});}
 }

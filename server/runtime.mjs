@@ -19,8 +19,10 @@ export function createRuntime(config,{filename,assets,upstreamFetch=fetch,events
  env.AUTH={idFromName:()=> 'auth',get:()=>({fetch:(input,init)=>instance('auth').fetch(new Request(input,init))})};
  env.TASKS={idFromName:id=>'tasks:'+id,get:ns=>({fetch:(input,init)=>instance(ns).fetch(new Request(input,init))})};
  env.EVENTS={idFromName:()=> 'events',get:()=>({fetch:(input,init)=>instance('events').fetch(new Request(input,init))})};
+ const ready=env.REMINDERS.recover();
  let closed=false;
  async function tick(){
+  await ready;
   if(closed)return;
   for(const {ns} of await database.due()){
    if(running.has(ns)||running.size>=4)continue;
@@ -28,14 +30,18 @@ export function createRuntime(config,{filename,assets,upstreamFetch=fetch,events
     const storage=database.store(ns),lease=Date.now()+60000;
     // Leave a durable lease before dispatch, so a killed process resumes on restart.
     await storage.setAlarm(lease);
-    try{await instance(ns).alarm();if(await storage.getAlarm()===lease)await storage.deleteAlarm();}catch{await storage.setAlarm(Date.now()+5000);console.error('Background task failed; scheduled retry');}
+    const leaseRevision=storage.alarmRevision();
+    // A handler may deliberately reschedule to exactly the lease timestamp.
+    // Timestamp equality does not mean the alarm was left untouched.
+    try{await instance(ns).alarm();await storage.clearUnchangedAlarm(lease,leaseRevision);}catch{await storage.setAlarm(Date.now()+5000);console.error('Background task failed; scheduled retry');}
    })();running.set(ns,work);work.finally(()=>running.delete(ns));
   }
  }
  const timer=setInterval(()=>tick().catch(()=>console.error('Task scheduler unavailable')),250);timer.unref();
- return {env,database,instance,tick,async startEvents(){
+ return {env,database,instance,tick,ready,async startEvents(){
+  await ready;
   if(running.has('events'))return running.get('events');
   const work=instance('events').alarm();running.set('events',work);
   try{await work;}finally{running.delete('events');}
- },async close(){closed=true;clearInterval(timer);await Promise.all(running.values());await database.close();}};
+ },async close(){closed=true;clearInterval(timer);try{await ready;await Promise.all(running.values());}finally{await database.close();}}};
 }

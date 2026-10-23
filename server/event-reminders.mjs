@@ -4,6 +4,17 @@ import {broadcastsFor} from '../src/events-broadcasts.mjs';
 import {validateSubscription} from './web-push.mjs';
 
 const MINUTE=60000,DAY=86400000;
+const retainNotices=(notices,now)=>notices.filter(n=>Number.isFinite(n.createdAt)&&now-n.createdAt<DAY).slice(-100);
+function pushFailure(error,now){
+ const status=Number(error?.statusCode),code=Number.isInteger(status)&&status>=400&&status<=599?'http':error?.name==='TimeoutError'||error?.name==='AbortError'?'timeout':'network';
+ return {code,at:now,...(code==='http'?{statusCode:status}:{})};
+}
+function deliveryView(r,account,enabled,now){
+ const deliveryCount=Object.values(r.deliveries||{}).filter(Boolean).length;
+ const eligible=Object.values(account.subscriptions).some(d=>!r.notifiedAt||d.enabledAt<=r.notifiedAt);
+ const expired=r.notifiedAt&&(r.finished||now-Date.parse(r.notifiedStartsAt)>5*MINUTE);
+ return {deliveryStatus:deliveryCount?'sent':r.deliveryFailure||expired?'failed':!enabled||!eligible||r.finished&&!r.notifiedAt?'unavailable':'pending',deliveryCount,deliveryFailure:r.deliveryFailure||null};
+}
 const hash=value=>createHash('sha256').update(value).digest('hex');
 // Time is mutable. Repeated pairings within a stage are deliberately ineligible.
 export function matchIdentity(match){
@@ -14,6 +25,13 @@ export class EventReminders{
  constructor(storage,env,{send,publicKey='',now=()=>Date.now()}={}){this.storage=storage;this.env=env;this.send=send;this.publicKey=publicKey;this.now=now;this.chain=Promise.resolve();}
  exclusive(fn){const p=this.chain.then(fn);this.chain=p.catch(()=>{});return p;}
  async state(){return await this.storage.get('state')||{catalog:{},users:{},checked:{}};}
+ recover(){return this.exclusive(async()=>{
+  const state=await this.state(),now=this.now();
+  for(const account of Object.values(state.users))account.notices=retainNotices(account.notices,now);
+  await this.save(state);
+  // Recover missing alarms without making network requests or replaying old notices.
+  if(Object.values(state.users).some(u=>Object.values(u.reservations).some(r=>!r.finished)))await this.storage.setAlarm(now);
+ });}
  async save(state){await this.storage.put('state',state);await this.schedule(state);}
  async schedule(state){
   const now=this.now(),active=Object.values(state.users).flatMap(u=>Object.values(u.reservations)).filter(r=>!r.finished);
@@ -58,9 +76,9 @@ export class EventReminders{
   }else if(action==='cancel'){
    delete account.reservations[body.id];account.notices=account.notices.filter(n=>n.matchId!==body.id);
   }else if(action!=='list')throw new Fault('接口不存在',404);
-  account.notices=account.notices.filter(n=>this.now()-n.createdAt<3*MINUTE);
+  account.notices=retainNotices(account.notices,this.now());
   await this.save(state);
-  return {enabled:!!this.send,publicKey:this.publicKey,deviceCount:Object.keys(account.subscriptions).length,deliveryReady:!!this.send&&Object.keys(account.subscriptions).length>0,reservations:Object.values(account.reservations).map(r=>{const entry=state.catalog[r.id];return {id:r.id,match:entry?.match,changed:r.originalStartsAt!==entry?.match.startsAt,state:r.finished?'completed':r.notifiedAt?'notified':!entry?.checkedAt||entry.ambiguous?'unverified':'active'};}),notices:account.notices};
+  return {enabled:!!this.send,publicKey:this.publicKey,deviceCount:Object.keys(account.subscriptions).length,deliveryReady:!!this.send&&Object.keys(account.subscriptions).length>0,reservations:Object.values(account.reservations).map(r=>{const entry=state.catalog[r.id];return {id:r.id,...deliveryView(r,account,!!this.send,this.now()),match:entry?.match,changed:r.originalStartsAt!==entry?.match.startsAt,state:r.finished?'completed':r.notifiedAt?'notified':!entry?.checkedAt||entry.ambiguous?'unverified':'active'};}),notices:account.notices};
  });}
  alarm(){return this.exclusive(async()=>{
   const state=await this.state(),now=this.now(),ids=new Set(Object.values(state.users).flatMap(u=>Object.values(u.reservations).filter(r=>!r.finished).map(r=>r.id)));
@@ -75,23 +93,30 @@ export class EventReminders{
    }catch{/* Preserve reservations and retry after the shared source backoff. */}
   }
   for(const account of Object.values(state.users)){
-   account.notices=account.notices.filter(n=>now-n.createdAt<3*MINUTE);
+   account.notices=retainNotices(account.notices,now);
    for(const r of Object.values(account.reservations)){
     const entry=state.catalog[r.id];if(!entry||r.finished)continue;
     if(entry.match.status==='completed'){r.finished=true;r.finishedAt=now;continue;}
     const start=Date.parse(entry.match.startsAt);
     if((Number.isFinite(start)&&now-start>DAY)||(!Number.isFinite(start)&&now-r.createdAt>14*DAY)){r.finished=true;r.finishedAt=now;continue;}
-    if(r.notifiedAt&&r.notifiedStartsAt!==entry.match.startsAt&&start>now){r.notifiedAt=null;r.noticeId=null;r.deliveries={};account.notices=account.notices.filter(n=>n.matchId!==r.id);}
+    if(r.notifiedAt&&r.notifiedStartsAt!==entry.match.startsAt&&start>now){r.notifiedAt=null;r.noticeId=null;r.deliveries={};delete r.deliveryFailure;account.notices=account.notices.filter(n=>n.matchId!==r.id);}
     if(entry.ambiguous||!entry.checkedAt||now-entry.checkedAt>3*MINUTE||!Number.isFinite(start)||start>now||entry.checkedAt<start)continue;
     // Never replay old reminders after a long outage.
     if(now-start>5*MINUTE){r.finished=true;r.finishedAt=now;continue;}
-    if(!r.notifiedAt){r.notifiedAt=now;r.notifiedStartsAt=entry.match.startsAt;r.noticeId=randomUUID();account.notices.push({id:r.noticeId,matchId:r.id,url:broadcastsFor(entry.match)[0]?.url||'/tools/events',createdAt:now});}
+    if(!r.notifiedAt){r.notifiedAt=now;r.notifiedStartsAt=entry.match.startsAt;r.noticeId=randomUUID();account.notices.push({id:r.noticeId,matchId:r.id,url:broadcastsFor(entry.match)[0]?.url||'/tools/events',createdAt:now});account.notices=retainNotices(account.notices,now);}
     const payload={id:r.noticeId,title:'即将开赛',url:broadcastsFor(entry.match)[0]?.url||'/tools/events',tag:'owqs-match-'+r.id};
     // Persist the notice before outbound work; successful endpoints survive restarts.
     await this.storage.put('state',state);
     for(const [key,device] of Object.entries(account.subscriptions)){
+     if(this.now()-start>5*MINUTE)break;
      if(r.deliveries[key]||device.enabledAt>r.notifiedAt||!this.send)continue;
-     try{const result=await this.send(device.value,payload);if(result?.expired)delete account.subscriptions[key];else r.deliveries[key]=true;await this.storage.put('state',state);}catch{/* Retry during the short notification delivery window. */}
+     try{
+      const result=await this.send(device.value,payload);
+      if(result?.expired){delete account.subscriptions[key];r.deliveryFailure={code:'expired',at:this.now()};console.warn(JSON.stringify({event:'event_reminder_push_failed',...r.deliveryFailure}));}
+      else{r.deliveries[key]=true;delete r.deliveryFailure;}
+     }catch(error){r.deliveryFailure=pushFailure(error,this.now());console.warn(JSON.stringify({event:'event_reminder_push_failed',...r.deliveryFailure}));}
+     // Persist only an allowlisted failure category, never provider text or device URLs.
+     await this.storage.put('state',state);
     }
    }
   }
