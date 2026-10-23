@@ -32,7 +32,7 @@ test('list polling cannot postpone scheduled work and failed final verification 
  }finally{await c.db.close();}
 });
 test('stable identity can reserve after list time changes and malformed subscriptions return a client error',async()=>{
- const c=setup();try{await assert.rejects(c.service.handle('u','subscribe',{subscription:{}}),e=>e.status===400);await c.service.decorate([match()]);const [m]=await c.service.decorate([match()]);c.setTime(base+1000);await c.service.alarm();await c.service.decorate([match(base+300000)]);assert.equal((await c.service.handle('u','reserve',{matchId:m.reminderId})).reservations.length,1);}finally{await c.db.close();}
+ const c=setup();try{await assert.rejects(c.service.handle('u','subscribe',{subscription:{}}),e=>e.status===400);await c.service.handle('u','subscribe',{subscription:subscription('a')});const [m]=await c.service.decorate([match()]);c.setTime(base+1000);await c.service.alarm();await c.service.decorate([match(base+300000)]);assert.equal((await c.service.handle('u','reserve',{matchId:m.reminderId})).reservations.length,1);}finally{await c.db.close();}
 });
 test('account reservations can precede a device and report delivery readiness independently',async()=>{
  const c=setup();try{
