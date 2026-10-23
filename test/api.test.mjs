@@ -23,6 +23,43 @@ async function createKey(ctx,register){
  const result=await internal(ctx.dir,'/api-key',{action:'regenerate'},{userToken:register.token,csrf:register.csrf,mutation:true});
  assert.equal(result.r.status,200);return result.v.key;
 }
+test('API key login issues a normal secure cookie session without exposing the key',async()=>{
+ const ctx=await setup(),user=await approve(ctx),key=await createKey(ctx,user);
+ for(const path of ['/api/auth/login','/api/v1/auth/login']){
+  const response=await api(ctx,path,{method:'POST',body:{apiKey:key},headers:{Origin:'https://site.test'}}),value=await response.json();
+  assert.equal(response.status,200);assert.equal(value.user.id,user.user.id);assert.ok(value.csrf);assert.equal(value.token,undefined);assert.ok(!JSON.stringify(value).includes(key));
+  const cookie=response.headers.get('set-cookie');assert.match(cookie,/^qs_session=/);assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);
+  const session=await api(ctx,'/api/auth/session',{headers:{Cookie:cookie.split(';')[0]}});assert.equal(session.status,200);assert.equal((await session.json()).user.id,user.user.id);
+  const logout=await api(ctx,'/api/auth/logout',{method:'POST',body:{},headers:{Cookie:cookie.split(';')[0],Origin:'https://site.test','X-CSRF-Token':value.csrf}});assert.equal(logout.status,200);
+  assert.equal((await api(ctx,'/api/auth/session',{headers:{Cookie:cookie.split(';')[0]}})).status,401);
+ }
+ assert.equal((await api(ctx,'/api/auth/login',{method:'POST',body:{apiKey:key},headers:{Origin:'https://evil.test'}})).status,403);
+});
+test('API key login rejects invalid, rotated, and unauthorized credentials and preserves password login',async()=>{
+ const ctx=await setup(),user=await approve(ctx),old=await createKey(ctx,user),key=await createKey(ctx,user);
+ for(const apiKey of ['',null,123,{},'x'.repeat(101),'owqs_invalid',old])assert.equal((await internal(ctx.dir,'/login',{apiKey})).r.status,401);
+ assert.equal((await internal(ctx.dir,'/login',{email:user.user.email,password:'player-password'})).r.status,200);
+ const record=await ctx.storage.get('user:'+user.user.id);
+ for(const status of ['pending','rejected','revoked']){await ctx.storage.put('user:'+record.id,{...record,status});assert.equal((await internal(ctx.dir,'/login',{apiKey:key})).r.status,403);}
+ await ctx.storage.put('user:'+record.id,record);
+ assert.equal((await internal(ctx.dir,'/login',{apiKey:key})).v.user.id,record.id);
+});
+test('rotating an API key invalidates its browser sessions but preserves password sessions',async()=>{
+ const ctx=await setup(),user=await approve(ctx),key=await createKey(ctx,user);
+ const login=await internal(ctx.dir,'/login',{apiKey:key});assert.equal(login.r.status,200);
+ await createKey(ctx,user);
+ assert.equal((await internal(ctx.dir,'/session',{}, {userToken:login.v.token})).r.status,401);
+ assert.equal((await internal(ctx.dir,'/session',{}, {userToken:user.token})).r.status,200);
+});
+
+test('API key login is rate limited by account and source IP',async()=>{
+ const ctx=await setup(),user=await approve(ctx),key=await createKey(ctx,user);
+ for(let n=0;n<8;n++)assert.equal((await internal(ctx.dir,'/login',{apiKey:key},{ip:'account-'+n})).r.status,200);
+ assert.equal((await internal(ctx.dir,'/login',{apiKey:key},{ip:'another-ip'})).r.status,429);
+ for(let n=0;n<20;n++)assert.equal((await internal(ctx.dir,'/login',{apiKey:'invalid'},{ip:'abusive-ip'})).r.status,401);
+ assert.equal((await internal(ctx.dir,'/login',{apiKey:key},{ip:'abusive-ip'})).r.status,429);
+});
+
 const api=(ctx,path,{method='GET',key,body,headers={}}={})=>worker.fetch(new Request('https://site.test'+path,{method,headers:{...(body?{'Content-Type':'application/json'}:{}),...(key?{Authorization:'Bearer '+key}:{}),...headers},body:body?JSON.stringify(body):undefined}),ctx.env);
 async function start(ctx,key,body={battletag:'Main#100',limit:5}){const response=await api(ctx,'/api/v1/query',{method:'POST',key,body}),value=await response.json();assert.equal(response.status,200);return value.id;}
 const taskFor=(ctx,user)=>{if(!ctx.tasks.has(user))ctx.tasks.set(user,new UserTasks({storage:new MemoryStorage()},ctx.env));return ctx.tasks.get(user);};

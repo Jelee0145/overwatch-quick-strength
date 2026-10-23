@@ -6,11 +6,19 @@ export class AuthDirectory{
  async fetch(request){const input=await request.json();const work=this.chain.then(()=>this.handle(input));this.chain=work.catch(()=>{});try{return json(await work);}catch(e){return json({error:e instanceof Fault?e.message:'登录服务暂不可用'},e.status||500);}}
  async init(){if(!await this.storage.get('policy'))await this.storage.put('policy',{...policy,approvedEmails:policy.approvedEmails.map(e=>email(e))});if(!await this.storage.getAlarm())await this.storage.setAlarm(Date.now()+3600000);}
  async rate(key,max=5){key='rate:'+await digest(key);const now=Date.now(),r=await this.storage.get(key);const next=r&&r.until>now?{...r,count:r.count+1}:{count:1,until:now+LIMIT_WINDOW};await this.storage.put(key,next);if(next.count>max)throw new Fault('操作频繁，请 15 分钟后再试',429);}
- async session(raw,admin=false){if(!raw)throw new Fault('请先登录',401);const s=await this.storage.get('session:'+await digest(raw));if(!s||s.until<Date.now()||s.admin!==admin)throw new Fault('登录已过期，请重新登录',401);if(!admin){const u=await this.storage.get('user:'+s.user);if(!u||u.version!==s.version)throw new Fault('登录已失效，请重新登录',401);return {...s,account:u};}return s;}
+ async session(raw,admin=false){if(!raw)throw new Fault('请先登录',401);const s=await this.storage.get('session:'+await digest(raw));if(!s||s.until<Date.now()||s.admin!==admin)throw new Fault('登录已过期，请重新登录',401);if(!admin){const u=await this.storage.get('user:'+s.user);if(!u||u.version!==s.version||(s.apiKeyDigest&&s.apiKeyDigest!==u.apiKey?.digest))throw new Fault('登录已失效，请重新登录',401);return {...s,account:u};}return s;}
  async authorize(input,admin=false,approved=true){const raw=admin?input.adminToken:input.userToken,s=await this.session(raw,admin);if(input.mutation&&input.csrf!==await mac({csrf:raw,admin},this.env.PASSWORD_PEPPER))throw new Fault('请求校验失败，请刷新页面',403);if(!admin&&approved&&s.account.status!=='approved')throw new Fault('账号尚未授权或授权已撤销',403);return s;}
- async issue(user,admin=false){const raw=token(),p=await this.storage.get('policy'),seconds=admin?p.adminSessionHours*3600:p.sessionDays*86400;const s={admin,user:user?.id||null,version:user?.version||0,until:Date.now()+seconds*1000};await this.storage.put('session:'+await digest(raw),s);return {token:raw,seconds,csrf:await mac({csrf:raw,admin},this.env.PASSWORD_PEPPER)};}
+ async issue(user,admin=false,apiKeyDigest=null){const raw=token(),p=await this.storage.get('policy'),seconds=admin?p.adminSessionHours*3600:p.sessionDays*86400;const s={admin,...(apiKeyDigest?{apiKeyDigest}:{}),user:user?.id||null,version:user?.version||0,until:Date.now()+seconds*1000};await this.storage.put('session:'+await digest(raw),s);return {token:raw,seconds,csrf:await mac({csrf:raw,admin},this.env.PASSWORD_PEPPER)};}
  view(u){return {id:u.id,email:u.email,status:u.status,createdAt:u.createdAt,updatedAt:u.updatedAt,queryDaily:u.queryDaily,aiDaily:u.aiDaily,resetRequestedAt:u.resetRequestedAt||null,apiKey:u.apiKey?{exists:true,createdAt:u.apiKey.createdAt,updatedAt:u.apiKey.updatedAt}:{exists:false}};}
  async audit(action,user){const key='audit:'+Date.now()+':'+token().slice(0,8);await this.storage.put(key,{action,user,at:new Date().toISOString()});}
+ async apiKeyAccount(raw){
+  if(typeof raw!=='string'||raw.length>100)throw new Fault('API 密钥无效',401);
+  const key=await digest(raw),userId=await this.storage.get('apikey:'+key);
+  const u=userId?await this.storage.get('user:'+userId):null;
+  if(!u||u.apiKey?.digest!==key)throw new Fault('API 密钥无效',401);
+  if(u.status!=='approved')throw new Fault('账号尚未授权或授权已撤销',403);
+  return u;
+ }
  async handle(i){await this.init();const b=i.body||{},p=await this.storage.get('policy');
   if(i.path==='/register'){
    await this.rate('register:'+i.ip,10);const address=email(b.email),id=await digest(address),key='user:'+id;
@@ -19,7 +27,12 @@ export class AuthDirectory{
    const u={id,email:address,password,status:p.approvedEmails.includes(address)?'approved':'pending',version:1,createdAt:now,updatedAt:now,queryDaily:p.queryDaily,aiDaily:p.aiDaily};await this.storage.put(key,u);return {...await this.issue(u),user:this.view(u)};
   }
   if(i.path==='/login'){
-   await this.rate('login-ip:'+i.ip,20);const id=await digest(email(b.email));await this.rate('login-user:'+id,8);const u=await this.storage.get('user:'+id);
+   await this.rate('login-ip:'+i.ip,20);
+   if(Object.hasOwn(b,'apiKey')){
+    const u=await this.apiKeyAccount(b.apiKey);await this.rate('login-user:'+u.id,8);
+    return {...await this.issue(u,false,u.apiKey.digest),user:this.view(u)};
+   }
+   const id=await digest(email(b.email));await this.rate('login-user:'+id,8);const u=await this.storage.get('user:'+id);
    // Spend the same KDF work for a non-existent account.
    const record=u?.password||{salt:'00000000000000000000000000000000',hash:'0'.repeat(64)};
    if(!await passwordOK(b.password,record,this.env.PASSWORD_PEPPER)||!u)throw new Fault('邮箱或密码错误',401);
@@ -64,10 +77,7 @@ export class AuthDirectory{
    return {key,createdAt:now};
   }
   if(i.path==='/api-key-auth'){
-   if(typeof b.key!=='string'||b.key.length>100)throw new Fault('API 密钥无效',401);
-   const key=await digest(b.key),userId=await this.storage.get('apikey:'+key);if(!userId)throw new Fault('API 密钥无效',401);
-   const u=await this.storage.get('user:'+userId);if(!u||u.apiKey?.digest!==key)throw new Fault('API 密钥无效',401);
-   if(u.status!=='approved')throw new Fault('账号尚未授权或授权已撤销',403);
+   const u=await this.apiKeyAccount(b.key);
    return {user:this.view(u),version:u.version,tier:u.tier==='free'?'free':'standard'};
   }
   if(i.path.startsWith('/admin/')){

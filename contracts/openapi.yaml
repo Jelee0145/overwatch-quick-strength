@@ -246,7 +246,15 @@ paths:
       responses:
         '200': {description: Legacy auth response; session cookie set when applicable}
   /auth/login:
-    post: *authWrite
+    post:
+      <<: *authWrite
+      summary: Sign in with email/password or a service API key
+      description: >-
+        Accepts either {email, password} or {apiKey} in the JSON body.
+        A service API key identifies its approved owner and issues the same
+        HttpOnly browser session and CSRF token as password login. The key
+        is never returned and must not be sent in a URL. Both credential
+        types share account and source-IP rate limits.
   /auth/reset/request:
     post: *authWrite
   /auth/reset/confirm:
