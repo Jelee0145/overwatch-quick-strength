@@ -1,6 +1,7 @@
 import {Fault} from './security.mjs';
 
 export const EVENT_SOURCE='https://liquipedia.net/overwatch/api.php';
+export const EVENT_SOURCE_VERSION=3;
 export const EVENT_LIMIT=200;
 const DAY=86400000;
 export function eventQuery(params){
@@ -18,15 +19,17 @@ export function eventApi({series='owcs',from='',to=''}={},limit=50){
   const stamp=ms=>new Date(ms).toISOString().slice(0,19).replace('T',' '),start=Date.parse(from+'T00:00:00+08:00'),end=Date.parse(to+'T00:00:00+08:00')+DAY;
   conditions+=' AND ([[date::>'+stamp(start)+']] OR [[date::'+stamp(start)+']]) AND [[date::<'+stamp(end)+']]';
  }
- const text=['upcoming','recent'].map(type=>'<div data-filter-expansion-template="#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'">{{#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'|limit='+limit+'|additionalConditions='+conditions+'}}</div>').join('\n');
- return EVENT_SOURCE+'?'+new URLSearchParams({action:'parse',text,contentmodel:'wikitext',prop:'text',format:'json',title:'Liquipedia:Matches'});
+ const text=['upcoming','recent'].map(type=>'<div data-filter-expansion-template="#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'">{{#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+(type==='upcoming'?'|upcoming=true|ongoing=true':'|completed=true')+'|limit='+limit+'|additionalConditions='+conditions+'}}</div>').join('\n');
+ // Ask HTTP caches to revalidate; this cannot force fresh Liquipedia DB/editor
+ // data and intentionally does not use random URLs or bypass the shared gate.
+ return EVENT_SOURCE+'?'+new URLSearchParams({action:'parse',text,contentmodel:'wikitext',prop:'text',format:'json',title:'Liquipedia:Matches',maxage:'0',smaxage:'0'});
 }
 export function trackedEventApi(source){
  let url;try{url=new URL(source);}catch{throw new Fault('赛事来源无效');}
  if(url.origin!=='https://liquipedia.net'||url.username||url.password||url.search||!url.pathname.startsWith('/overwatch/Overwatch_Champions_Series/')||!/^[A-Za-z0-9_\/-]+$/.test(url.pathname))throw new Fault('赛事来源无效');
  const page=decodeURIComponent(url.pathname.slice('/overwatch/'.length));
- const text=['upcoming','recent'].map(type=>'<div data-filter-expansion-template="type='+type+'">{{#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+'|limit=200|additionalConditions= AND [[pagename::'+page+']]}}</div>').join('\n');
- return EVENT_SOURCE+'?'+new URLSearchParams({action:'parse',text,contentmodel:'wikitext',prop:'text',format:'json',title:'Liquipedia:Matches'});
+ const text=['upcoming','recent'].map(type=>'<div data-filter-expansion-template="type='+type+'">{{#invoke:Lua|invoke|module=MatchTicker/Custom|fn=mainPage|type='+type+(type==='upcoming'?'|upcoming=true|ongoing=true':'|completed=true')+'|limit=200|additionalConditions= AND [[pagename::'+page+']]}}</div>').join('\n');
+ return EVENT_SOURCE+'?'+new URLSearchParams({action:'parse',text,contentmodel:'wikitext',prop:'text',format:'json',title:'Liquipedia:Matches',maxage:'0',smaxage:'0'});
 }
 export function splitEventRange(range){
  if(!range.from||range.from===range.to)return null;

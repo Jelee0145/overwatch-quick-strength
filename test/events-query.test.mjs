@@ -22,7 +22,7 @@ const stamp=date=>String(Date.parse(date)/1000);
 const history=days=>page('',days.map(day=>card({timestamp:stamp('2026-10-'+day+'T11:00:00Z'),teams:['Weibo Gaming','All Gamers'],scores:[3,0],finished:true})).join(''));
 function setup(fetcher,{snapshot=true}={}){
  const storage=new Storage(),env={EVENTS_CONTACT:'https://site.test',EVENTS_FETCH:fetcher},center=new EventCenter({storage},env);let now=Date.parse('2026-10-19T06:00:00Z');center.now=()=>now;
- if(snapshot)storage.map.set('snapshot',{matches:[],updatedAt:now,sourceVersion:2});
+ if(snapshot)storage.map.set('snapshot',{matches:[],updatedAt:now,sourceVersion:3});
  const query=(params='from=2026-10-01&to=2026-10-18')=>center.fetch(new Request('https://events.internal/?'+params));
  const owned=(params,owner,method='GET')=>center.fetch(new Request('https://events.internal/?'+params,{method,headers:{'X-OWQS-Event-User':owner}}));
  const app={...env,AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>Response.json({user:{id:'u'}})})},EVENTS:{idFromName:()=>'',get:()=>({fetch:(url,init)=>center.fetch(new Request(url,init))})},TASKS:{get:()=>{throw Error('No quota/task access permitted');}}};
@@ -109,7 +109,7 @@ test('date requests, manual refresh, cron and reminder tracking share recent-ref
   if(text.includes('pagename::Overwatch_Champions_Series/')){calls.track++;return response(page());}
   calls.recent++;return response(page());
  });
- await ctx.storage.put('snapshot',{matches:[],updatedAt:ctx.center.now()-3600000,sourceVersion:2});
+ await ctx.storage.put('snapshot',{matches:[],updatedAt:ctx.center.now()-3600000,sourceVersion:3});
  assert.equal((await ctx.owned('from=2026-10-01&to=2026-10-01','account-a')).status,202);
  const track=()=>ctx.center.fetch(new Request('https://events.internal/track?source='+encodeURIComponent(source),{method:'POST'}));
  assert.equal((await track()).status,503);
@@ -179,7 +179,7 @@ test('a concurrent refresh cannot release the source owner held by another reque
 
 test('failed range refresh preserves the successful dataset and persists Retry-After across restarts',async()=>{
  let fail=false,calls=0;const ctx=setup(async()=>{calls++;return fail?new Response('',{status:429,headers:{'Retry-After':'3600'}}):response(history(['03']));});
- const data=await (await ctx.query()).json();assert.equal(data.matches.length,1);ctx.advance(86400000);await ctx.storage.put('snapshot',{matches:[],updatedAt:ctx.center.now(),sourceVersion:2});fail=true;
+ const data=await (await ctx.query()).json();assert.equal(data.matches.length,1);ctx.advance(86400000);await ctx.storage.put('snapshot',{matches:[],updatedAt:ctx.center.now(),sourceVersion:3});fail=true;
  const stale=await (await ctx.query()).json();assert.equal(stale.matches.length,1);assert.equal(stale.stale,true);assert.equal(calls,2);
  const restarted=new EventCenter({storage:ctx.storage},ctx.env);restarted.now=ctx.center.now;await restarted.queries.work();assert.equal(calls,2);assert.ok(await ctx.storage.get('refreshAfter')>=ctx.center.now()+3600000);
 });

@@ -5,6 +5,11 @@ const has=(node,name)=>attr(node,'class').split(/\s+/).includes(name);
 const nodes=node=>[node,...(node.childNodes||[]).flatMap(nodes)];
 const text=node=>(node?.nodeName==='#text'?node.value:(node?.childNodes||[]).map(text).join('')).replace(/\s+/g,' ').trim();
 const first=(node,name)=>nodes(node).find(n=>has(n,name));
+const statusRank={scheduled:0,live:1,completed:2};
+function sourceIsLive(card,timer){
+ const flags=[attr(card,'data-status'),attr(card,'data-match-status'),attr(timer||{},'data-status')];
+ return flags.some(flag=>/^(?:live|ongoing|in-progress)$/i.test(flag))||has(card,'match-info-live')||has(card,'match-info--live')||/^(?:true|1)$/i.test(attr(card,'data-live'))||/^(?:true|1)$/i.test(attr(timer||{},'data-live'));
+}
 export function liquipediaLink(value){
  try{const u=new URL(value,'https://liquipedia.net');return u.protocol==='https:'&&u.hostname==='liquipedia.net'&&!u.username&&!u.password&&!u.port&&u.pathname.startsWith('/overwatch/')?u.href:null;}catch{return null;}
 }
@@ -45,13 +50,21 @@ export function parseEventBatch(html,{series='owcs'}={}){
    if(opponents.length!==2||!text(tournament))throw Error('赛事对阵格式已变化');
    const timer=first(card,'timer-object'),raw=attr(timer||{},'data-timestamp'),seconds=/^\d+$/.test(raw)?Number(raw):0;
    const startsAt=seconds>0&&Number.isFinite(seconds)&&seconds<253402300800?new Date(seconds*1000).toISOString():null;
-   const teams=opponents.map(team),scoreNodes=nodes(card).filter(n=>has(n,'match-info-header-scoreholder-score'));
-   const scores=teams.map((_,i)=>/^\d{1,3}$/.test(text(scoreNodes[i]))?Number(text(scoreNodes[i])):null);
-   const format=text(first(card,'match-info-header-scoreholder-lower')).match(/\bBo\s*(\d{1,2})\b/i);
-   const status=attr(section,'data-filter-expansion-template').includes('type=recent')||attr(timer||{},'data-finished')==='finished'?'completed':'scheduled';
+   // Series scores belong to the main match header, not map summaries/details.
+   // Liquipedia's legacy ticker and shared Match/Header widget use different
+   // score classes; neither missing scores nor placeholders mean zero.
+   const header=first(card,'match-info-header'),holder=first(header||{},'match-info-header-scoreholder')||first(header||{},'match-info-header-scoreholder-upper');
+   const teams=opponents.map(team),scoreNodes=nodes(holder||{}).filter(n=>has(n,'match-info-header-scoreholder-score')||has(n,'match-info-header-score'));
+   const scores=scoreNodes.length===2?scoreNodes.map(n=>/^\d{1,3}$/.test(text(n))?Number(text(n)):null):[null,null];
+   const format=['match-info-header-scoreholder-lower','match-info-header-scoreholder-upper','match-info-header-details'].map(name=>text(first(header||{},name))).join(' ').match(/\b(?:Bo|Best\s+of)\s*(\d{1,2})\b/i);
+   const status=attr(section,'data-filter-expansion-template').includes('type=recent')||attr(timer||{},'data-finished')==='finished'?'completed':sourceIsLive(card,timer)?'live':'scheduled';
    const id=[url,startsAt||'tbd',...teams.map(t=>t.name)].join('|');
    const match={id,startsAt,status,teams,scores,bestOf:format?Number(format[1]):null,tournament:text(tournament).slice(0,240),region:region(path),sourceUrl:url,series:path.startsWith('/overwatch/Overwatch_Champions_Series/')?'owcs':'other'};
-   if(seen.has(id)){if(status==='completed')matches[seen.get(id)]=match;continue;}
+   if(seen.has(id)){
+    const old=matches[seen.get(id)];
+    if(statusRank[status]>statusRank[old.status]||old.status===status&&scores.filter(Number.isFinite).length>old.scores.filter(Number.isFinite).length)matches[seen.get(id)]=match;
+    continue;
+   }
    seen.set(id,matches.length);matches.push(match);
   }
  }

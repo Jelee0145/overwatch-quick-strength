@@ -16,5 +16,5 @@ try{
  await mf.dispatchFetch('https://runtime/sync');assert.equal(calls,1);
  const manual=await mf.dispatchFetch('https://runtime/refresh');assert.equal(manual.status,200);assert.equal((await manual.json()).matches.length,2);assert.equal(calls,1);
  const queued=await mf.dispatchFetch('https://runtime/events?from=2026-10-01&to=2026-10-18');assert.equal(queued.status,202);assert.equal((await queued.json()).state,'pending');assert.equal(calls,1);
- console.log('Native events runtime passed: hourly background sync, shared manual refresh, read-only GET, durable alarms and bundled parser.');
+ console.log('Native events runtime passed: adaptive background sync, shared manual refresh, read-only GET, durable alarms and bundled parser.');
 }finally{await mf.dispose();}

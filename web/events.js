@@ -4,7 +4,7 @@
  const dateTime=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
  const timeFormat=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
  const dateFormat=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'long',day:'numeric',weekday:'long'});
- let snapshot=null,view='scheduled',busy=false,requestId=0,retryTimer,queryTimer;
+ let snapshot=null,view='scheduled',busy=false,requestId=0,retryTimer,queryTimer,pollTimer,bootReady=false,pageSuspended=false;
  const reminders=()=>window.EventReminders,reminderState=()=>reminders()?.state;
  const reserved=match=>reminderState()?.reservations.some(r=>r.id===match.reminderId&&r.state!=='completed');
  function reminderAction(action){
@@ -55,13 +55,14 @@
   label.append(...(left?[name,badge]:[badge,name]));return label;
  }
  function notice(message){$('eventsNotice').textContent=message;$('eventsNotice').hidden=!message;}
- function fillOptions(id,values,label){const select=$(id),value=select.value;select.replaceChildren(new Option(label,''),...[...new Set(values)].sort((a,b)=>a.localeCompare(b,'zh-CN')).map(v=>new Option(v,v)));if(values.includes(value))select.value=value;}
+ function fillOptions(id,values,label){const select=$(id),value=select.value,options=[...new Set([...values,...(value?[value]:[])])];select.replaceChildren(new Option(label,''),...options.sort((a,b)=>a.localeCompare(b,'zh-CN')).map(v=>new Option(v,v)));select.value=value;}
  function render(){
   if(!snapshot)return;
   $('eventsCoverage').textContent=snapshot.coverage||'';
   const f=filters(),invalid=f.from&&f.to&&f.from>f.to,matches=invalid?[]:model.select(snapshot.matches,f),list=$('eventsList');
   list.replaceChildren();$('eventsCount').textContent=`${matches.length} 场比赛`;
-  $('eventsUpdated').textContent='更新于 '+dateTime.format(new Date(snapshot.updatedAt));
+  const nextCheck=Date.parse(snapshot.nextRefreshAt);
+  $('eventsUpdated').textContent='更新于 '+dateTime.format(new Date(snapshot.updatedAt))+(Number.isFinite(nextCheck)&&nextCheck>Date.now()?' · 下次后台检查约 '+timeFormat.format(new Date(nextCheck)):'');
   if(invalid){list.append(element('p','events-empty','开始日期不能晚于结束日期。'));return;}
   if(!matches.length){const hasFilters=f.from||f.to||f.tournament||f.region||f.team.trim();list.append(element('p','events-empty',hasFilters?'没有符合筛选条件的比赛，试试调整筛选。':view==='completed'?'数据源暂未提供匹配的赛果。':'数据源暂未提供匹配的赛程。'));return;}
   let currentDay='',group;
@@ -71,9 +72,9 @@
    const row=element('article','event-match'),meta=element('div','event-meta');
    meta.append(element('span','event-region',match.region),element('span','event-tournament',match.tournament));if(match.bestOf)meta.append(element('span','event-format','BO'+match.bestOf));
    const body=element('div','event-match-body'),time=element('div','event-time'),stamp=element('time','',match.startsAt?timeFormat.format(new Date(match.startsAt)):'待定');if(match.startsAt)stamp.dateTime=match.startsAt;
-   const completed=match.status==='completed',status=element('span','event-status',completed?'已结束':!match.startsAt?'时间待定':Date.parse(match.startsAt)<Date.now()?'赛果待公布':'未开始');if(status.textContent==='赛果待公布'){status.classList.add('is-pending');status.replaceChildren('赛果',element('wbr'),'待公布');}time.append(stamp,status);
+   const completed=match.status==='completed',status=element('span','event-status',completed?'已结束':match.status==='live'?'进行中':!match.startsAt?'时间待定':Date.parse(match.startsAt)<Date.now()?'赛果待公布':'未开始');if(status.textContent==='赛果待公布'){status.classList.add('is-pending');status.replaceChildren('赛果',element('wbr'),'待公布');}time.append(stamp,status);
    const versus=element('div','event-versus');
-   const scores=match.scores.every(s=>s!==null)?match.scores.join(' : '):completed?'—':'VS';
+   const scores=Array.isArray(match.scores)&&match.scores.length===2&&match.scores.every(s=>Number.isFinite(s))?match.scores.join(' : '):completed?'—':'VS';
    versus.append(teamLabel(match.teams[0],true),element('strong','event-score'+(completed?' is-completed':''),scores),teamLabel(match.teams[1],false));
    const url=new URL(match.sourceUrl);if(url.protocol==='https:'&&url.hostname==='liquipedia.net'&&!url.port&&!url.username&&!url.password&&url.pathname.startsWith('/overwatch/')){const link=element('a','event-source-link','赛事详情 ↗');link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';body.append(time,versus,link);}else body.append(time,versus);
    const actions=element('div','event-actions');
@@ -87,30 +88,42 @@
   }
  }
  function setView(next){view=next;document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));}
+ function canPoll(){return bootReady&&!pageSuspended&&document.visibilityState==='visible';}
+ function schedulePoll(){
+  clearTimeout(pollTimer);pollTimer=null;
+  if(!canPoll()||busy||retryTimer||queryTimer)return;
+  // The server owns upstream synchronization; this only reads shared cached data.
+  const seconds=Math.max(30,Math.min(60,Number(snapshot?.refreshIntervalSeconds)||60));
+  pollTimer=setTimeout(()=>{pollTimer=null;if(canPoll()&&!busy&&!retryTimer&&!queryTimer)void refresh(false);},seconds*1000);
+ }
+ function scheduleRetry(seconds){
+  clearTimeout(retryTimer);retryTimer=null;clearTimeout(pollTimer);pollTimer=null;
+  if(canPoll())retryTimer=setTimeout(()=>{retryTimer=null;if(canPoll()&&!busy)void refresh(false);},Math.max(1,Math.min(300,Number(seconds)||5))*1000);
+ }
  async function refresh(sync=true){
-  const id=++requestId;clearTimeout(retryTimer);busy=true;$('eventsList').setAttribute('aria-busy','true');$('eventsRefresh').disabled=true;$('eventsRefresh').textContent='更新中…';
+  const id=++requestId;clearTimeout(queryTimer);queryTimer=null;clearTimeout(retryTimer);retryTimer=null;clearTimeout(pollTimer);pollTimer=null;busy=true;$('eventsList').setAttribute('aria-busy','true');$('eventsRefresh').disabled=true;$('eventsRefresh').textContent='更新中…';
   const params=scope();
   try{
    const next=await Cloud.api((sync?'/api/events/refresh':'/api/events')+'?'+params,sync?{}:undefined);if(id!==requestId)return;
    if(next.state==='pending'){
     notice(next.message||'服务器正在补查，请稍候。');$('eventsCount').textContent='正在补查…';
     if(!snapshot)$('eventsList').replaceChildren(element('p','events-empty','正在按日期与赛事获取数据…'));
-    retryTimer=setTimeout(()=>refresh(false),Math.max(1,Math.min(300,Number(next.retryAfter)||5))*1000);return;
+    scheduleRetry(next.retryAfter);return;
    }
    snapshot=next;fillOptions('eventsTournament',next.matches.map(m=>m.tournament),'全部阶段');fillOptions('eventsRegion',next.matches.map(m=>m.region),'全部赛区');
-   notice(next.refreshError||(next.truncated?next.coverage:next.stale?'正在显示上次同步的数据，赛程或比分可能已变化。':''));render();
-   if(next.updating)retryTimer=setTimeout(()=>refresh(false),Math.max(1,Math.min(300,Number(next.retryAfter)||5))*1000);
+   notice(next.refreshError?(next.refreshError+(Number(next.retryAfter)>0?' 可在 '+Math.ceil(Number(next.retryAfter))+' 秒后重试。':'')):(next.truncated?next.coverage:next.stale?'正在显示上次同步的数据，赛程或比分可能已变化。':''));render();
+   if(next.updating)scheduleRetry(next.retryAfter);
   }catch(error){if(id!==requestId)return;notice(error.message+(snapshot?'，已保留当前赛程。':''));if(!snapshot){$('eventsCount').textContent='暂无赛程';$('eventsList').replaceChildren(element('p','events-empty','服务器赛程暂未就绪，请点击“刷新赛程”重试。'));}}
-  finally{if(id===requestId){busy=false;$('eventsList').setAttribute('aria-busy','false');$('eventsRefresh').disabled=false;$('eventsRefresh').textContent='刷新赛程';}}
+  finally{if(id===requestId){busy=false;$('eventsList').setAttribute('aria-busy','false');$('eventsRefresh').disabled=false;$('eventsRefresh').textContent='刷新赛程';schedulePoll();}}
  }
  function queryChanged(){
-  ++requestId;clearTimeout(retryTimer);clearTimeout(queryTimer);
+  ++requestId;busy=false;clearTimeout(retryTimer);retryTimer=null;clearTimeout(pollTimer);pollTimer=null;clearTimeout(queryTimer);queryTimer=null;
   const from=$('eventsFrom').value,to=$('eventsTo').value;
   if(from&&to&&from>to){busy=false;$('eventsRefresh').disabled=false;$('eventsRefresh').textContent='刷新赛程';$('eventsList').setAttribute('aria-busy','false');render();return;}
   if(from&&to&&to<model.day(new Date().toISOString()))setView('completed');
-  queryTimer=setTimeout(()=>refresh(false),400);
+  queryTimer=setTimeout(()=>{queryTimer=null;refresh(false);},400);
  }
- $('eventsFilters').onsubmit=e=>{e.preventDefault();clearTimeout(queryTimer);refresh(false);};
+ $('eventsFilters').onsubmit=e=>{e.preventDefault();clearTimeout(queryTimer);queryTimer=null;refresh(false);};
  $('eventsFilters').addEventListener('input',render);$('eventsFilters').addEventListener('change',render);
  for(const id of ['eventsSeries','eventsFrom','eventsTo'])$(id).addEventListener('change',queryChanged);
  $('eventsSeries').addEventListener('change',()=>{$('eventsTournament').value='';});
@@ -123,9 +136,12 @@
  const updateTimeStatus=()=>{if(document.visibilityState==='visible'){renderReminders();render();}};
  const startStatusTimer=()=>{clearInterval(statusTimer);statusTimer=setInterval(updateTimeStatus,15000);updateTimeStatus();};
  document.addEventListener('visibilitychange',updateTimeStatus);
- window.addEventListener('pagehide',()=>clearInterval(statusTimer));
- window.addEventListener('pageshow',startStatusTimer);
+ const pausePolling=()=>{clearTimeout(pollTimer);pollTimer=null;clearTimeout(retryTimer);retryTimer=null;if(queryTimer){clearTimeout(queryTimer);queryTimer=null;}};
+ const resumePolling=()=>{if(canPoll()&&!busy&&!queryTimer)void refresh(false);};
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resumePolling();else pausePolling();});
+ window.addEventListener('pagehide',()=>{pageSuspended=true;clearInterval(statusTimer);pausePolling();});
+ window.addEventListener('pageshow',()=>{pageSuspended=false;startStatusTimer();resumePolling();});
  startStatusTimer();
  renderReminders();
- Cloud.boot().then(async()=>{await refresh(false);if(!scope().get('from')&&scope().get('series')==='owcs')await refresh();}).catch(()=>{});
+ Cloud.boot().then(async()=>{bootReady=true;await refresh(false);if(!pageSuspended&&document.visibilityState==='visible'&&!scope().get('from')&&scope().get('series')==='owcs')await refresh();}).catch(()=>{});
 })();

@@ -1,14 +1,15 @@
 import {parseEventBatch} from './events-parser.mjs';
 import {json} from './security.mjs';
 
-import {eventApi,eventQuery,trackedEventApi} from './events-source.mjs';
+import {eventApi,eventQuery,trackedEventApi,EVENT_SOURCE_VERSION} from './events-source.mjs';
 import {EventQueries} from './events-queries.mjs';
+import {eventRefreshInterval,nextEventRefresh} from './events-freshness.mjs';
 import {Fault} from './security.mjs';
 export const EVENTS_API=eventApi();
-const SOURCE_VERSION=2;
+const SOURCE_VERSION=EVENT_SOURCE_VERSION;
 const HOUR=60*60*1000,MAX_AGE=48*HOUR,MAX_BYTES=2*1024*1024;
 const ACCOUNT_HEADER='X-OWQS-Event-User';
-export const nextEventSync=now=>(Math.floor(now/HOUR)+1)*HOUR;
+export const nextEventSync=now=>now+15*60000;
 export class EventCenter{
  constructor(ctx,env){this.storage=ctx.storage;this.env=env;this.pending=null;this.sourceBusy=null;this.queries=new EventQueries(this);}
  now(){return Date.now();}
@@ -40,7 +41,8 @@ export class EventCenter{
   // Visitor requests only read persisted data. They never start or await a sync.
   const saved=await this.storage.get('snapshot');
   if(!saved||this.now()-saved.updatedAt>MAX_AGE)throw Error('No usable event data');
-  return this.view(saved,this.now()-saved.updatedAt>=HOUR);
+  const next=await this.storage.get('refreshAfter')||0,value=this.view(saved);
+  return {...value,nextRefreshAt:new Date(Math.max(Date.parse(value.nextRefreshAt),next)).toISOString()};
  }
  async refresh(force=false){
   if(!this.pending)this.pending=this.load(force).finally(()=>{this.pending=null;});
@@ -54,12 +56,13 @@ export class EventCenter{
  async schedule(){
   // New key deliberately ignores the old daily nextAttempt on policy upgrade.
   const next=await this.storage.get('refreshAfter')||0;
-  const due=await this.recentDue();
-  await this.storage.setAlarm(Math.max(due||await this.queries.hasPending()?this.now()+1000:nextEventSync(this.now()),next));
+  const due=await this.recentDue(),saved=await this.storage.get('snapshot');
+  const target=due||await this.queries.hasPending()?this.now()+1000:nextEventRefresh(saved.matches,saved.updatedAt,this.now());
+  await this.storage.setAlarm(Math.max(target,next));
  }
  async recentDue(now=this.now()){
   const saved=await this.storage.get('snapshot');
-  return !saved||saved.sourceVersion!==SOURCE_VERSION||saved.updatedAt<Math.floor(now/HOUR)*HOUR;
+  return !saved||saved.sourceVersion!==SOURCE_VERSION||now>=nextEventRefresh(saved.matches,saved.updatedAt,now);
  }
  async accountRef(request){
   const account=(request.headers.get(ACCOUNT_HEADER)||'').trim().slice(0,512);
@@ -69,15 +72,17 @@ export class EventCenter{
  }
  async load(force){
   const now=this.now(),next=await this.storage.get('refreshAfter')||0;
+  let deferred=now<next?Math.ceil((next-now)/1000):0;
   if(now>=next&&(force||await this.recentDue(now))){
    try{
     const {matches}=await this.source(EVENTS_API,{series:'owcs'},{priority:'recent'});
     const snapshot={matches,updatedAt:this.now(),sourceVersion:SOURCE_VERSION};await this.storage.put('snapshot',snapshot);
     await this.storage.put('refreshFailed',false);return this.view(snapshot,false);
-   }catch(error){if(!error.retryAfter)await this.storage.put('refreshFailed',true);}
+   }catch(error){if(!error.retryAfter)await this.storage.put('refreshFailed',true);else deferred=error.retryAfter;}
   }
   const value=await this.read();
-  if(await this.storage.get('refreshFailed'))return {...value,refreshError:'更新失败或上游暂时限流，正在显示上次成功的数据，请稍后重试。'};
+  if(await this.storage.get('refreshFailed'))return {...value,refreshError:'更新失败或上游暂时限流，正在显示上次成功的数据，请稍后重试。',retryAfter:Math.max(1,Math.ceil(((await this.storage.get('refreshAfter')||0)-this.now())/1000))};
+  if(force&&deferred)return {...value,refreshDeferred:true,retryAfter:deferred,refreshError:'数据源请求间隔尚未结束，本次未重新抓取；请稍后重试。'};
   return value;
  }
  async source(api,options={series:'owcs'},{priority='backfill'}={}){
@@ -108,5 +113,5 @@ export class EventCenter{
   finally{clearTimeout(timer);if(this.sourceBusy===owner)this.sourceBusy=null;}
  }
 
- view(snapshot,stale){return {matches:snapshot.matches,updatedAt:new Date(snapshot.updatedAt).toISOString(),stale,source:{name:'Liquipedia',url:'https://liquipedia.net/overwatch/Liquipedia:Matches',license:'CC BY-SA 3.0',licenseUrl:'https://creativecommons.org/licenses/by-sa/3.0/'},coverage:'上游先筛 OWCS，再分别获取最多 50 场近期赛程与赛果；日期条件仅筛缓存，不代表所选日期的全部比赛或完整赛季。'};}
+ view(snapshot,stale){const now=this.now(),interval=eventRefreshInterval(snapshot.matches,now);return {matches:snapshot.matches,updatedAt:new Date(snapshot.updatedAt).toISOString(),stale:stale??now-snapshot.updatedAt>=interval,refreshIntervalSeconds:interval/1000,nextRefreshAt:new Date(Math.max(now,nextEventRefresh(snapshot.matches,snapshot.updatedAt,now))).toISOString(),source:{name:'Liquipedia',url:'https://liquipedia.net/overwatch/Liquipedia:Matches',license:'CC BY-SA 3.0',licenseUrl:'https://creativecommons.org/licenses/by-sa/3.0/'},coverage:'上游先筛 OWCS，再分别获取最多 50 场近期赛程与赛果；日期条件仅筛缓存，不代表所选日期的全部比赛或完整赛季。'};}
 }

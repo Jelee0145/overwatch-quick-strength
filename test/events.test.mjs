@@ -5,6 +5,7 @@ import {readFile,mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {EventCenter,EVENTS_API,nextEventSync} from '../src/events.mjs';
+import {nextEventRefresh} from '../src/events-freshness.mjs';
 import {parseEvents,liquipediaLink,liquipediaLogo} from '../src/events-parser.mjs';
 import worker from '../src/worker.mjs';
 import {createRuntime} from '../server/runtime.mjs';
@@ -37,7 +38,7 @@ test('source filters OWCS before its row cap; Saturday WBG survives date and tea
 test('a source upgrade replaces a same-hour truncated snapshot without bypassing persisted pacing',async()=>{
  let calls=0;const ctx=setup(async()=>{calls++;return response(page());});await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');
  await ctx.storage.put('snapshot',{...saved,sourceVersion:1});await ctx.center.alarm();assert.equal(calls,1);
- ctx.advance(30000);await ctx.center.alarm();assert.equal(calls,2);assert.equal((await ctx.storage.get('snapshot')).sourceVersion,2);
+ ctx.advance(30000);await ctx.center.alarm();assert.equal(calls,2);assert.equal((await ctx.storage.get('snapshot')).sourceVersion,3);
 });
 
 test('events parser covers OWCS regions, scores including zero, entities and unknown time/opponent; ignores other events',()=>{
@@ -75,18 +76,18 @@ test('events model filters without requests, sorts results, and uses Beijing mid
 });
 
 
-test('visitor GET is cache-only, hourly sync single-flights and restart reuses this hour',async()=>{
+test('visitor GET is cache-only, adaptive sync single-flights and restart reuses fresh data',async()=>{
  let calls=0;const ctx=setup(async(url,init)=>{calls++;assert.equal(url,EVENTS_API);assert.equal(init.redirect,'manual');assert.match(init.headers['User-Agent'],/site.test/);await new Promise(r=>setTimeout(r,5));return response(page());});
  assert.equal((await ctx.center.fetch(request())).status,503);assert.equal(calls,0);
  await Promise.all(Array.from({length:8},()=>ctx.center.refresh()));assert.equal(calls,1);
  for(let i=0;i<8;i++)assert.equal((await ctx.center.fetch(request())).status,200);assert.equal(calls,1);
- ctx.advance(600000);await ctx.center.fetch(request());assert.equal(calls,1);
- const restarted=new EventCenter({storage:ctx.storage},ctx.env);restarted.now=ctx.center.now;await restarted.alarm();assert.equal(calls,1);assert.equal(await ctx.storage.getAlarm(),nextEventSync(ctx.center.now()));
+ ctx.advance(60000);await ctx.center.fetch(request());assert.equal(calls,1);
+ const restarted=new EventCenter({storage:ctx.storage},ctx.env);restarted.now=ctx.center.now;await restarted.alarm();assert.equal(calls,1);const saved=await ctx.storage.get('snapshot');assert.equal(await ctx.storage.getAlarm(),nextEventRefresh(saved.matches,saved.updatedAt,ctx.center.now()));
  ctx.advance(3600000);await restarted.alarm();assert.equal(calls,2);
 });
 
-test('hourly sync boundaries, failures retain prior data for 48 hours and GET never retries',async()=>{
-assert.equal(nextEventSync(Date.parse('2026-10-18T15:59:59Z')),Date.parse('2026-10-18T16:00:00Z'));
+test('idle sync interval is fifteen minutes, failures retain prior data for 48 hours and GET never retries',async()=>{
+assert.equal(nextEventSync(Date.parse('2026-10-18T15:59:59Z')),Date.parse('2026-10-18T16:14:59Z'));
  let calls=0,fail=false;const ctx=setup(async()=>{calls++;if(fail)throw Error('offline');return response(page());});
  await ctx.center.alarm();const saved=await ctx.storage.get('snapshot');ctx.advance(3600000);fail=true;await ctx.center.alarm();
  assert.deepEqual(await ctx.storage.get('snapshot'),saved);assert.equal((await ctx.center.read()).stale,true);assert.equal(calls,2);
@@ -156,7 +157,7 @@ test('failed manual refresh retains data with an explicit notice and five-minute
 
 test('events UI has a manual action, refreshes once on entry and explains pending results',async()=>{
  const html=await readFile(new URL('../web/events.html',import.meta.url),'utf8'),script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');
- assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\)/);assert.match(script,/setInterval\(updateTimeStatus,15000\)/);assert.match(html,/每小时自动同步/);assert.match(html,/赛果待公布/);
+ assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\)/);assert.match(script,/setInterval\(updateTimeStatus,15000\)/);assert.match(html,/动态同步/);assert.match(html,/赛果待公布/);
 });
 
 test('events local status interval updates due labels without API polling and resumes after BFCache restore',async()=>{
