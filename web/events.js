@@ -44,7 +44,8 @@
  }
  $('eventsEnableNotifications').onclick=()=>reminderAction(()=>reminders().enable());
  window.addEventListener('owqs:reminders',()=>{renderReminders();render();});
- const scope=()=>new URLSearchParams({series:$('eventsSeries').value,...($('eventsFrom').value&&$('eventsTo').value?{from:$('eventsFrom').value,to:$('eventsTo').value}:{})});
+ // Both tabs filter locally; v1 otherwise defaults to scheduled and a five-row page.
+ const scope=()=>new URLSearchParams({series:$('eventsSeries').value,status:'all',paginate:'0',...($('eventsFrom').value&&$('eventsTo').value?{from:$('eventsFrom').value,to:$('eventsTo').value}:{})});
  const filters=()=>({view,series:$('eventsSeries').value,from:$('eventsFrom').value,to:$('eventsTo').value,tournament:$('eventsTournament').value,region:$('eventsRegion').value,team:$('eventsTeam').value});
  function element(tag,className,value){const node=document.createElement(tag);if(className)node.className=className;if(value!==undefined)node.textContent=value;return node;}
  function teamLabel(team,left){

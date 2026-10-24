@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
+import worker from '../src/worker.mjs';
 
 const script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');
 const model=await readFile(new URL('../web/events-model.js',import.meta.url),'utf8');
@@ -15,12 +16,13 @@ function harness(handler=()=>snapshot()){
   let ownText='';const node={tagName:tag,children:[],attributes:{},value:'',hidden:false,disabled:false,events:{},className:'',classList:{add(){}},get childElementCount(){return this.children.length;},get textContent(){return ownText+this.children.map(n=>typeof n==='string'?n:n.textContent).join('');},set textContent(value){ownText=String(value);this.children=[];},setAttribute(name,value){this.attributes[name]=String(value);},append(...items){this.children.push(...items);},replaceChildren(...items){ownText='';this.children=items;},addEventListener(type,fn){(this.events[type]||=[]).push(fn);}};return node;
  }
  const get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};get('eventsSeries').value='owcs';
- const document={visibilityState:'visible',getElementById:get,createElement:element,querySelectorAll:()=>[],addEventListener(type,fn){(documentListeners[type]||=[]).push(fn);}};
- const window={EventReminders:{state:{ready:true,enabled:true,pending:false,deviceEnabled:true,reservations:[]}},addEventListener(type,fn){(listeners[type]||=[]).push(fn);}};
+ const tabs=['scheduled','completed'].map(view=>Object.assign(element('button'),{dataset:{view}}));
+ const document={visibilityState:'visible',getElementById:get,createElement:element,querySelectorAll:selector=>selector==='[data-view]'?tabs:[],addEventListener(type,fn){(documentListeners[type]||=[]).push(fn);}};
+ const window={EventReminders:{safeUrl:url=>url,state:{ready:true,enabled:true,pending:false,deviceEnabled:true,reservations:[]}},addEventListener(type,fn){(listeners[type]||=[]).push(fn);}};
  const context={window,document,Intl,URL,URLSearchParams,Date:class extends Date{static now(){return now;}},Option:function(text,value){const option=element('option');option.textContent=text;option.value=value;return option;},setTimeout(fn,ms){const id=++sequence;timers.set(id,{fn,at:now+Number(ms),interval:false});return id;},clearTimeout(id){timers.delete(id);},setInterval(fn,ms){const id=++sequence;timers.set(id,{fn,at:now+Number(ms),interval:Number(ms)});return id;},clearInterval(id){timers.delete(id);},Cloud:{boot:()=>Promise.resolve(),api:async(url,body)=>{const call={url,method:body===undefined?'GET':'POST',at:now};calls.push(call);return handler(call,calls.length);}}};
  vm.runInNewContext(model,context);vm.runInNewContext(script,context);
  const dispatch=(source,type,event={})=>{for(const fn of source[type]||[])fn({type,...event});};
- return {calls,get,timers,window,document,async advance(ms){const end=now+ms;for(;;){let selected;for(const [id,timer]of timers)if(timer.at<=end&&(!selected||timer.at<selected.timer.at))selected={id,timer};if(!selected)break;const{id,timer}=selected;now=timer.at;if(timer.interval)timer.at+=timer.interval;else timers.delete(id);timer.fn();await flush();}now=end;await flush();},async visible(value){document.visibilityState=value?'visible':'hidden';dispatch(documentListeners,'visibilitychange');await flush();},async lifecycle(type){dispatch(listeners,type,{persisted:true});await flush();},async change(id,value){get(id).value=value;dispatch(get(id).events,'change');await flush();},async clickRefresh(){get('eventsRefresh').onclick();await flush();},async submit(){get('eventsFilters').onsubmit({preventDefault(){}});await flush();}};
+ return {calls,get,timers,window,document,async clickView(view){tabs.find(tab=>tab.dataset.view===view).onclick();await flush();},async advance(ms){const end=now+ms;for(;;){let selected;for(const [id,timer]of timers)if(timer.at<=end&&(!selected||timer.at<selected.timer.at))selected={id,timer};if(!selected)break;const{id,timer}=selected;now=timer.at;if(timer.interval)timer.at+=timer.interval;else timers.delete(id);timer.fn();await flush();}now=end;await flush();},async visible(value){document.visibilityState=value?'visible':'hidden';dispatch(documentListeners,'visibilitychange');await flush();},async lifecycle(type){dispatch(listeners,type,{persisted:true});await flush();},async change(id,value){get(id).value=value;dispatch(get(id).events,'change');await flush();},async clickRefresh(){get('eventsRefresh').onclick();await flush();},async submit(){get('eventsFilters').onsubmit({preventDefault(){}});await flush();}};
 }
 
 test('visible page polls GET shared cache on cadence, retains initial manual refresh and user filters',async()=>{
@@ -92,4 +94,29 @@ test('manual refresh cancels a queued filter debounce instead of starting overla
 test('hiding before a filter debounce pauses it and restores the latest query without a stuck busy state',async()=>{
  const app=harness();await flush();await app.change('eventsFrom','2026-10-23');await app.change('eventsTo','2026-10-24');await app.visible(false);await app.advance(60000);assert.equal(app.calls.length,2);
  await app.visible(true);assert.equal(app.calls.length,3);assert.match(app.calls.at(-1).url,/from=2026-10-23/);assert.equal(app.calls.at(-1).method,'GET');
+});
+
+test('real v1 cookie API supplies both complete tabs on initial load, manual refresh and polling',async()=>{
+ const rows=[...Array.from({length:45},(_,i)=>match({id:'scheduled-'+i})),...Array.from({length:50},(_,i)=>match({id:'completed-'+i,status:'completed',scores:[3,1]}))];
+ const env={AUTH:{idFromName:()=>'',get:()=>({fetch:async()=>Response.json({user:{id:'test-user',status:'approved'}})})},EVENTS:{idFromName:()=>'',get:()=>({fetch:async()=>Response.json(snapshot({matches:rows}))})}};
+ const app=harness(async call=>{
+  const params=new URL(call.url,'https://events.test').searchParams;
+  assert.equal(params.get('status'),'all','a local result tab cannot recover rows filtered out by the API');
+  assert.equal(params.get('paginate'),'0','the website must not inherit the five-row Bot default');
+  const url='https://events.test'+call.url.replace(/^\/api\/events/,'/api/v1/events');
+  const response=await worker.fetch(new Request(url,{method:call.method,headers:{Cookie:'qs_session=test-session',...(call.method==='POST'?{Origin:'https://events.test','Content-Type':'application/json'}:{})},...(call.method==='POST'?{body:'{}'}:{})}),env);
+  assert.equal(response.status,200);const value=await response.json();assert.equal(value.matches.length,95);return value;
+ });
+ const settle=async()=>{for(let i=0;i<4;i++)await new Promise(setImmediate);};await settle();
+ assert.equal(app.get('eventsCount').textContent,'45 场比赛');
+ await app.clickView('completed');assert.equal(app.get('eventsCount').textContent,'50 场比赛');assert.match(app.get('eventsList').textContent,/3 : 1/);
+ await app.clickRefresh();await settle();assert.equal(app.get('eventsCount').textContent,'50 场比赛');
+ await app.advance(60000);await settle();assert.equal(app.calls.at(-1).method,'GET');assert.equal(app.get('eventsCount').textContent,'50 场比赛');
+ await app.clickView('scheduled');assert.equal(app.get('eventsCount').textContent,'45 场比赛');
+});
+
+test('date queries explicitly retain both statuses instead of inheriting the API completed-only default',async()=>{
+ const app=harness();await flush();await app.change('eventsFrom','2026-10-23');await app.change('eventsTo','2026-10-24');await app.advance(400);
+ const params=new URL(app.calls.at(-1).url,'https://events.test').searchParams;
+ assert.equal(params.get('status'),'all');assert.equal(params.get('paginate'),'0');assert.equal(params.get('from'),'2026-10-23');
 });
