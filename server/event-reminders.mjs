@@ -46,7 +46,7 @@ export class EventReminders{
    const old=state.catalog[id],unique=new Map(group.map(m=>[m.id,m]));
    if(old?.checkedAt>checkedAt){if(unique.size>1)old.ambiguous=true;continue;}
    if(unique.size!==1){state.catalog[id]={...(old||{match:group[0],checkedAt:0}),ambiguous:true};continue;}
-   const match=group[0];if(old?.ambiguous)continue;
+   const match=group[0];if(old?.ambiguous&&checkedAt===0)continue;
    const same=old?.match.id===match.id&&old?.match.status===match.status;
    state.catalog[id]={match,checkedAt:checkedAt||(same?old?.checkedAt||0:0),ambiguous:false};
   }
