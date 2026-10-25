@@ -40,5 +40,7 @@ for(const [,asset] of index.matchAll(/(?:src|href)="(\/(?:static|media)\/[^"?]+)
  if(!readFileSync(copy).equals(readFileSync(target)))throw Error('静态资源不可读或不一致：'+asset);
 }
 
-output('git',['tag','-f','deploy/'+new Date().toISOString().slice(0,10),revision]);
+// Timestamped so several releases in one day each keep their own rollback point.
+const tag='deploy/'+new Date().toISOString().slice(0,16).replace('T','-').replace(':','');
+output('git',['tag','-f',tag,revision]);
 console.log('已发布 '+revision.slice(0,7)+'：服务与网页均来自当前仓库目录。');

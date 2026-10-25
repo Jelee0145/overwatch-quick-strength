@@ -24,7 +24,7 @@
 - `.github/workflows/deploy.yml` 在推送和手动触发时构建并运行完整测试，作为可见的构建记录。
 - `owqs-autodeploy.timer` 每 2 分钟运行 `scripts/auto-deploy.mjs`：用服务器现有只读部署密钥取回 `main`，无新提交即退出。
 - 有新提交时先快进合并，再在服务器上运行同一套 `npm test`；测试不通过就不发布，线上保持上一版本，并记录该提交避免反复重试。
-- 测试通过后调用 `scripts/deploy-local.mjs`：构建、重启、校验版本与静态资源、打 `deploy/<日期>` 标签。
+- 测试通过后调用 `scripts/deploy-local.mjs`：构建、重启、校验版本与静态资源、打 `deploy/<日期-时分>` 标签。
 - 日志：`/var/log/owqs-auto-deploy.log`（轮询与测试）、`/var/log/owqs-ci-deploy.log`（已停用的旧 CI 入口）。
 - 工作区有已跟踪文件改动时自动发布直接跳过，避免覆盖未提交修改。
 
