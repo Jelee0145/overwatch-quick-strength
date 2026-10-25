@@ -21,7 +21,9 @@ function retrySync(fn,timeout){
 if(output('git',['status','--porcelain','--untracked-files=no']))throw Error('工作区有未提交改动，先提交再发布');
 run('npm',['run','backend:build']);
 run('npm',['run','web:build']);
-run('bash',['-c','find public dist/backend-assets -type d -exec chmod 755 {} +; find public dist/backend-assets -type f -exec chmod 644 {} +']);
+// The service runs as the owqs user from this checkout, so source modules must stay
+// readable: an editor that writes 0600 files would otherwise break the restart.
+run('bash',['-c',"find public dist/backend-assets -type d -exec chmod 755 {} +; find public dist/backend-assets src server -type f -exec chmod 644 {} +"]);
 run('systemctl',['restart','owqs']);
 
 // Nginx answers 502 for the moment between restart and the port binding.
