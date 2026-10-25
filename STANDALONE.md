@@ -17,6 +17,16 @@
 - 服务用户 `owqs` 与 Nginx 只需读取权限；仓库其余文件保持 `root` 所有。数据库、配置仍在 `/var/lib/owqs` 与 `/etc/owqs`。
 - 旧 `/opt/owqs/releases`、`web-releases`、`current`、`web-current` 及切换记录已于同日删除。`deploy/split-release.mjs` 保留为历史工具，不再用于本站发布。
 
+### 推送自动发布
+
+`.github/workflows/deploy.yml` 在推送到 `main` 时先构建并跑完整测试；通过后，若仓库已配置 `DEPLOY_SSH_KEY`，再通过 SSH 触发服务器发布。
+
+- 服务器端入口是 `/usr/local/bin/owqs-ci-deploy`：只做 `git fetch`、`--ff-only` 合并、调用 `scripts/deploy-local.mjs`，日志写入 `/var/log/owqs-ci-deploy.log`。
+- 对应密钥 `/root/.ssh/owqs_ci` 在 `authorized_keys` 中限制为 `command=` 该脚本并使用 `restrict`，不能开交互 shell、转发端口或执行其他命令。
+- 服务器主机公钥固定在 `deploy/known_hosts`，CI 不依赖运行时 `ssh-keyscan`。
+- 未配置 `DEPLOY_SSH_KEY` 时只有构建与测试，不会发布。
+- 拉取服务器代码仍使用服务器自己的只读部署密钥，不需要把仓库权限交给 CI。
+
 数据库、配置、密钥和公网 origin 不因拆分变更。更新 `deploy/owqs.service` 的后端 release 指针和 Nginx 模板前，需分别验证安装包和 `nginx -t`。`deploy/split-release.mjs` 提供显式校验/激活流程；没有激活参数不切换。代码回滚不回滚数据库，兼容状态迁移是独立回退的前提。此文不代表已获上线授权。
 
 2026-10-22 发布日志记录后端 `/opt/owqs/releases/20261022-d8e804a`、网页 `/opt/owqs/web-releases/20261022-d8e804a` 已分别激活；这是历史部署记录，不代表当前 HEAD 或实时线上版本。后端指针为 `/opt/owqs/current`，网页指针为 `/opt/owqs/web-current`。
