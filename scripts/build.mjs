@@ -8,6 +8,8 @@ import {buildToolkit} from './build-toolkit.mjs';
 import {buildAssetPreload} from './build-asset-preload.mjs';
 import {buildApiCapture} from './build-api-capture.mjs';
 import {rewriteCopy,cleanDecorativeEnglish,cleanAnalysisUi,cleanAnalysisRuntime} from './ui-copy.mjs';
+// Generated pages and hashed assets are served by Nginx as an unprivileged user.
+process.umask(0o022);
 const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source');
 const shared=sharedSources;
 const capture=process.argv.includes('--bot-capture');

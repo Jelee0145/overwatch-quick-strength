@@ -3,6 +3,8 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {build} from 'esbuild';
+// Renderer assets are read by the unprivileged service user.
+process.umask(0o022);
 
 export const sharedSources=['core.js','benchmarks.js','rating-rules.js','resource-rating.js','performance.js'];
 export function rendererMediaPaths(media){

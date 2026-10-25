@@ -21,6 +21,7 @@ function retrySync(fn,timeout){
 if(output('git',['status','--porcelain','--untracked-files=no']))throw Error('工作区有未提交改动，先提交再发布');
 run('npm',['run','backend:build']);
 run('npm',['run','web:build']);
+run('bash',['-c','find public dist/backend-assets -type d -exec chmod 755 {} +; find public dist/backend-assets -type f -exec chmod 644 {} +']);
 run('systemctl',['restart','owqs']);
 
 // Nginx answers 502 for the moment between restart and the port binding.
@@ -30,6 +31,14 @@ if(value.revision!==revision)throw Error('线上版本与当前提交不一致�
 
 const page=output('curl',['--fail','--silent','--show-error','--max-time','15','--resolve','106.55.47.68:8443:127.0.0.1','https://106.55.47.68:8443/login']);
 if(page!==readFileSync(path.join(root,'public/login.html'),'utf8'))throw Error('线上登录页与构建产物不一致');
+
+// A 403 here is invisible in HTML but leaves the page stuck before it boots.
+const index=readFileSync(path.join(root,'public/index.html'),'utf8');
+for(const [,asset] of index.matchAll(/(?:src|href)="(\/(?:static|media)\/[^"?]+)"/g)){
+ const target=path.join(root,'public',asset),copy=path.join('/tmp','owqs-asset-'+Buffer.from(asset).toString('hex').slice(-24));
+ quiet('curl',['--fail','--silent','--max-time','10','--resolve','106.55.47.68:8443:127.0.0.1','-o',copy,'https://106.55.47.68:8443'+asset]);
+ if(!readFileSync(copy).equals(readFileSync(target)))throw Error('静态资源不可读或不一致：'+asset);
+}
 
 output('git',['tag','-f','deploy/'+new Date().toISOString().slice(0,10),revision]);
 console.log('已发布 '+revision.slice(0,7)+'：服务与网页均来自当前仓库目录。');
