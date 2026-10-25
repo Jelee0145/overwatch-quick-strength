@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+// In-place release for the Tencent standalone host: the repository is the
+// running application (systemd WorkingDirectory and the Nginx web root both
+// point at this checkout). Rollback is a git checkout plus the same command.
+import {execFileSync} from 'node:child_process';
+import {readFileSync} from 'node:fs';
+import path from 'node:path';
+
+const root=path.resolve(import.meta.dirname,'..');
+const run=(command,args=[])=>execFileSync(command,args,{cwd:root,stdio:'inherit'});
+const output=(command,args=[])=>execFileSync(command,args,{cwd:root,encoding:'utf8'}).trim();
+
+if(output('git',['status','--porcelain']))throw Error('工作区有未提交改动，先提交再发布');
+run('npm',['run','backend:build']);
+run('npm',['run','web:build']);
+run('systemctl',['restart','owqs']);
+
+const health=output('curl',['--fail','--silent','--show-error','--max-time','15','--resolve','106.55.47.68:8443:127.0.0.1','https://106.55.47.68:8443/api/health']);
+const value=JSON.parse(health),revision=output('git',['rev-parse','HEAD']);
+if(value.revision!==revision)throw Error('线上版本与当前提交不一致：'+value.revision);
+
+const page=output('curl',['--fail','--silent','--show-error','--max-time','15','--resolve','106.55.47.68:8443:127.0.0.1','https://106.55.47.68:8443/login']);
+if(page!==readFileSync(path.join(root,'public/login.html'),'utf8'))throw Error('线上登录页与构建产物不一致');
+
+output('git',['tag','-f','deploy/'+new Date().toISOString().slice(0,10),revision]);
+console.log('已发布 '+revision.slice(0,7)+'：服务与网页均来自当前仓库目录。');

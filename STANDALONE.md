@@ -4,7 +4,18 @@
 
 ## 独立前后端
 
-后端 `npm run server:build` 只生成 Node 业务与出图资源包，不包含完整网页；网页由 `npm run web:package` 生成独立包。Node 默认仅提供 API，组合开发预览设 `OWQS_SERVE_WEB=1`。`deploy/nginx-https.conf` 将静态网页放在 `/opt/owqs/web-current/public`，API 仍转发原回环端口；受保护页面通过只读会话检查保持登录跳转。操作与契约见 [统一后端说明](docs/unified-backend.md)。
+后端 `npm run server:build` 只生成 Node 业务与出图资源包，不包含完整网页；网页由 `npm run web:package` 生成独立包。Node 默认仅提供 API，组合开发预览设 `OWQS_SERVE_WEB=1`。当前线上由 Nginx 直接提供 `/opt/owqs-work/public`，API 转发回环端口；受保护页面通过只读会话检查保持登录跳转。操作与契约见 [统一后端说明](docs/unified-backend.md)。
+
+## 单目录运行（2026-10-25 起）
+
+仓库目录 `/opt/owqs-work` 就是线上应用，不再保留版本副本：
+
+- `owqs.service` 的 `WorkingDirectory=/opt/owqs-work`，直接运行 `server/main.mjs`，出图资源读 `dist/backend-assets`。
+- Nginx 网页根目录为 `/opt/owqs-work/public`；`.git`、`.private`、`.dev.vars` 不在网页目录内，且 Nginx 拒绝点开头的路径。
+- 发布：确认工作区干净后运行 `node scripts/deploy-local.mjs`。它执行 `backend:build`、`web:build`，重启服务，核对线上健康版本与登录页字节一致，并打 `deploy/<日期>` 标签。
+- 回滚：`git checkout deploy/<日期>` 后重跑同一命令；数据库不回滚，兼容迁移仍是独立前提。
+- 服务用户 `owqs` 与 Nginx 只需读取权限；仓库其余文件保持 `root` 所有。数据库、配置仍在 `/var/lib/owqs` 与 `/etc/owqs`。
+- 旧 `/opt/owqs/releases`、`web-releases`、`current`、`web-current` 及切换记录已于同日删除。`deploy/split-release.mjs` 保留为历史工具，不再用于本站发布。
 
 数据库、配置、密钥和公网 origin 不因拆分变更。更新 `deploy/owqs.service` 的后端 release 指针和 Nginx 模板前，需分别验证安装包和 `nginx -t`。`deploy/split-release.mjs` 提供显式校验/激活流程；没有激活参数不切换。代码回滚不回滚数据库，兼容状态迁移是独立回退的前提。此文不代表已获上线授权。
 
