@@ -24,3 +24,12 @@
 .event-score.has-score{font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums}
 .events-source{gap:14px;padding-top:16px;margin:28px 0}
 @media(max-width:760px), (max-height:500px) and (pointer:coarse){.events-heading{padding:10px 0 22px}.events-heading h1{font-size:28px}.events-reminders{padding:14px}.events-filters input,.events-filters select{font-size:16px}.event-score.has-score{font-size:17px}}
+
+/* Center the match time above the centered matchup. */
+.event-match-body{position:relative;display:flex;flex-direction:column;justify-content:center;gap:12px;min-height:122px;padding:20px 150px}
+.event-time{width:auto;flex:none;text-align:center}
+.event-time time{display:block}
+.event-status{margin-top:4px}
+.event-versus{width:100%;max-width:720px;flex:none;grid-template-columns:minmax(0,1fr) 70px minmax(0,1fr)}
+.event-source-link{position:absolute;right:20px;top:50%;transform:translateY(-50%)}
+@media(max-width:760px), (max-height:500px) and (pointer:coarse){.event-match-body{min-height:112px;padding:16px 12px;gap:10px}.event-versus{grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr)}.event-source-link{right:12px;top:auto;bottom:10px;transform:none}.event-time{padding-bottom:0}.event-status{margin-top:3px}}
