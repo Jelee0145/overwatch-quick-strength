@@ -10,7 +10,8 @@ const root=path.resolve(import.meta.dirname,'..');
 const run=(command,args=[])=>execFileSync(command,args,{cwd:root,stdio:'inherit'});
 const output=(command,args=[])=>execFileSync(command,args,{cwd:root,encoding:'utf8'}).trim();
 
-if(output('git',['status','--porcelain']))throw Error('工作区有未提交改动，先提交再发布');
+// Build output (dist/, public/) is untracked; only tracked edits block a release.
+if(output('git',['status','--porcelain','--untracked-files=no']))throw Error('工作区有未提交改动，先提交再发布');
 run('npm',['run','backend:build']);
 run('npm',['run','web:build']);
 run('systemctl',['restart','owqs']);
