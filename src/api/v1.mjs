@@ -1,14 +1,20 @@
-import {Fault,json,digest,verifySnapshot} from '../security.mjs';
+import {Fault,json,digest,canonical,verifySnapshot} from '../security.mjs';
 import {authenticate,taskClient,requireMethod,jsonInput,operationKey} from './context.mjs';
 import {normalizeQueryOptions} from '../application/query-options.mjs';
 import {readArchive} from '../application/history-store.mjs';
 import {analyzeArchive,selectArchiveMatch,selectArchiveEnvelope} from '../application/history-analysis.mjs';
 import {webAnalysisView,requireSlimFlag} from '../application/history-view.mjs';
+import {createResponseCache} from '../application/history-cache.mjs';
 import {listEvents,handleReminder} from '../application/events.mjs';
 import {analysisService} from '../services/runtime.mjs';
 import {analyzeResult} from '../api-analysis.mjs';
 import {renderApiChart,renderAnalysisChart,compactAnalysis} from '../api-chart.mjs';
 export const apiVersion='1.1';
+// Windowed reads repeat the same bytes, so validate by archive revision and reuse them.
+export const analysisResponseCache=createResponseCache();
+function analysisKey(user,tag,revision,options,slim){return [user,tag,revision,slim?1:0,canonical({...options,revision:undefined})].join('\u0000');}
+function catalogRevision(accounts,tag){const found=(accounts||[]).find(account=>String(account.tag||'').normalize('NFC').trim()===tag);return found?found.revision:null;}
+function jsonText(body){return new Response(body,{status:200,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});}
 const capabilities=(env,auth)=>({history:auth.tier!=='free',analysis:auth.tier!=='free',idempotency:true,sharedQuota:true,reservations:auth.tier!=='free'&&!!env.REMINDERS,webPush:auth.tier!=='free'&&!!env.REMINDERS});
 function personal(auth){if(auth.tier==='free')throw new Fault('免费服务账号不支持个人历史或预约',403);}
 async function taskArchive(call,auth,env,id){
@@ -35,8 +41,26 @@ export async function apiV1(request,env,url){
   requireMethod(request,'POST');return json(await call('/history',await jsonInput(request)));
  }
  if(path==='/api/v1/history/analysis'){
-  personal(auth);requireMethod(request,'POST');const input=await jsonInput(request),options=input.options||{},slim=requireSlimFlag(input),archive=await readArchive(call,auth.user.id,env,input.battletag||input.tag,options.revision||input.revision);
-  const view=await analyzeArchive(archive,options);if(input.render==='svg')view.chart=await renderAnalysisChart(view,assets);else if(input.render!==undefined)throw new Fault('图片格式仅支持 svg');return json(slim?webAnalysisView(view):view);
+  personal(auth);requireMethod(request,'POST');
+  const input=await jsonInput(request),options=input.options||{},slim=requireSlimFlag(input);
+  if(input.render!==undefined&&input.render!=='svg')throw new Fault('图片格式仅支持 svg');
+  const tag=String(input.battletag||input.tag||'').normalize('NFC').trim(),expected=options.revision??input.revision,cacheable=input.render===undefined;
+  // The catalog already carries each account's archive revision, so a stable revision can
+  // answer a repeated window without touching the signed archive at all.
+  let revision=null;
+  if(cacheable){
+   const catalog=await call('/history',{action:'list'}).catch(()=>null);
+   revision=catalogRevision(catalog?.accounts,tag);
+   if(revision!==null&&expected!==undefined&&expected!==null&&expected!==revision)throw new Fault('历史已更新，请刷新后重试',409);
+   const cached=revision===null?null:analysisResponseCache.get(analysisKey(auth.user.id,tag,revision,options,slim));
+   if(cached!==null)return jsonText(cached);
+  }
+  const archive=await readArchive(call,auth.user.id,env,tag,expected);
+  const view=await analyzeArchive(archive,options);
+  if(input.render==='svg')view.chart=await renderAnalysisChart(view,assets);
+  const body=JSON.stringify(slim?webAnalysisView(view):view);
+  if(cacheable)analysisResponseCache.set(analysisKey(auth.user.id,tag,archive.revision,options,slim),body);
+  return jsonText(body);
  }
  if(path==='/api/v1/matches/detail'||path==='/api/v1/matches/review'){
   personal(auth);requireMethod(request,'POST');const input=await jsonInput(request),ref=input.ref||input,archive=ref.sourceJob?(await taskArchive(call,auth,env,ref.sourceJob)).archive:await readArchive(call,auth.user.id,env,ref.battletag||ref.tag,ref.revision);

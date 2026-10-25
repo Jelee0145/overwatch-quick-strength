@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.mjs';
+import {analysisResponseCache} from '../src/api/v1.mjs';
 import {createRuntime} from '../server/runtime.mjs';
 import {signSnapshot,putBlob} from '../src/security.mjs';
 import {analysisFixture} from './services-fixture.mjs';
@@ -46,4 +47,23 @@ test('completed query analysis survives archive failure, retains references and 
  const absent=await ctx.request('/api/v1/history/accounts');assert.deepEqual((await absent.json()).accounts,[]);
  const other=(await ctx.internal('/register',{email:'job-other@example.test',password:'fixture-password-long'})).value,auth=ctx.runtime.database.store('auth'),record=await auth.get('user:'+other.user.id);record.status='approved';await auth.put('user:'+record.id,record);
  const denied=await ctx.request('/api/v1/jobs/'+id+'/analysis',{method:'POST',body:{},headers:{Cookie:'qs_session='+other.token,'X-CSRF-Token':other.csrf}});assert.equal(denied.status,404);
+});
+
+test('a repeated analysis window is served from the revision cache and follows new batches',async t=>{
+ const ctx=await setup();t.after(()=>ctx.runtime.close());
+ const raw=analysisFixture(),envelope=await signSnapshot(ctx.registration.user.id,raw,ctx.runtime.env);
+ const pushed=await ctx.request('/api/v1/history',{method:'POST',body:{action:'push',envelopes:[envelope]}});
+ assert.equal(pushed.status,200);
+ const body={battletag:raw.battletag,slim:true,options:{statisticsRange:'all'}};
+ const before=analysisResponseCache.stats().entries;
+ const first=await (await ctx.request('/api/v1/history/analysis',{method:'POST',body})).text();
+ assert.equal(analysisResponseCache.stats().entries,before+1);
+ const second=await (await ctx.request('/api/v1/history/analysis',{method:'POST',body})).text();
+ assert.equal(second,first);
+ assert.equal(analysisResponseCache.stats().entries,before+1,'a repeat window adds no entry');
+ const later=await signSnapshot(ctx.registration.user.id,{...raw,queriedAt:'2026-10-16T00:00:00Z'},ctx.runtime.env);
+ await ctx.request('/api/v1/history',{method:'POST',body:{action:'push',envelopes:[later]}});
+ const third=await (await ctx.request('/api/v1/history/analysis',{method:'POST',body})).text();
+ assert.notEqual(third,first,'a new batch changes the revision and must not reuse stale bytes');
+ assert.equal(analysisResponseCache.stats().entries,before+2);
 });
