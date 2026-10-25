@@ -31,8 +31,9 @@ function signed(matches, value = session, queriedAt = '2026-10-14T00:00:00Z') {
 // persist in-memory mutations. Requests complete asynchronously, including reads.
 function memoryDB() {
  const tables = {cache: new Map(), historyAccounts: new Map()};
+ const metrics={writes:0,cursors:0};
  return {
-  tables,
+  tables,metrics,
   transaction(name) {
    assert.ok(tables[name], 'unexpected object store: ' + name);
    const tx = {
@@ -50,7 +51,13 @@ function memoryDB() {
      return {
       get: key => request(() => tables[name].get(key)),
       getAll: () => request(() => [...tables[name].values()]),
+      openCursor: range => {
+       metrics.cursors++;
+       const keys=[...tables[name].keys()].filter(key=>!range||range.includes(key)).sort(),r={};let index=0;
+       const next=()=>queueMicrotask(()=>{const key=keys[index++];r.result=key===undefined?null:{key,value:clone(tables[name].get(key)),continue:next};r.onsuccess?.();});next();return r;
+      },
       put: (value, key) => request(() => {
+       if(name==='historyAccounts')metrics.writes++;
        tables[name].set(key, clone(value));
        return key;
       })
@@ -116,6 +123,8 @@ async function device(server, db = memoryDB(), value = session) {
  const window = {OWQS_SERVICES:{data:createDataService(),historyGeometry},document: {getElementById: id => id === 'historySyncStatus' ? status : null}};
  const context = vm.createContext({
   window,
+  TextEncoder,
+  IDBKeyRange:{bound:(low,high)=>({includes:key=>key>=low&&key<=high})},
   Cloud: {key: async envelope => batchId(envelope), api: (path, body) => server.api(value, path, body)}
  });
  vm.runInContext(modelSource, context);
@@ -132,12 +141,12 @@ test('device A migrates old signed cache batches; empty device B pulls complete 
  const server = syncServer(), dbA = memoryDB();
  const first = await signed([game(0), game(1)]);
  const second = await signed([game(1), game(2)], session, '2026-10-14T01:00:00Z');
- dbA.tables.cache.set('old-cache-one', first);
- dbA.tables.cache.set('old-cache-two', second);
+ dbA.tables.cache.set('u|snapshot|1|2026|one', first);
+ dbA.tables.cache.set('u|snapshot|1|2026|two', second);
  const a = await device(server, dbA);
  assert.equal((await a.history.load(tag)).matches.length, 3);
  assert.equal((await a.history.sync()).ok, true);
- assert.equal(pushes(server).length, 2);
+ assert.equal(pushes(server).length, 1);
  assert.deepEqual(new Set(server.accounts(session).get(tag).keys()), new Set([batchId(first), batchId(second)]));
 
  const b = await device(server);
@@ -150,12 +159,27 @@ test('device A migrates old signed cache batches; empty device B pulls complete 
  const recovered = await b.history.envelope(tag, game(0).mid);
  assert.deepEqual(await verifySnapshot(recovered, session.user.id, signingEnv(session), tag), first.content.data);
  assert.equal(server.calls.filter(call => call.body.action === 'pull').length, 2);
- assert.equal(pushes(server).length, 2, 'an empty receiving device must not upload anything');
+ assert.equal(pushes(server).length, 1, 'an empty receiving device must not upload anything');
+});
+
+test('batch upload caps at eight and complete paginated pull merges once; migration scans only once',async()=>{
+ const server=syncServer(),a=await device(server),batches=await Promise.all(Array.from({length:12},(_,i)=>signed([game(i)])));
+ for(const batch of batches)await a.history.save(batch);
+ assert.equal((await a.history.sync()).ok,true);assert.deepEqual(pushes(server).map(call=>call.body.envelopes.length),[8,4]);
+ const db=memoryDB(),b=await device(server,db);assert.equal((await b.history.sync()).ok,true);assert.equal(db.metrics.writes,1);
+ const scans=db.metrics.cursors;await device(server,db);assert.equal(db.metrics.cursors,scans);
+});
+
+test('a revision change during pull discards all pending pages without a partial merge',async()=>{
+ const server=syncServer(),first=await signed([game(0)]),second=await signed([game(1)]);
+ server.accounts(session).set(tag,new Map([[batchId(first),first],[batchId(second),second]]));
+ const api=server.api.bind(server);server.api=async(value,path,body)=>{const result=await api(value,path,body);if(body.action==='pull')result.revision=body.cursor?'b':'a';return result;};
+ const a=await device(server);assert.equal((await a.history.sync()).ok,false);assert.equal(await a.history.load(tag),null);assert.equal(a.db.metrics.writes,0);
 });
 
 test('retry and restart do not re-upload an acknowledged batch when a later push fails', async () => {
  const server = syncServer(), a = await device(server);
- const first = await signed([game(0)]), second = await signed([game(1)]);
+ const first = await signed([{...game(0),padding:'x'.repeat(1400000)}]), second = await signed([{...game(1),padding:'x'.repeat(1400000)}]);
  await a.history.save(first);
  await a.history.save(second);
  server.failPushNumber = 2;
@@ -179,8 +203,8 @@ test('retry and restart do not re-upload an acknowledged batch when a later push
 test('a failed upload still pulls remote history, preserves the failed batch and retries it later', async () => {
  const server = syncServer(), a = await device(server);
  const remote = await signed([game(0)]);
- const failed = await signed([game(1)]);
- const successful = await signed([game(2)]);
+ const failed = await signed([{...game(1),padding:'x'.repeat(1400000)}]);
+ const successful = await signed([{...game(2),padding:'x'.repeat(1400000)}]);
  server.accounts(session).set(tag, new Map([[batchId(remote), remote]]));
  await a.history.save(failed);
  await a.history.save(successful);
@@ -228,7 +252,7 @@ test('local migration and synchronization isolate users, seasons and servers', a
   {...session, scope: {server: '2', dts: '2026'}}
  ];
  const envelopes = await Promise.all(sessions.map((value, i) => signed([game(i)], value)));
- envelopes.forEach((envelope, i) => db.tables.cache.set('old-' + i, envelope));
+ envelopes.forEach((envelope, i) => db.tables.cache.set(envelope.content.user+'|snapshot|'+envelope.content.scope.server+'|'+envelope.content.scope.dts+'|old-'+i, envelope));
  for (const [i, value] of sessions.entries()) {
   const a = await device(server, db, value);
   assert.deepEqual(plain((await a.history.load(tag)).matches.map(row => row.mid)), [game(i).mid]);
@@ -270,7 +294,7 @@ test('equal queriedAt resolves overlapping games by stable batchId on devices wi
  assert.equal((await c.history.sync()).ok, true);
  assert.deepEqual(plain(await c.history.load(tag)), plain(await a.history.load(tag)));
  assert.deepEqual(plain(await b.history.load(tag)), plain(await a.history.load(tag)));
- assert.equal(pushes(server).length, 2);
+ assert.equal(pushes(server).length, 1);
 });
 
 test('concurrent saves to one account retain every record and its signed envelope', async () => {

@@ -1,6 +1,7 @@
 import {analysisService,dataService} from '../services/runtime.mjs';
 import {Fault,canonical,digest} from '../security.mjs';
 import {projectApiMatch} from '../api-match.mjs';
+import {compactWebMatch} from './history-view.mjs';
 
 import * as historyModel from '../services/history-geometry.mjs';
 import {normalizeAnalysisOptions} from './analysis-options.mjs';
@@ -9,6 +10,39 @@ const MAX_MATCHES=500,WINDOW=10;
 const name=value=>typeof value==='string'?value.normalize('NFC').trim():'';
 const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const revisionPattern=/^[a-f0-9]{64}$/;
+const contexts=new Map(),computations=new Map();let contextBytes=0;
+export const historyComputationCache={clear(){contexts.clear();contextBytes=0;},stats(){return {entries:contexts.size,bytes:contextBytes};}};
+// Only authenticated loaders may opt into this process-local cache. The caller binds
+// identity, signing-key generation, scope and archive revision in `key`.
+export async function analyzeCachedArchive(load,options,key,{slim=false}={}){
+ const normalized=normalizeHistoryAnalysisOptions(options),computeKey=key+'\u0000'+(slim?'slim':'full')+'\u0000'+canonical({...normalized,start:undefined,statisticsRange:undefined});
+ let hit=contexts.get(computeKey);
+ if(hit){contexts.delete(computeKey);contexts.set(computeKey,hit);}
+ else{
+  let work=computations.get(computeKey);
+  if(!work){work=(async()=>{
+  let prepared=await prepareArchive(await load(),options),history=analysisService.analyzeHistory(prepared.archive,prepared.options);
+  if(slim)history={...history,matches:history.matches.map(match=>{
+   const compact=compactWebMatch(match);compact.players=compact.playerIndices.map(i=>compact.combatPlayers[i]);return compact;
+  })};
+  // Source envelopes are no longer needed after verification and evaluation. Keep
+  // normalized raw rows for actual-rank summaries; detail requests load their own source.
+  prepared={...prepared,archive:{tag:prepared.archive.tag,scope:prepared.archive.scope}};
+  const size=new TextEncoder().encode(JSON.stringify({prepared,history})).length*2;
+  const entry={prepared,history,size};
+  // Conservative UTF-8 x2 accounting covers object overhead; large accounts are admitted
+  // only when they fit, and can never displace more than the fixed 32 MiB budget.
+  if(size<=32*1024*1024){
+   contexts.set(computeKey,entry);contextBytes+=size;
+   for(const [id,value] of contexts){if(contextBytes<=32*1024*1024&&contexts.size<=4)break;contexts.delete(id);contextBytes-=value.size;}
+  }
+  return entry;
+  })().finally(()=>computations.delete(computeKey));computations.set(computeKey,work);}
+  hit=await work;
+ }
+ if(options.revision!==undefined&&options.revision!==hit.prepared.revision)throw new Fault('历史记录已更新，请刷新后重试',409);
+ return summarizeArchive({...hit.prepared,options:normalized},hit.history);
+}
 
 /** Auth/signature verification belongs to the archive loader. This module never trusts its match index. */
 export function normalizeHistoryAnalysisOptions(options={}){
@@ -60,8 +94,11 @@ function validateReference(target,archive,revision){
 }
 
 export async function analyzeArchive(input,options={}){
- const prepared=await prepareArchive(input,options),{archive,revision}=prepared,normalized=prepared.options;
- const history=analysisService.analyzeHistory(archive,normalized),total=history.matches.length;
+ const prepared=await prepareArchive(input,options);
+ return summarizeArchive(prepared,analysisService.analyzeHistory(prepared.archive,prepared.options));
+}
+function summarizeArchive(prepared,history){
+ const {archive,revision}=prepared,normalized={...prepared.options},total=history.matches.length;
  const window=historyModel.windowRange(total,WINDOW,normalized.start??Math.max(0,total-WINDOW));
  normalized.start=window.start;
  const statistics=historyModel.statisticsRange(total,window.end,normalized.statisticsRange),statsMatches=history.matches.slice(statistics.start,statistics.end);
@@ -78,8 +115,14 @@ export async function selectArchiveEnvelope(input,target,options={}){
  return {envelope:archive.batches[entry.batchId],batchId:entry.batchId,ref:reference(archive,revision,mid)};
 }
 
-export async function selectArchiveMatch(input,target,options={}){
+export async function selectArchiveMatch(input,target,options={},{slim=false}={}){
  const {archive,revision,options:normalized}=await prepareArchive(input,options),mid=validateReference(target,archive,revision);
+ if(slim){
+  const entry=archive.matches.find(match=>match.mid===mid),envelope=entry&&archive.batches[entry.batchId];
+  const match=envelope&&analysisService.analyzeBatch(envelope.content.data,normalized).matches.find(match=>match.mid===mid);
+  if(!match)throw new Fault('历史对局不存在或不属于当前模式',404);
+  return {match,ref:reference(archive,revision,mid)};
+ }
  const history=analysisService.analyzeHistory(archive,normalized),index=history.matches.findIndex(match=>match.mid===mid);
  if(index<0)throw new Fault('历史对局不存在或不属于当前模式',404);
  const match=history.matches[index],ref=reference(archive,revision,mid),detail=projectApiMatch(history.raw,match,normalized,{index:index+1,count:history.matches.length});

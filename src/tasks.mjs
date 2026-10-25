@@ -1,4 +1,5 @@
 import {CloudHistory} from './cloud-history.mjs';
+import {warmHistoryAnalysis} from './application/history-response.mjs';
 import {normalizeQueryOptions,legacyQueryOptions,queryRequestId} from './application/query-options.mjs';
 import {selectApiMatch} from './api-match.mjs';
 import {mintQueryIndex,verifyQueryIndex,cleanManifest,cacheEntries,mintCacheRecords,verifyCacheRecord,nameKey} from './cache-records.mjs';
@@ -14,12 +15,7 @@ export class UserTasks{
  async saveAccounts(s){const items=accountRecords(s),signature=canonical(items);if(items.length&&signature!==this.accountSignature){await putBlob(this.storage,'accounts',{scope:await (this.scopePromise||=accountScope(this.env)),until:Math.max(...items.map(a=>Date.parse(a.queriedAt)))+1800000,items});this.accountSignature=signature;}}
  async priorFromHistory(user,tag){
   try{
-   const root='history:v1:'+await digest(String(user)),scope=await digest(canonical({server:this.env.DASHEN_SERVER,dts:this.env.DASHEN_DTS})),name=nameKey(tag),account=await getBlob(this.storage,root+':account:'+await digest(canonical({scope,tag:name})));
-   if(!account?.batches)return null;let latest=null;
-   for(const envelope of Object.values(account.batches)){
-    const data=envelope?.content?.data;if(nameKey(data?.battletag)!==name||!Array.isArray(data.matches))continue;
-    if(!latest||Date.parse(data.queriedAt)>Date.parse(latest.queriedAt))latest=data;
-   }
+   const latest=await this.history.latest(user,nameKey(tag));
    return latest?{matches:latest.matches,recentHistory:latest.recentHistory||[],queryCache:latest.queryCache,matchIndex:latest.queryIndexMatches||[]}:null;
   }catch{return null;}
  }
@@ -163,6 +159,10 @@ export class UserTasks{
    const latest=await this.storage.get('job:'+job.id);if(latest?.cancel&&job.kind==='query'&&job.state!=='done'){job.state='cancelled';job.message='查询已停止';}
    if(!active(job)){if(job.state!=='done')await this.compensate(job,job.state);job.until=Date.now()+3600000;job.finishedAt=job.finishedAt||Date.now();if(await this.storage.get('active:'+job.kind)===job.id)await this.storage.delete('active:'+job.kind);if(job.state==='done'||job.kind==='ai'){await deleteBlob(this.storage,'data:'+job.id);await deleteBlob(this.storage,'prior:'+job.id);}}
    await this.storage.put('job:'+job.id,job);await this.storage.put('lastKind',job.kind);
+   if(job.kind==='query'&&job.state==='done'&&!job.archiveWarning&&job.apiOptions?.syncHistory!==false){
+    const envelope=await getBlob(this.storage,'result:'+job.id);
+    if(envelope)await warmHistoryAnalysis(job.user,this.env,this.history,envelope.content.data.battletag,job.apiOptions||{}).catch(()=>{});
+   }
   }
   const rest=[...await this.storage.list({prefix:'job:'})].map(([,j])=>j),currentAccounts=await getBlob(this.storage,'accounts');if(rest.length||currentAccounts)await this.storage.setAlarm(rest.some(j=>j.state==='running')?Date.now()+1:Math.min(...rest.map(j=>j.state==='awaiting-cache'?Math.min(j.until,j.cacheRequest.until):j.refundPending?now+5000:j.state==='paused'&&(j.api||j.policyVersion===2)?Math.min(j.until,(j.resumeAfter||now)+1):j.until),currentAccounts?.until||Infinity)+1);
  }

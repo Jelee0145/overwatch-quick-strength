@@ -105,7 +105,8 @@ app=app.slice(0,zoomStart)+"function applyChartZoom(){$('chart').style.minWidth=
 app=app.replace('function showPlayers(index){','function showPlayers(index){timeline.detailMatch=model.matches[index];window.OWQS_LAST_ANALYSIS={model,raw,index};queueMicrotask(()=>window.dispatchEvent(new CustomEvent("owqs:analysis-updated",{detail:{model,raw,index}})));');
 // Exact-match adapters fail closed if the upstream UI template changes.
 app=cleanAnalysisRuntime(app);
-app=app.replace('function showPerformance(p){','function showPerformance(p,embedded=false){').replace("$('performancePanel').scrollIntoView({block:'nearest'});","if(!embedded)$('performancePanel').scrollIntoView({block:'nearest'});");
+app=app.replace('function showPerformance(p){','async function showPerformance(p,embedded=false){if(p.detailPending){const selected=model,mid=model.matches[Number($("matchSelect").value)]?.mid;try{await ensurePlayerDetail(p);}catch(error){status(error.message,true);return;}if(selected!==model||mid!==model.matches[Number($("matchSelect").value)]?.mid)return;}').replace("$('performancePanel').scrollIntoView({block:'nearest'});","if(!embedded)$('performancePanel').scrollIntoView({block:'nearest'});");
+app=app.replace('title="${QS.esc(r.hero)} · ${r.score} 分 · ${QS.esc(r.reference)}；点击查看指标"','title="${r.score} 分 · 数据覆盖 ${Math.round(r.coverage*100)}%；点击查看指标"');
 const jsonStart=app.indexOf("$('json').onclick="),jsonEnd=app.indexOf("['limit','side','strategy','estimate','art']",jsonStart);
 app=app.slice(0,jsonStart)+"$('json').onclick=()=>{const data={...raw,historyExport:{retained:raw.matches.length,statisticsRange:$('statisticsRange').value,visibleMatchIds:model.matches.map(m=>m.mid)},visualization:{summary:model.summary,personalPrediction:model.personalPrediction,points:timeline.all.map(m=>({mid:m.mid,mean:m.mean,observedMean:m.observedMean,confidenceEvidence:m.confidenceEvidence,estimateDetails:m.estimateDetails,estimateRange:m.estimateRange,performances:m.players.map(p=>({name:p.name,...p.performance}))}))}};download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),fileName('json'));status('已导出当前账号全部保留历史 JSON（不含凭据和签名包）');};\n"+app.slice(jsonEnd);
 const mapStart=app.indexOf('const mapAttempts=new Set()'),mapEnd=app.indexOf('\ngenerate();',mapStart);
@@ -114,9 +115,11 @@ app=app.slice(0,mapStart)+"function queueMapArt(){QS_ASSETS.render($('chart').qu
 app=app.replace('empty||mapLoading','empty').replace('mapAttempts.clear();generate();','generate();');
 app+="\n$('limit').onchange=null;\n";
 // The phone layout loads on demand; expose only the state and renderers it shares with this bundle.
-app+="window.OWQS_APP={get model(){return model},get activeJob(){return activeJob},timeline,showPlayers,showPerformance,settleTimeline};\n";
+app+="window.OWQS_APP={get model(){return model},get activeJob(){return activeJob},timeline,showPlayers,showPerformance,ensurePlayerDetail,settleTimeline};\n";
 app=app.replaceAll('QS.normalize(', 'OWQS_SERVICES.data.normalize(');
 let chart=await readFile(path.join(local,'chart.js'),'utf8');
+chart=chart.replace('m.known.forEach(p=>groups.set(p.score,(groups.get(p.score)||0)+1))','m.known.forEach(p=>{const score=typeof p===\'number\'?p:p.score;groups.set(score,(groups.get(score)||0)+1);})');
+chart=chart.replace('const bins=Array(45).fill(0);statsMatches.flatMap(m=>m.scores).forEach(v=>bins[Math.min(44,Math.max(0,Math.floor((v-500)/100)))]++);','const bins=model.histogram||Array(45).fill(0);if(!model.histogram)statsMatches.flatMap(m=>m.scores).forEach(v=>bins[Math.min(44,Math.max(0,Math.floor((v-500)/100)))]++);');
 chart=chart.replace('if(showArt&&art[m.mapGuid])','if(showArt)').replace('href="${esc(art[m.mapGuid])}"','data-map-art="${esc(m.mapGuid)}"');
 // Shared source renderer already supports statsMatches and plotScale for server/browser parity.
 chart=chart.replace("text(confidenceX,156,'对局证据评分'", "text(confidenceX,156,model.statisticsLabel?.split(' · ').slice(0,2).join(' · ')||'对局证据评分'");

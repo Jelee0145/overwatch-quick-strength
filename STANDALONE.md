@@ -14,6 +14,7 @@
 - Nginx 网页根目录为 `/opt/owqs-work/public`；`.git`、`.private`、`.dev.vars` 不在网页目录内，且 Nginx 拒绝点开头的路径。
 - 发布：确认工作区干净后运行 `node scripts/deploy-local.mjs`。它执行 `backend:build`、`web:build`，重启服务，核对线上健康版本与登录页字节一致，并打 `deploy/<日期>` 标签。
 - 回滚：`git checkout deploy/<日期>` 后重跑同一命令；数据库不回滚，兼容迁移仍是独立前提。
+- 历史批次存储 v2 启用后，回到仍使用整包 `batches` 的旧版本前，须先停止服务并用当前代码的 `scripts/history-storage-rollback.mjs` 校验、恢复旧格式，再 checkout。具体顺序及 WAL 备份边界见 [历史性能验收](docs/history-performance.md#存储迁移与回退)。仅切换代码不能恢复旧读路径。
 - 服务用户 `owqs` 与 Nginx 只需读取权限；仓库其余文件保持 `root` 所有。数据库、配置仍在 `/var/lib/owqs` 与 `/etc/owqs`。
 - 旧 `/opt/owqs/releases`、`web-releases`、`current`、`web-current` 及切换记录已于同日删除。`deploy/split-release.mjs` 保留为历史工具，不再用于本站发布。
 
@@ -23,7 +24,7 @@
 
 - `.github/workflows/deploy.yml` 在推送和手动触发时构建并运行完整测试，作为可见的构建记录。
 - `owqs-autodeploy.timer` 每 2 分钟运行 `scripts/auto-deploy.mjs`：用服务器现有只读部署密钥取回 `main`，无新提交即退出。
-- 有新提交时先快进合并，再在服务器上运行同一套 `npm test`；测试不通过就不发布，线上保持上一版本，并记录该提交避免反复重试。
+- 有新提交时先在临时 detached worktree 执行 `npm ci`、`npm run build`、`npm test`，不覆盖正在服务的网页产物；验证结束清理临时目录。全部通过后才快进合并线上仓库。测试不通过就不合并、不发布，并记录该提交避免反复重试。临时目录仅用于验证，不是部署版本副本。
 - 测试通过后调用 `scripts/deploy-local.mjs`：构建、重启、校验版本与静态资源、打 `deploy/<日期-时分>` 标签。
 - 日志：`/var/log/owqs-auto-deploy.log`（轮询与测试）、`/var/log/owqs-ci-deploy.log`（已停用的旧 CI 入口）。
 - 工作区有已跟踪文件改动时自动发布直接跳过，避免覆盖未提交修改。

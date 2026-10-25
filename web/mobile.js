@@ -19,7 +19,7 @@
  const syncProgress=()=>{const running=!!app.activeJob;progress.hidden=!running;progress.textContent=running?$('status').textContent:'';};new MutationObserver(syncProgress).observe($('status'),{childList:true,characterData:true,subtree:true});syncProgress();
  const more=document.createElement('button');more.type='button';more.className='mobile-chart-more';more.textContent='更多';more.onclick=()=>openContent('导出图表',[results.querySelector('.actions')]);results.querySelector('.chart-tools').append(more);
  document.querySelectorAll('[data-evidence]').forEach(button=>button.onclick=()=>{if(button.dataset.evidence==='personal'){const node=$('personalDetail');openContent('个人段位预测依据',[node]);node.open=true;}else openContent('本场对局信息',[$('matchMeta'),$('estimateDetail'),document.querySelector('.game-data-note')]);});
- function setTab(name,focus=false){currentTab=name;tabs.querySelectorAll('[data-tab]').forEach(button=>{const selected=button.dataset.tab===name;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;if(selected&&focus)button.focus();});for(const [key,page]of Object.entries(pages)){page.classList.toggle('mobile-page-active',key===name);if(media.matches){page.setAttribute('role','tabpanel');page.inert=key!==name;}else{page.removeAttribute('role');page.inert=false;}}if(name==='chart')requestAnimationFrame(()=>configureScroll());}
+ function setTab(name,focus=false){currentTab=name;tabs.querySelectorAll('[data-tab]').forEach(button=>{const selected=button.dataset.tab===name;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;if(selected&&focus)button.focus();});for(const [key,page]of Object.entries(pages)){page.classList.toggle('mobile-page-active',key===name);if(media.matches){page.setAttribute('role','tabpanel');page.inert=key!==name;}else{page.removeAttribute('role');page.inert=false;}}}
  tabs.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>setTab(button.dataset.tab));tabs.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const names=['chart','data','review'],index=names.indexOf(currentTab);setTab(names[e.key==='Home'?0:e.key==='End'?2:(index+(e.key==='ArrowRight'?1:2))%3],true);};setTab('chart');
  function selectMatch(index){if(!view?.model.matches.length)return;index=Math.max(0,Math.min(index,view.model.matches.length-1));app.timeline.selected=view.model.matches[index].mid;$('matchSelect').value=String(index);app.showPlayers(index);}
  const value=n=>n===null||n===undefined?'—':Number(n).toLocaleString('zh-CN',{maximumFractionDigits:1});
@@ -44,7 +44,12 @@
   // Reuse the existing rating renderer; never recompute a score in the mobile view.
   const target=$('performancePanel');if(r?.grade){app.showPerformance(p,true);$('mobileHeroRating').replaceChildren(...target.childNodes);target.hidden=true;const close=$('mobileHeroRating').querySelector('#closePerformance');if(close)close.remove();}else $('mobileHeroRating').innerHTML=`<p>${esc(r?.reason||'缺少评分依据')}</p>`;
  }
- function openHero(index,tab){selectedHero=index;paintHero();setHeroTab(tab);heroDialog.showModal();}
+ async function openHero(index,tab){
+  const current=view,p=current?.model.matches[current.index]?.players[index];if(!p)return;
+  try{await app.ensurePlayerDetail(p);}catch(error){$('status').textContent=error.message;return;}
+  if(current!==view)return;
+  selectedHero=index;paintHero();setHeroTab(tab);heroDialog.showModal();
+ }
  const stage=document.createElement('div');stage.className='mobile-zoom-stage';while(zoom.firstChild)stage.append(zoom.firstChild);zoom.append(stage);zoom.querySelector('.hint')?.remove();zoom.querySelector('.mobile-chart-heading').prepend($('mobileChartClose'));$('mobileChartClose').innerHTML=icon('close');$('mobileChartClose').setAttribute('aria-label','退出放大查看');
  const zoomTools=document.createElement('div');zoomTools.className='mobile-zoom-tools';zoomTools.innerHTML='<button type="button" aria-label="缩小图表" data-zoom="out">−</button><button type="button" data-zoom="reset">适应屏幕</button><button type="button" aria-label="放大图表" data-zoom="in">＋</button>';stage.append(zoomTools);
  function placeZoom(){const portrait=innerHeight>innerWidth;zoom.classList.toggle('mobile-zoom-rotated',portrait);stage.style.width=(portrait?innerHeight:innerWidth)+'px';stage.style.height=(portrait?innerWidth:innerHeight)+'px';applyZoom();}

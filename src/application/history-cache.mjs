@@ -11,12 +11,13 @@ export function createResponseCache({bytes=48*1024*1024,entries=32}={}){
   },
   set(key,body){
    const old=store.get(key);
-   if(old){used-=old.body.length;store.delete(key);}
-   if(body.length>bytes)return body;
-   store.set(key,{body});used+=body.length;
+   if(old){used-=old.size;store.delete(key);}
+   const size=new TextEncoder().encode(body).length;
+   if(size>bytes)return body;
+   store.set(key,{body,size});used+=size;
    for(const [name,value] of store){
     if(used<=bytes&&store.size<=entries)break;
-    store.delete(name);used-=value.body.length;
+    store.delete(name);used-=value.size;
    }
    return body;
   },

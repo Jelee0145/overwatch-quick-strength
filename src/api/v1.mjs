@@ -2,17 +2,16 @@ import {Fault,json,digest,canonical,verifySnapshot} from '../security.mjs';
 import {authenticate,taskClient,requireMethod,jsonInput,operationKey} from './context.mjs';
 import {normalizeQueryOptions} from '../application/query-options.mjs';
 import {readArchive} from '../application/history-store.mjs';
-import {analyzeArchive,selectArchiveMatch,selectArchiveEnvelope} from '../application/history-analysis.mjs';
+import {analyzeArchive,analyzeCachedArchive,selectArchiveMatch,selectArchiveEnvelope} from '../application/history-analysis.mjs';
 import {webAnalysisView,requireSlimFlag} from '../application/history-view.mjs';
-import {createResponseCache} from '../application/history-cache.mjs';
+import {analysisResponseCache,analysisIdentity,analysisKey} from '../application/history-response.mjs';
 import {listEvents,handleReminder} from '../application/events.mjs';
 import {analysisService} from '../services/runtime.mjs';
 import {analyzeResult} from '../api-analysis.mjs';
 import {renderApiChart,renderAnalysisChart,compactAnalysis} from '../api-chart.mjs';
 export const apiVersion='1.1';
 // Windowed reads repeat the same bytes, so validate by archive revision and reuse them.
-export const analysisResponseCache=createResponseCache();
-function analysisKey(user,tag,revision,options,slim){return [user,tag,revision,slim?1:0,canonical({...options,revision:undefined})].join('\u0000');}
+export {analysisResponseCache};
 function catalogRevision(accounts,tag){const found=(accounts||[]).find(account=>String(account.tag||'').normalize('NFC').trim()===tag);return found?found.revision:null;}
 function jsonText(body){return new Response(body,{status:200,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});}
 const capabilities=(env,auth)=>({history:auth.tier!=='free',analysis:auth.tier!=='free',idempotency:true,sharedQuota:true,reservations:auth.tier!=='free'&&!!env.REMINDERS,webPush:auth.tier!=='free'&&!!env.REMINDERS});
@@ -47,26 +46,27 @@ export async function apiV1(request,env,url){
   const tag=String(input.battletag||input.tag||'').normalize('NFC').trim(),expected=options.revision??input.revision,cacheable=input.render===undefined;
   // The catalog already carries each account's archive revision, so a stable revision can
   // answer a repeated window without touching the signed archive at all.
+  const identity=await analysisIdentity(auth.user.id,env);
   let revision=null;
   if(cacheable){
    const catalog=await call('/history',{action:'list'}).catch(()=>null);
    revision=catalogRevision(catalog?.accounts,tag);
    if(revision!==null&&expected!==undefined&&expected!==null&&expected!==revision)throw new Fault('历史已更新，请刷新后重试',409);
-   const cached=revision===null?null:analysisResponseCache.get(analysisKey(auth.user.id,tag,revision,options,slim));
+   const cached=revision===null?null:analysisResponseCache.get(analysisKey(identity,tag,revision,options,slim));
    if(cached!==null)return jsonText(cached);
   }
-  const archive=await readArchive(call,auth.user.id,env,tag,expected);
-  const view=await analyzeArchive(archive,options);
+  const load=()=>readArchive(call,auth.user.id,env,tag,expected);
+  const view=revision===null?await analyzeArchive(await load(),options):await analyzeCachedArchive(load,options,[identity,tag,revision].join('\u0000'),{slim});
   if(input.render==='svg')view.chart=await renderAnalysisChart(view,assets);
   const body=JSON.stringify(slim?webAnalysisView(view):view);
-  if(cacheable)analysisResponseCache.set(analysisKey(auth.user.id,tag,archive.revision,options,slim),body);
+  if(cacheable)analysisResponseCache.set(analysisKey(identity,tag,view.revision,options,slim),body);
   return jsonText(body);
  }
  if(path==='/api/v1/matches/detail'||path==='/api/v1/matches/review'){
   personal(auth);requireMethod(request,'POST');const input=await jsonInput(request),ref=input.ref||input,archive=ref.sourceJob?(await taskArchive(call,auth,env,ref.sourceJob)).archive:await readArchive(call,auth.user.id,env,ref.battletag||ref.tag,ref.revision);
   if(ref.sourceJob&&((ref.tag||ref.battletag)&&archive.tag!==(ref.tag||ref.battletag)))throw new Fault('查询结果账号不匹配',409);
   const selectionOptions={...input.options,...(ref.revision?{revision:ref.revision}:{})};
-  if(path.endsWith('/detail'))return json(await selectArchiveMatch(archive,ref.mid,selectionOptions));
+  if(path.endsWith('/detail'))return json(await selectArchiveMatch(archive,ref.mid,selectionOptions,{slim:requireSlimFlag(input)}));
   const selected=await selectArchiveEnvelope(archive,ref.mid,selectionOptions);
   if(!analysisService.analyzeBatch(selected.envelope.content.data,input.options||{}).matches.some(match=>match.mid===ref.mid))throw new Fault('历史对局不存在或不属于当前模式',404);
   return json(await call('/ai-review',{battletag:archive.tag,matchId:ref.mid,envelope:selected.envelope,requestId:operationKey(request,input),force:input.force,cachedReview:input.cachedReview,reviewKey:input.reviewKey}));

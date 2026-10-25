@@ -5,6 +5,7 @@ import {signSnapshot,verifySnapshot,digest,getBlob,putBlob} from '../src/securit
 import {UserTasks} from '../src/tasks.mjs';
 import worker from '../src/worker.mjs';
 import {service} from './query-fixture.mjs';
+import {restoreLegacyHistory} from '../scripts/history-storage-rollback.mjs';
 class Storage{
  constructor(){this.map=new Map();this.alarmTime=null;}
  async get(k){return structuredClone(this.map.get(k));}
@@ -20,6 +21,22 @@ const signed=(e,ids,stamp,tag,extra)=>signSnapshot('u',data(ids,stamp,tag,extra)
 const push=(h,...envelopes)=>h.handle('u',{action:'push',envelopes});
 const list=h=>h.handle('u',{action:'list'});
 const pull=(h,tag='Main#100',cursor)=>h.handle('u',{action:'pull',tag,cursor});
+
+test('legacy archives migrate atomically, only selected batch blobs are read, and downgrade restores old readers',async()=>{
+ const e=env(),s=new Storage(),a=await signed(e,['m1']),b=await signed(e,['m2']),aid=await digest(JSON.stringify(a)),bid=await digest(JSON.stringify(b));
+ const scope=await digest(JSON.stringify({dts:e.DASHEN_DTS,server:e.DASHEN_SERVER})),root='history:v1:'+await digest('u'),key=root+':account:'+await digest(JSON.stringify({scope,tag:'Main#100'}));
+ await putBlob(s,key,{tag:'Main#100',batches:{[aid]:a,[bid]:b}});
+ await putBlob(s,root+':catalog',{accounts:[{key,scope,tag:'Main#100',batchIds:[aid,bid].sort(),count:2,bytes:100}]});
+ const before=structuredClone(s.map),put=s.put.bind(s);let writes=0;
+ s.put=async(k,v)=>{if(++writes===3)throw Error('migration failure');return put(k,v);};
+ await assert.rejects(()=>pull(new CloudHistory(s,e)),/migration failure/);assert.deepEqual(s.map,before);s.put=put;
+ const h=new CloudHistory(s,e),page=await pull(h);assert.equal(page.envelopes.length,2);assert.equal((await getBlob(s,key)).version,2);assert.equal((await getBlob(s,key)).batches,undefined);
+ const same=structuredClone(s.map);assert.equal(await restoreLegacyHistory(s,[key]),1);assert.deepEqual(s.map,same,'dry-run leaves data unchanged');
+ assert.equal(await restoreLegacyHistory(s,[key],{apply:true}),1);assert.deepEqual((await getBlob(s,key)).batches,{[aid]:a,[bid]:b});
+ assert.deepEqual(await pull(new CloudHistory(s,e)),page,'downgrade and re-upgrade preserve revision and signed bytes');
+ const reads=[],get=s.get.bind(s);s.get=async k=>{reads.push(k);return get(k);};
+ await push(h,await signed(e,['m3']));assert.ok(!reads.some(k=>[aid,bid].some(id=>k.startsWith(key+':batch:'+id))),'push reads metadata without parsing old signed blobs');
+});
 test('history verifies old signatures; user, server, season and tampered input stay isolated',async()=>{
  const e=env(),s=new Storage(),h=new CloudHistory(s,e),a=await signed(e);
  await push(h,a);assert.equal((await list(h)).accounts[0].count,1);

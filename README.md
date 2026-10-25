@@ -2,6 +2,8 @@
 
 前后端分离与统一后端已完成：网页与 API Bot 共用 `/api/v1`，查询、评分、历史和额度由后端负责，前后端独立构建、打包与部署。完整说明、迁移边界和命令见 [统一后端架构](docs/unified-backend.md)，机器可读契约见 [OpenAPI](contracts/openapi.yaml)。2026-10-22 腾讯云拆包上线记录见 [发布日志](docs/agent-update-log.md)，该记录不代表后续提交均已上线。
 
+历史分析的网页精简投影、窗口缓存、批次同步与存储回退见 [历史性能验收](docs/history-performance.md)。本机合成数据结果与生产验收分开记录；完整 API 视图仍为默认。
+
 完整项目位于 `D:\project\owqs`；本机工具位于 `local/`，云端项目不修改它。`source` 保存评分、强度预测、图表和素材的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。本机算法更新后，可手动运行 `node scripts/sync-local.mjs` 同步白名单源码。
 
 ## 使用与管理

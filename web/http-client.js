@@ -17,7 +17,10 @@
    tx.objectStore=store=>{
     if(!stores.has(store))stores.set(store,new Map());const rows=stores.get(store);
     const request=work=>{const result={};queueMicrotask(()=>{try{result.result=structuredClone(work());result.onsuccess?.();}catch(error){tx.error=error;result.onerror?.();tx.onerror?.();}});return result;};
-    return {get:key=>request(()=>rows.get(key)),getAll:()=>request(()=>[...rows.values()]),put:(value,key)=>request(()=>{rows.set(key,structuredClone(value));return key;})};
+    return {get:key=>request(()=>rows.get(key)),getAll:()=>request(()=>[...rows.values()]),openCursor:range=>{
+     const keys=[...rows.keys()].filter(key=>!range||range.includes(key)).sort(),r={};let index=0;
+     const next=()=>queueMicrotask(()=>{const key=keys[index++];r.result=key===undefined?null:{key,value:structuredClone(rows.get(key)),continue:next};r.onsuccess?.();});next();return r;
+    },put:(value,key)=>request(()=>{rows.set(key,structuredClone(value));return key;})};
    };
    queueMicrotask(()=>queueMicrotask(()=>tx.oncomplete?.()));return tx;
   }};

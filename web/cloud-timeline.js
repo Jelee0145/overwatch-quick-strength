@@ -1,5 +1,5 @@
 const TIMELINE_WINDOW=10;
-const timeline={archive:null,all:[],start:0,selected:null,serial:0,drag:null,suppressUntil:0,scrollTimer:null,frame:null,statistics:null};
+const timeline={archive:null,all:[],start:0,selected:null,serial:0,statistics:null};
 async function openHistory(tag,mid,sourceJob){
  const serial=++timeline.serial;cancelTimelineMotion();const analysisSerial=timeline.analysisSerial=(timeline.analysisSerial||0)+1;
  const view=await OWQS_SERVER_ANALYSIS.load(tag,{...options(),sourceJob,statisticsRange:$('statisticsRange').value});if(serial!==timeline.serial||analysisSerial!==timeline.analysisSerial)return;
@@ -11,7 +11,7 @@ async function openHistory(tag,mid,sourceJob){
 function applyServerAnalysis(view){
  // The slim view carries one detailed window plus a light index of the whole archive;
  // splice them back together so window maths, totals and the histogram stay exact.
- if(Array.isArray(view.series)&&Array.isArray(view.matches)){
+ if(Array.isArray(view.series)&&Array.isArray(view.matches)&&view.matches.length!==view.series.length){
   const detail=new Map(view.matches.map(match=>[match.mid,match]));
   view.matches=view.series.map(match=>detail.get(match.mid)||match);
  }
@@ -35,10 +35,10 @@ function renderServerTimeline(){
 }
 function chartView(){const w=timelineWindow();return {...timeline.statistics,matches:timeline.all.slice(w.start,w.end),statsMatches:timeline.statistics.matches,windowOffset:w.start,plotScale:timeline.axis};}
 function paintTimeline(){
- const view=chartView(),w=timelineWindow(),images=timelineImages();model=view;timeline.pool=null;
+ const view=chartView(),w=timelineWindow(),images=timelineImages();model=view;
  $('chart').innerHTML=view.matches.length?renderChart(view,QS_ART,$('art').checked,$('title').value||'快速强度图'):'<div class="empty-state"><strong>暂无对局</strong></div>';
  $('chart').querySelectorAll('[data-match]').forEach(el=>{
-  const show=()=>{if(Date.now()<timeline.suppressUntil)return;const index=Number(el.dataset.match);timeline.selected=model.matches[index]?.mid;$('matchSelect').value=String(index);showPlayers(index);};
+  const show=()=>{const index=Number(el.dataset.match);timeline.selected=model.matches[index]?.mid;$('matchSelect').value=String(index);showPlayers(index);};
   el.onclick=show;el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();show();}};
  });
  restoreTimelineImages($('chart').querySelector('svg'),images);queueMapArt();
@@ -55,7 +55,16 @@ function paintTimeline(){
 function timelineImages(){const images=new Map();$('chart').querySelectorAll('image[data-map-art]').forEach(n=>{const href=n.getAttribute('href');if(href?.startsWith('data:image/'))images.set(QS_MEDIA.maps[n.dataset.mapArt]?.preview||n.dataset.mapArt,href);});return images;}
 function restoreTimelineImages(svg,images){svg?.querySelectorAll('image[data-map-art]').forEach(n=>{const href=images.get(QS_MEDIA.maps[n.dataset.mapArt]?.preview||n.dataset.mapArt);if(href)n.setAttribute('href',href);});}
 function configureScroll(){const scroll=$('timelineScroll');if(scroll){scroll.hidden=true;scroll.scrollLeft=0;}timeline.unit=null;}
-function cancelTimelineMotion(){timeline.motionGeneration=(timeline.motionGeneration||0)+1;clearTimeout(timeline.scrollTimer);for(const key of ['frame','snapFrame','afterSnapFrame']){if(timeline[key])cancelAnimationFrame(timeline[key]);timeline[key]=null;}timeline.pendingOffset=null;timeline.snap=null;$('chart').classList.remove('timeline-moving');}
+function cancelTimelineMotion(){}
+function settleTimeline(){paintTimeline();}
+async function ensurePlayerDetail(p){
+ if(!p.detailPending)return p;
+ const match=model.matches.find(m=>m.players.includes(p));if(!match)return p;
+ const selected=await OWQS_SERVER_ANALYSIS.detail(matchReference(match.mid),timeline.analysis?.options||{});
+ const full=selected.match.players.find(q=>q.name===p.name&&q.side===p.side&&q.hero===p.hero);
+ if(!full)throw Error('玩家详情已变化，请刷新历史');
+ Object.assign(p,full,{detailPending:false});return p;
+}
 async function generate(){
  cancelTimelineMotion();const tag=timeline.archive?.tag||raw.battletag;
  if(!tag){renderServerTimeline();return;}

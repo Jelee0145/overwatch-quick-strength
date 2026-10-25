@@ -38,9 +38,14 @@ test('summary extraction preserves scores, confidence and personal prediction ag
 });
 test('IndexedDB archive migration, restart, user/season isolation and quota failure retain prior history',async()=>{
  const tables={cache:new Map(),historyAccounts:new Map()};let failWrite=false;
- const db={transaction(name){const tx={objectStore(){return {get(key){const r={};queueMicrotask(()=>{r.result=structuredClone(tables[name].get(key));r.onsuccess?.();});return r;},getAll(){const r={};queueMicrotask(()=>{r.result=structuredClone([...tables[name].values()]);r.onsuccess?.();});return r;},put(value,key){queueMicrotask(()=>{if(failWrite){tx.onabort?.();return;}tables[name].set(key,structuredClone(value));tx.oncomplete?.();});}};}};return tx;}};
- const env={DASHEN_SERVER:'1',DASHEN_DTS:'2026',CACHE_SIGNING_KEY:'fixture-key'},old=await signSnapshot('u',envelope(0,10).content.data,env);tables.cache.set('old-snapshot',old);
- const c=vm.createContext({window:{},Cloud:{key:async value=>createHash('sha256').update(JSON.stringify(value)).digest('hex')},QS_HISTORY_MODEL:H});vm.runInContext(await readFile(new URL('../web/cloud-history.js',import.meta.url),'utf8'),c);const archive=c.window.CloudHistory,session={user:{id:'u'},scope:{server:'1',dts:'2026'}};
+ const db={transaction(name){const tx={objectStore(){return {
+  get(key){const r={};queueMicrotask(()=>{r.result=structuredClone(tables[name].get(key));r.onsuccess?.();tx.oncomplete?.();});return r;},
+  getAll(){const r={};queueMicrotask(()=>{r.result=structuredClone([...tables[name].values()]);r.onsuccess?.();});return r;},
+  openCursor(range){const keys=[...tables[name].keys()].filter(key=>range.includes(key)),r={};let i=0;const next=()=>queueMicrotask(()=>{const key=keys[i++];r.result=key===undefined?null:{key,value:structuredClone(tables[name].get(key)),continue:next};r.onsuccess?.();});next();return r;},
+  put(value,key){const r={};queueMicrotask(()=>{if(failWrite){tx.onabort?.();return;}tables[name].set(key,structuredClone(value));r.result=key;tx.oncomplete?.();});return r;}
+ };}};return tx;}};
+ const env={DASHEN_SERVER:'1',DASHEN_DTS:'2026',CACHE_SIGNING_KEY:'fixture-key'},old=await signSnapshot('u',envelope(0,10).content.data,env);tables.cache.set('u|snapshot|1|2026|Main#100',old);
+ const c=vm.createContext({window:{},IDBKeyRange:{bound:(lo,hi)=>({includes:key=>key>=lo&&key<=hi})},Cloud:{key:async value=>createHash('sha256').update(JSON.stringify(value)).digest('hex')},QS_HISTORY_MODEL:H});vm.runInContext(await readFile(new URL('../web/cloud-history.js',import.meta.url),'utf8'),c);const archive=c.window.CloudHistory,session={user:{id:'u'},scope:{server:'1',dts:'2026'}};
  await archive.initialize(db,session);assert.equal((await archive.load(tag)).matches.length,10);assert.equal((await archive.list()).length,1);
  const next=await signSnapshot('u',envelope(5,15,'2026-10-14T01:00:00Z').content.data,env);failWrite=true;await assert.rejects(()=>archive.save(next),/旧历史已保留/);assert.equal((await archive.load(tag)).matches.length,10);failWrite=false;await archive.save(next);assert.equal((await archive.load(tag)).matches.length,15);
  assert.equal((await archive.envelope(tag,game(0).mid)).signature,old.signature);await archive.initialize(db,session);assert.equal((await archive.load(tag)).matches.length,15);

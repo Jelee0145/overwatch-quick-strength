@@ -5,6 +5,10 @@ import {analysisResponseCache} from '../src/api/v1.mjs';
 import {createRuntime} from '../server/runtime.mjs';
 import {signSnapshot,putBlob} from '../src/security.mjs';
 import {analysisFixture} from './services-fixture.mjs';
+import {warmHistoryAnalysis} from '../src/application/history-response.mjs';
+import {createHttpServer} from '../server/http.mjs';
+import http from 'node:http';
+import {gunzipSync,brotliDecompressSync} from 'node:zlib';
 
 async function setup(){
  const env={PASSWORD_PEPPER:'fixture-pepper',CACHE_SIGNING_KEY:'fixture-signing',API_KEY_ENCRYPTION_KEY:'fixture-encryption',DASHEN_SERVER:'1',DASHEN_DTS:'2026'};
@@ -31,6 +35,37 @@ test('Cookie and Bearer share authenticated API history and analysis while cooki
  const page=await ctx.request('/api/internal/page-session');assert.equal(page.status,204);
  const anonymous=await worker.fetch(new Request('https://site.test/api/internal/page-session'),ctx.runtime.env);assert.equal(anonymous.status,401);
 });
+
+test('query prewarming populates the exact slim response; changing range reuses authenticated object context',async t=>{
+ const ctx=await setup();t.after(()=>ctx.runtime.close());const user=ctx.registration.user.id,raw=analysisFixture(),envelope=await signSnapshot(user,raw,ctx.runtime.env);
+ const instance=ctx.runtime.instance('tasks:'+user);await instance.history.handle(user,{action:'push',envelopes:[envelope]});
+ const options={side:'all',strategy:'role',estimate:true,pool:'',statisticsRange:'all'};
+ await warmHistoryAnalysis(user,ctx.runtime.env,instance.history,raw.battletag,options);
+ const original=instance.history.handle.bind(instance.history);let pulls=0;
+ instance.history.handle=(user,body)=>{if(body.action==='pull')pulls++;return original(user,body);};
+ for(const selection of [options,{...options,start:0,statisticsRange:'5'},{...options,start:2,statisticsRange:'10'}]){
+  const response=await ctx.request('/api/v1/history/analysis',{method:'POST',body:{battletag:raw.battletag,slim:true,options:selection}});assert.equal(response.status,200);
+ }
+ assert.equal(pulls,0,'warm responses and object contexts bypass archive IO');
+});
+
+test('standalone HTTP serves negotiated cached gzip/brotli bytes with Vary and leaves auth failures unencoded',async t=>{
+ const ctx=await setup();t.after(()=>ctx.runtime.close());const raw=analysisFixture(),envelope=await signSnapshot(ctx.registration.user.id,raw,ctx.runtime.env);
+ await ctx.request('/api/v1/history',{method:'POST',body:{action:'push',envelopes:[envelope]}});
+ const server=createHttpServer(ctx.runtime,{origin:'http://site.test',allowLoopback:true});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const send=(encoding,key=ctx.key)=>new Promise((resolve,reject)=>{
+  const body=JSON.stringify({battletag:raw.battletag,slim:true});
+  const request=http.request({host:'127.0.0.1',port:server.address().port,path:'/api/v1/history/analysis',method:'POST',headers:{Host:'site.test','Content-Type':'application/json','Accept-Encoding':encoding,Authorization:'Bearer '+key}},response=>{
+   const chunks=[];response.on('data',chunk=>chunks.push(chunk));response.on('end',()=>resolve({status:response.statusCode,headers:response.headers,body:Buffer.concat(chunks)}));
+  });request.on('error',reject);request.end(body);
+ });
+ const plain=await send('identity');assert.equal(plain.status,200);assert.equal(plain.headers['content-encoding'],undefined);
+ for(const encoding of ['gzip','br']){
+  const first=await send(encoding),second=await send(encoding);assert.equal(first.status,200);assert.equal(first.headers['content-encoding'],encoding);assert.match(first.headers.vary,/Accept-Encoding/);assert.deepEqual(first.body,second.body);
+  assert.deepEqual(encoding==='gzip'?gunzipSync(first.body):brotliDecompressSync(first.body),plain.body);
+ }
+ assert.equal((await send('*;q=0')).status,406);const denied=await send('br','invalid');assert.equal(denied.status,401);assert.equal(denied.headers['content-encoding'],undefined);
+});
 test('unified API rejects conflicting identities and backend-only mode serves no webpage assets',async t=>{
  const ctx=await setup();t.after(()=>ctx.runtime.close());const other=(await ctx.internal('/register',{email:'other-unified@example.test',password:'fixture-password-long'})).value;
  const response=await ctx.request('/api/v1/account',{bearer:true,headers:{Cookie:'qs_session='+other.token}});assert.ok([401,403].includes(response.status));
@@ -50,6 +85,7 @@ test('completed query analysis survives archive failure, retains references and 
 });
 
 test('a repeated analysis window is served from the revision cache and follows new batches',async t=>{
+ analysisResponseCache.clear();
  const ctx=await setup();t.after(()=>ctx.runtime.close());
  const raw=analysisFixture(),envelope=await signSnapshot(ctx.registration.user.id,raw,ctx.runtime.env);
  const pushed=await ctx.request('/api/v1/history',{method:'POST',body:{action:'push',envelopes:[envelope]}});

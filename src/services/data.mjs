@@ -47,16 +47,23 @@ export function createDataService({normalizeSnapshot}={}){
   return [...index.values()].sort((a,b)=>a.t-b.t||compareIds(a.mid,b.mid)).slice(-limit);
  }
  function mergeArchive(previous,envelope,batchId,scope){
+  return mergeArchiveBatches(previous,{[batchId]:envelope},scope);
+ }
+ function mergeArchiveBatches(previous,incoming,scope){
+  let account=previous?.tag,updatedAt=previous?.updatedAt;
+  for(const envelope of Object.values(incoming)){
   const data=envelope?.content?.data;
   if(!data||!Array.isArray(data.matches)||data.matches.length>50)throw Error('历史归档缺少有效查询结果');
-  const account=nameKey(data.battletag);
-  if(!account||previous&&(previous.scope!==scope||previous.tag!==account))throw Error('历史归档账号或范围不一致');
+  const name=nameKey(data.battletag);
+  if(!name||account&&account!==name||previous&&previous.scope!==scope)throw Error('历史归档账号或范围不一致');account=name;
   for(const m of data.matches)if(!String(m.mid)||!Array.isArray(m.players))throw Error('历史对局数据不完整');
-  const matches=indexHistory({[batchId]:envelope},{previous:previous?.matches,compareIds:(a,b)=>a.localeCompare(b)}),used=new Set(matches.map(m=>m.batchId));
-  const batches=Object.fromEntries(Object.entries({...previous?.batches,[batchId]:envelope}).filter(([id])=>used.has(id)));
-  return structuredClone({version:1,scope,tag:account,updatedAt:Date.parse(previous?.updatedAt)>Date.parse(data.queriedAt)?previous.updatedAt:data.queriedAt,matches,batches});
+  if(!updatedAt||Date.parse(data.queriedAt)>Date.parse(updatedAt))updatedAt=data.queriedAt;
+  }
+  const matches=indexHistory(incoming,{previous:previous?.matches,compareIds:(a,b)=>a.localeCompare(b)}),used=new Set(matches.map(m=>m.batchId));
+  const batches=Object.fromEntries(Object.entries({...previous?.batches,...incoming}).filter(([id])=>used.has(id)));
+  return structuredClone({version:1,scope,tag:account,updatedAt,matches,batches});
  }
  /** @param {Snapshot} input @returns {Snapshot} Analysis view, never a signing payload. */
  function normalize(input){if(!normalizeSnapshot)throw Error('缺少分析数据转换器');return normalizeSnapshot(structuredClone(input));}
- return Object.freeze({rankRows,matchList,player,matchDetail,projectBattle,mergeMatches,indexHistory,mergeArchive,normalize});
+ return Object.freeze({rankRows,matchList,player,matchDetail,projectBattle,mergeMatches,indexHistory,mergeArchive,mergeArchiveBatches,normalize});
 }

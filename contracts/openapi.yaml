@@ -161,9 +161,15 @@ paths:
                 slim:
                   type: boolean
                   description: >-
-                    Page clients only. Omits the duplicate chart view, reuses the analysed series for
-                    whole-history statistics, and drops the side-filtered roster when no side filter is
-                    applied. The documented response stays the default.
+                    Page clients only. Sends a light whole-archive series and one ten-match detail
+                    window with window-only matchRefs. known contains numeric scores; combatPlayers
+                    is the single compact roster, with playerIndices selecting the requested side.
+                    Stats retain the eleven displayed fields; performance retains summary fields and
+                    detailPending signals lazy /matches/detail expansion. model.histogram contains
+                    45 precomputed rank buckets (500 to 5000, 100 per bucket, clamped edges).
+                    Personal prediction records retain the fields displayed by the page; selected
+                    aliases byRole[selectedRole] on the client. Raw rows retain review eligibility
+                    only. The documented complete response stays the default when slim is absent.
       responses:
         '200':
           description: Server history analysis DTO
@@ -177,7 +183,7 @@ paths:
       summary: Select an owned historical match by stable reference
       requestBody: {$ref: '#/components/requestBodies/MatchReference'}
       responses:
-        '200': {description: 'Historical match projection (raw, match, ref, detail); detail includes ref'}
+        '200': {description: 'Historical match projection (raw, match, ref, detail); detail includes ref. Page opt-in slim:true returns only match/ref with full player evidence, evaluated from the original source batch.'}
         '409': {$ref: '#/components/responses/Conflict'}
   /matches/review:
     post:
@@ -352,6 +358,7 @@ components:
               sourceJob: {type: string, pattern: '^[a-f0-9]{64}$', description: Optional retained job source for results not archived}
               revision: {type: string, pattern: '^[a-f0-9]{64}$'}
               options: {$ref: '#/components/schemas/AnalysisOptions'}
+              slim: {type: boolean, description: For matches/detail only; page opt-in match/ref response with full player evidence}
               requestId: {type: string, maxLength: 100, description: Required for AI review operation identity}
   responses:
     Task:
