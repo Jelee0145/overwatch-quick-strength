@@ -158,6 +158,12 @@ paths:
                 battletag: {type: string}
                 options: {$ref: '#/components/schemas/AnalysisOptions'}
                 render: {type: string, enum: [svg]}
+                slim:
+                  type: boolean
+                  description: >-
+                    Page clients only. Omits the duplicate chart view, reuses the analysed series for
+                    whole-history statistics, and drops the side-filtered roster when no side filter is
+                    applied. The documented response stays the default.
       responses:
         '200':
           description: Server history analysis DTO

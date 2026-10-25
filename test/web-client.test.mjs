@@ -35,17 +35,16 @@ test('server analysis deduplicates requests, restores exact offline summaries an
  server='1';failure=Object.assign(Error('forbidden'),{status:403});service=analysisRuntime(Cloud);await assert.rejects(service.load('Fixture#1',{start:0}),/forbidden/);
 });
 
-test('server analysis retains twelve recently used views and refreshes cache hits',async()=>{
- let requests=0;
- const Cloud={boot:async()=>({user:{id:'u'},scope:{server:'1',dts:'2026'}}),storage:async()=>undefined,api:async()=>{requests++;return dto();}};
+test('server analysis keeps a small memory cache and requests slim views',async()=>{
+ let requests=0,bodies=[];
+ const Cloud={boot:async()=>({user:{id:'u'},scope:{server:'1',dts:'2026'}}),storage:async()=>undefined,api:async(path,body)=>{requests++;bodies.push(body);return dto();}};
  const service=analysisRuntime(Cloud);
- for(let start=0;start<12;start++)await service.load('Fixture#1',{start});
- assert.equal(requests,12);
- await service.load('Fixture#1',{start:0});assert.equal(requests,12);
- await service.load('Fixture#1',{start:12});assert.equal(requests,13);
- await service.load('Fixture#1',{start:0});assert.equal(requests,13,'the refreshed first view remains cached');
- await service.load('Fixture#1',{start:1});assert.equal(requests,14,'the least recently used view was evicted');
- service.invalidate('Fixture#1');await service.load('Fixture#1',{start:0});assert.equal(requests,15);
+ for(let start=0;start<4;start++)await service.load('Fixture#1',{start});
+ assert.equal(requests,4);
+ assert.equal(bodies[0].slim,true,'slim views keep the archive copy off the wire');
+ await service.load('Fixture#1',{start:3});assert.equal(requests,4,'the newest view is cached');
+ await service.load('Fixture#1',{start:0});assert.equal(requests,5,'older views are dropped so memory stays bounded');
+ service.invalidate('Fixture#1');await service.load('Fixture#1',{start:0});assert.equal(requests,6);
 });
 
 test('main web client adapts legacy app paths and starts v1 queries without browser cache handshake',async()=>{

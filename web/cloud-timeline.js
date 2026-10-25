@@ -9,6 +9,11 @@ async function openHistory(tag,mid,sourceJob){
  if(timeline.start!==view.window.start)await generate();else renderServerTimeline();
 }
 function applyServerAnalysis(view){
+ // The slim view omits the archive copy of the series whenever whole-history statistics
+ // are used; the analysed series is already here, so attach it instead of downloading it again.
+ if(view.model&&!Array.isArray(view.model.matches))view.model.matches=view.matches;
+ // Same for the side-filtered roster: with no side filter it is the combat roster itself.
+ if(Array.isArray(view.matches))for(const match of view.matches)if(match&&!Array.isArray(match.players)&&Array.isArray(match.combatPlayers))match.players=match.combatPlayers;
  timeline.analysis=view;raw=view.raw;timeline.all=view.matches;timeline.axis=view.axis;timeline.start=view.window.start;
  timeline.statistics=view.model;
  timeline.statistics.statisticsLabel=view.statisticsLabel;$('statisticsNote').textContent=view.statisticsLabel;
@@ -50,6 +55,9 @@ function cancelTimelineMotion(){timeline.motionGeneration=(timeline.motionGenera
 async function generate(){
  cancelTimelineMotion();const tag=timeline.archive?.tag||raw.battletag;
  if(!tag){renderServerTimeline();return;}
+ // Whole-history statistics cannot change with the visible window, so moving the window
+ // only needs a local re-slice; re-downloading the archive for it cost a full analysis.
+ if(!QS_HISTORY_MODEL.windowNeedsAnalysis(timeline.analysis,tag,$('statisticsRange').value)){renderServerTimeline();return;}
  const serial=timeline.analysisSerial=(timeline.analysisSerial||0)+1,archiveSerial=timeline.serial;
  try{
   const view=await OWQS_SERVER_ANALYSIS.load(tag,{...options(),sourceJob:timeline.archive?.sourceJob,start:timeline.start,statisticsRange:$('statisticsRange').value});

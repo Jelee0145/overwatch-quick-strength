@@ -3,6 +3,7 @@ import {authenticate,taskClient,requireMethod,jsonInput,operationKey} from './co
 import {normalizeQueryOptions} from '../application/query-options.mjs';
 import {readArchive} from '../application/history-store.mjs';
 import {analyzeArchive,selectArchiveMatch,selectArchiveEnvelope} from '../application/history-analysis.mjs';
+import {webAnalysisView,requireSlimFlag} from '../application/history-view.mjs';
 import {listEvents,handleReminder} from '../application/events.mjs';
 import {analysisService} from '../services/runtime.mjs';
 import {analyzeResult} from '../api-analysis.mjs';
@@ -34,8 +35,8 @@ export async function apiV1(request,env,url){
   requireMethod(request,'POST');return json(await call('/history',await jsonInput(request)));
  }
  if(path==='/api/v1/history/analysis'){
-  personal(auth);requireMethod(request,'POST');const input=await jsonInput(request),options=input.options||{},archive=await readArchive(call,auth.user.id,env,input.battletag||input.tag,options.revision||input.revision);
-  const view=await analyzeArchive(archive,options);if(input.render==='svg')view.chart=await renderAnalysisChart(view,assets);else if(input.render!==undefined)throw new Fault('图片格式仅支持 svg');return json(view);
+  personal(auth);requireMethod(request,'POST');const input=await jsonInput(request),options=input.options||{},slim=requireSlimFlag(input),archive=await readArchive(call,auth.user.id,env,input.battletag||input.tag,options.revision||input.revision);
+  const view=await analyzeArchive(archive,options);if(input.render==='svg')view.chart=await renderAnalysisChart(view,assets);else if(input.render!==undefined)throw new Fault('图片格式仅支持 svg');return json(slim?webAnalysisView(view):view);
  }
  if(path==='/api/v1/matches/detail'||path==='/api/v1/matches/review'){
   personal(auth);requireMethod(request,'POST');const input=await jsonInput(request),ref=input.ref||input,archive=ref.sourceJob?(await taskArchive(call,auth,env,ref.sourceJob)).archive:await readArchive(call,auth.user.id,env,ref.battletag||ref.tag,ref.revision);
@@ -62,7 +63,7 @@ export async function apiV1(request,env,url){
  if(jobAnalysis){
   requireMethod(request,'POST');const input=await jsonInput(request),{job,archive}=await taskArchive(call,auth,env,jobAnalysis[1]);
   if(input.battletag&&input.battletag!==archive.tag)throw new Fault('查询结果账号不匹配',409);
-  const view=await analyzeArchive(archive,input.options||{});view.sourceJob=jobAnalysis[1];view.archiveWarning=job.archiveWarning||null;view.matchRefs=view.matchRefs.map(ref=>({...ref,sourceJob:jobAnalysis[1]}));return json(view);
+  const view=await analyzeArchive(archive,input.options||{});view.sourceJob=jobAnalysis[1];view.archiveWarning=job.archiveWarning||null;view.matchRefs=view.matchRefs.map(ref=>({...ref,sourceJob:jobAnalysis[1]}));return json(requireSlimFlag(input)?webAnalysisView(view):view);
  }
  const selected=/^\/api\/v1\/jobs\/([a-f0-9]{64})\/matches\/([0-9]+)(\/review)?$/.exec(path);
  if(selected){const review=!!selected[3];requireMethod(request,review?'POST':'GET');const input=review?await jsonInput(request):{};return json(await call(review?'/api-match-review':'/api-match',{id:selected[1],index:Number(selected[2]),requestId:review?operationKey(request,input):undefined}));}

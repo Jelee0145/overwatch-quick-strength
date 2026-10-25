@@ -9,6 +9,7 @@ import {renderAnalysisChart,renderApiChart} from '../src/api-chart.mjs';
 import {selectApiMatch,projectApiMatch} from '../src/api-match.mjs';
 import {digest} from '../src/security.mjs';
 import {normalizeQueryOptions} from '../src/application/query-options.mjs';
+import {webAnalysisView} from '../src/application/history-view.mjs';
 
 const clone=value=>JSON.parse(JSON.stringify(value));
 const assets={async fetch(){return new Response('',{status:404});}};
@@ -90,4 +91,23 @@ test('legacy Bot chart retains ten displayed matches and fixed ten-match summary
  const rendered=await renderApiChart(analysisFixture(),{statisticsRange:'all'},assets);
  assert.equal(rendered.displayed,10);assert.equal(rendered.statisticsRange,'10');assert.equal((rendered.svg.match(/class="match-hit"/g)||[]).length,10);
  assert.match(rendered.svg,/10 场 \/ /);
+});
+
+test('slim web analysis keeps one copy of the series and stays far smaller on the wire',async()=>{
+ const view=await createHistoryAnalysisService().analyzeArchive(largeArchive());
+ const full=JSON.stringify(view),slimView=webAnalysisView(view),slim=JSON.stringify(slimView);
+ assert.equal(view.chartView.matches.length,10);
+ assert.equal(view.model.matches.length,500);
+ assert.ok(!slim.includes('"chartView"'));
+ assert.equal(slimView.matches.length,500);
+ assert.equal(slimView.model.matches,undefined);
+ assert.equal(slimView.raw.matches.length,500);
+ assert.ok(Buffer.byteLength(slim)<Buffer.byteLength(full)*0.3,`slim ${Buffer.byteLength(slim)} vs full ${Buffer.byteLength(full)}`);
+ // The side-filtered roster is dropped only when it is the combat roster itself.
+ const withRoster=view.matches.filter(match=>match.players.length===match.combatPlayers.length);
+ assert.ok(withRoster.length>0);
+ for(const match of withRoster)assert.equal(slimView.matches.find(item=>item.mid===match.mid).players,undefined);
+ for(const match of view.matches)if(match.players.length!==match.combatPlayers.length)assert.ok(Array.isArray(slimView.matches.find(item=>item.mid===match.mid).players));
+ const short=await createHistoryAnalysisService().analyzeArchive(largeArchive(),{statisticsRange:'5'});
+ assert.equal(webAnalysisView(short).model.matches.length,5);
 });
