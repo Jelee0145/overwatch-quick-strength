@@ -1,13 +1,9 @@
-name: 构建、测试并发布
+name: 构建与测试
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: deploy-main
-  cancel-in-progress: false
 
 jobs:
   verify:
@@ -21,30 +17,3 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npm test
-
-  deploy:
-    needs: verify
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-    steps:
-      - name: Check deployment credential
-        run: |
-          if [ -z "$DEPLOY_KEY" ]; then
-            echo "::notice::未配置 DEPLOY_SSH_KEY，已跳过自动发布。"
-            exit 0
-          fi
-      - uses: actions/checkout@v4
-        if: env.DEPLOY_KEY != ''
-      - name: Prepare key
-        if: env.DEPLOY_KEY != ''
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy
-          chmod 600 ~/.ssh/deploy
-          cp deploy/known_hosts ~/.ssh/known_hosts
-      - name: Release on server
-        if: env.DEPLOY_KEY != ''
-        run: ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes root@106.55.47.68 owqs-ci-deploy

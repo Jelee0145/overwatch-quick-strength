@@ -19,13 +19,14 @@
 
 ### 推送自动发布
 
-`.github/workflows/deploy.yml` 在推送到 `main` 时先构建并跑完整测试；通过后，若仓库已配置 `DEPLOY_SSH_KEY`，再通过 SSH 触发服务器发布。
+推送到 `main` 后由服务器侧轮询发布，不开放入站 SSH，也不需要仓库 Secret：
 
-- 服务器端入口是 `/usr/local/bin/owqs-ci-deploy`：只做 `git fetch`、`--ff-only` 合并、调用 `scripts/deploy-local.mjs`，日志写入 `/var/log/owqs-ci-deploy.log`。
-- 对应密钥 `/root/.ssh/owqs_ci` 在 `authorized_keys` 中限制为 `command=` 该脚本并使用 `restrict`，不能开交互 shell、转发端口或执行其他命令。
-- 服务器主机公钥固定在 `deploy/known_hosts`，CI 不依赖运行时 `ssh-keyscan`。
-- 未配置 `DEPLOY_SSH_KEY` 时只有构建与测试，不会发布。
-- 拉取服务器代码仍使用服务器自己的只读部署密钥，不需要把仓库权限交给 CI。
+- `.github/workflows/deploy.yml` 在推送和手动触发时构建并运行完整测试，作为可见的构建记录。
+- `owqs-autodeploy.timer` 每 2 分钟运行 `scripts/auto-deploy.mjs`：用服务器现有只读部署密钥取回 `main`，无新提交即退出。
+- 有新提交时先快进合并，再在服务器上运行同一套 `npm test`；测试不通过就不发布，线上保持上一版本，并记录该提交避免反复重试。
+- 测试通过后调用 `scripts/deploy-local.mjs`：构建、重启、校验版本与静态资源、打 `deploy/<日期>` 标签。
+- 日志：`/var/log/owqs-auto-deploy.log`（轮询与测试）、`/var/log/owqs-ci-deploy.log`（已停用的旧 CI 入口）。
+- 工作区有已跟踪文件改动时自动发布直接跳过，避免覆盖未提交修改。
 
 数据库、配置、密钥和公网 origin 不因拆分变更。更新 `deploy/owqs.service` 的后端 release 指针和 Nginx 模板前，需分别验证安装包和 `nginx -t`。`deploy/split-release.mjs` 提供显式校验/激活流程；没有激活参数不切换。代码回滚不回滚数据库，兼容状态迁移是独立回退的前提。此文不代表已获上线授权。
 
