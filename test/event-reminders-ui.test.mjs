@@ -476,15 +476,15 @@ test('reservation status distinguishes generated notices from push acceptance an
   vm.createContext(sandbox);
   vm.runInContext(statusFunction + ';globalThis.statusFor=reservationStatus;', sandbox);
   const pending = {state: 'notified', deliveryStatus: 'pending'};
-  assert.match(sandbox.statusFor(pending, 1000), /站内提醒已生成.*系统推送待确认/);
-  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'sent'}, 1000), /推送服务已接收.*设备是否展示/);
-  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'failed'}, 1000), /系统推送失败/);
-  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'unavailable'}, 1000), /站内提醒已生成.*暂无可用/);
+  assert.match(sandbox.statusFor(pending, 1000), /已提醒.*推送待确认/);
+  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'sent'}, 1000), /已提交推送/);
+  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'failed'}, 1000), /推送失败/);
+  assert.match(sandbox.statusFor({...pending, deliveryStatus: 'unavailable'}, 1000), /已提醒.*通知未启用/);
   const withoutDevice = sandbox.statusFor({state: 'active', deliveryStatus: 'unavailable', match: {startsAt: new Date(2000).toISOString()}}, 1000);
-  assert.equal(withoutDevice, '已预约；暂无可用的系统通知设备。');
+  assert.equal(withoutDevice, '已预约 · 通知未启用');
   assert.doesNotMatch(withoutDevice, /已生成/);
   assert.doesNotMatch(sandbox.statusFor({state: 'unverified', deliveryStatus: 'unavailable'}, 1000), /已生成/);
-  assert.match(sandbox.statusFor({state: 'active', match: {startsAt: new Date(500).toISOString()}}, 1000), /已到预定开赛时间.*正在核实/);
+  assert.match(sandbox.statusFor({state: 'active', match: {startsAt: new Date(500).toISOString()}}, 1000), /已到预定时间.*待核实/);
   assert.equal(sandbox.statusFor({state: 'active', match: {startsAt: new Date(2000).toISOString()}}, 1000), '已预约');
 });
 

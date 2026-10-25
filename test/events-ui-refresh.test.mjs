@@ -63,17 +63,17 @@ test('pending backfill uses only its retry timer, pauses hidden and resumes the 
 test('automatic polling does not overlap a slow response or override manual cooldown feedback',async()=>{
  let release,slow=false;const app=harness(()=>slow?new Promise(resolve=>{release=resolve;}):snapshot());await flush();slow=true;
  await app.advance(60000);assert.equal(app.calls.length,3);await app.advance(180000);assert.equal(app.calls.length,3,'one request stays in flight');
- release(snapshot({refreshError:'请求间隔未到，正在显示缓存。',retryAfter:25}));await flush();
- assert.match(app.get('eventsNotice').textContent,/显示缓存/);assert.match(app.get('eventsNotice').textContent,/25 秒后重试/);assert.equal(app.get('eventsNotice').hidden,false);
+ release(snapshot({refreshError:'请求间隔未到，正在显示缓存。',refreshDeferred:true,retryAfter:25}));await flush();
+ assert.match(app.get('eventsNotice').textContent,/请稍后刷新/);assert.match(app.get('eventsNotice').textContent,/25 秒后重试/);assert.equal(app.get('eventsNotice').hidden,false);
  assert.equal(app.get('eventsRefresh').textContent,'刷新赛程');
  slow=false;await app.advance(60000);assert.equal(app.calls.length,4);assert.equal(app.calls.at(-1).method,'GET');
 });
 
 test('a stale in-flight query cannot replace a newer filter result',async()=>{
- let resolveOld,stale=false;const app=harness(call=>stale&&call.url.includes('from=2026-10-22')?new Promise(resolve=>{resolveOld=resolve;}):snapshot({coverage:'new result'}));await flush();stale=true;
+ let resolveOld,stale=false;const app=harness(call=>stale&&call.url.includes('from=2026-10-22')?new Promise(resolve=>{resolveOld=resolve;}):snapshot({matches:[match({teams:[{name:'New team',shortName:'NEW'},{name:'Beta',shortName:'B'}]})]}));await flush();stale=true;
  await app.change('eventsFrom','2026-10-22');await app.change('eventsTo','2026-10-24');await app.advance(400);
- await app.change('eventsFrom','2026-10-23');await app.advance(400);assert.equal(app.get('eventsCoverage').textContent,'new result');
- resolveOld(snapshot({coverage:'OLD result'}));await flush();assert.equal(app.get('eventsCoverage').textContent,'new result');assert.equal(app.get('eventsFrom').value,'2026-10-23');
+ await app.change('eventsFrom','2026-10-23');await app.advance(400);await app.clickView('scheduled');assert.match(app.get('eventsList').textContent,/New team/);
+ resolveOld(snapshot({matches:[match({teams:[{name:'Old team',shortName:'OLD'},{name:'Beta',shortName:'B'}]})]}));await flush();assert.match(app.get('eventsList').textContent,/New team/);assert.equal(app.get('eventsFrom').value,'2026-10-23');
 });
 
 test('live and scheduled numeric series scores render; unknown scores do not become zero',async()=>{

@@ -7,7 +7,7 @@ import {gitNotes} from './release-notes.mjs';
 import {buildToolkit} from './build-toolkit.mjs';
 import {buildAssetPreload} from './build-asset-preload.mjs';
 import {buildApiCapture} from './build-api-capture.mjs';
-import {rewriteCopy,cleanDecorativeEnglish} from './ui-copy.mjs';
+import {rewriteCopy,cleanDecorativeEnglish,cleanAnalysisUi,cleanAnalysisRuntime} from './ui-copy.mjs';
 const base=path.resolve(import.meta.dirname,'..'), local=path.join(base,'source');
 const shared=sharedSources;
 const capture=process.argv.includes('--bot-capture');
@@ -101,6 +101,8 @@ app=app.slice(0,generateStart)+await readFile(path.join(base,'web/cloud-timeline
 const zoomStart=app.indexOf('function applyChartZoom(){'),playersStart=app.indexOf('function showPlayers(',zoomStart);
 app=app.slice(0,zoomStart)+"function applyChartZoom(){$('chart').style.minWidth='';$('chartZoom').textContent='回到最新';$('chartZoom').removeAttribute('aria-pressed');$('zoomHint').textContent='按住图表左右拖动 · 点击场次看依据';}\n$('chartZoom').onclick=()=>{timeline.start=Math.max(0,timeline.all.length-TIMELINE_WINDOW);generate();};\n"+app.slice(playersStart);
 app=app.replace('function showPlayers(index){','function showPlayers(index){timeline.detailMatch=model.matches[index];window.OWQS_LAST_ANALYSIS={model,raw,index};queueMicrotask(()=>window.dispatchEvent(new CustomEvent("owqs:analysis-updated",{detail:{model,raw,index}})));');
+// Exact-match adapters fail closed if the upstream UI template changes.
+app=cleanAnalysisRuntime(app);
 app=app.replace('function showPerformance(p){','function showPerformance(p,embedded=false){').replace("$('performancePanel').scrollIntoView({block:'nearest'});","if(!embedded)$('performancePanel').scrollIntoView({block:'nearest'});");
 const jsonStart=app.indexOf("$('json').onclick="),jsonEnd=app.indexOf("['limit','side','strategy','estimate','art']",jsonStart);
 app=app.slice(0,jsonStart)+"$('json').onclick=()=>{const data={...raw,historyExport:{retained:raw.matches.length,statisticsRange:$('statisticsRange').value,visibleMatchIds:model.matches.map(m=>m.mid)},visualization:{summary:model.summary,personalPrediction:model.personalPrediction,points:timeline.all.map(m=>({mid:m.mid,mean:m.mean,observedMean:m.observedMean,confidenceEvidence:m.confidenceEvidence,estimateDetails:m.estimateDetails,estimateRange:m.estimateRange,performances:m.players.map(p=>({name:p.name,...p.performance}))}))}};download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),fileName('json'));status('已导出当前账号全部保留历史 JSON（不含凭据和签名包）');};\n"+app.slice(jsonEnd);
@@ -150,6 +152,7 @@ const smallArt='window.QS_MEDIA='+JSON.stringify(media)+';window.QS_ART={};windo
 const main=await staticFile(rewriteCopy([httpClient,browserData,...runtime,smallArt,chart,await readFile(path.join(base,'web/media-loader.js'),'utf8'),await readFile(path.join(base,'web/history-model.js'),'utf8'),await readFile(path.join(base,'web/cloud-history.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/cloud-client.js'),'utf8'),await readFile(path.join(base,'web/server-analysis.js'),'utf8'),app].join('\n')),'js','app');
 html=html.replace(/<script\b[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link[^>]*rel="stylesheet"[^>]*>/g,'').replace('</head>',`<link rel="preload" as="script" href="${mobile}" media="(max-width:760px), (max-height:500px) and (pointer:coarse)"><link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${mobileLoader}"></script><script defer src="${extrasLoader}"></script><script defer src="${reminderLoader}"></script><script defer src="/install.js"></script></head>`);
 await mkdir(path.join(base,'public/tools'),{recursive:true});
+html=cleanAnalysisUi(html);
 await writeFile(path.join(base,'public/tools/strength.html'),rewriteCopy(cleanDecorativeEnglish(html)));
 if(capture)await buildApiCapture({base,html:rewriteCopy(cleanDecorativeEnglish(html)),app:rewriteCopy(app),css});
 await buildToolkit({base,brandPage:page=>withInstall(brandPage(page)),logo,staticFile,releaseNotes,rewriteCopy,cleanDecorativeEnglish});

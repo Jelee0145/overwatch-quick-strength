@@ -157,7 +157,7 @@ test('failed manual refresh retains data with an explicit notice and five-minute
 
 test('events UI has a manual action, refreshes once on entry and explains pending results',async()=>{
  const html=await readFile(new URL('../web/events.html',import.meta.url),'utf8'),script=await readFile(new URL('../web/events.js',import.meta.url),'utf8');
- assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\)/);assert.match(script,/setInterval\(updateTimeStatus,15000\)/);assert.match(html,/动态同步/);assert.match(html,/赛果待公布/);
+ assert.ok(html.includes('eventsRefresh'));assert.match(script,/await refresh\(false\)/);assert.match(script,/setInterval\(updateTimeStatus,15000\)/);assert.match(html,/CC BY-SA 3\.0/);assert.doesNotMatch(html,/动态同步|events-reminders-help/);assert.match(script,/赛果待公布/);
 });
 
 test('events local status interval updates due labels without API polling and resumes after BFCache restore',async()=>{
@@ -176,15 +176,15 @@ test('events local status interval updates due labels without API polling and re
  const tick=()=>{now+=15000;for(const fn of [...intervals.values()])fn();};
  const dispatch=(listeners,type,event={})=>{for(const fn of listeners[type]||[])fn({type,...event});};
  assert.equal(intervals.size,1);assert.match(text(nodes.get('eventsReservations')),/已预约/);
- tick();assert.match(text(nodes.get('eventsReservations')),/已到预定开赛时间.*正在核实/);
+ tick();assert.match(text(nodes.get('eventsReservations')),/已到预定时间.*待核实/);
  assert.equal(networkCalls,0);assert.equal(state.reservations[0].state,'active','a clock tick does not synthesize a verified notification');
  document.visibilityState='hidden';reservation.match.startsAt=new Date(now+60000).toISOString();
- tick();assert.match(text(nodes.get('eventsReservations')),/已到预定开赛时间/,'hidden pages do not redraw');
+ tick();assert.match(text(nodes.get('eventsReservations')),/已到预定时间/,'hidden pages do not redraw');
  document.visibilityState='visible';dispatch(documentListeners,'visibilitychange');
  assert.match(text(nodes.get('eventsReservations')),/已预约/);
  dispatch(windowListeners,'pagehide',{persisted:true});assert.equal(intervals.size,0);
  now+=120000;dispatch(windowListeners,'pageshow',{persisted:true});assert.equal(intervals.size,1);
- assert.match(text(nodes.get('eventsReservations')),/已到预定开赛时间/);
+ assert.match(text(nodes.get('eventsReservations')),/已到预定时间/);
  dispatch(windowListeners,'pageshow',{persisted:true});assert.equal(intervals.size,1,'restore does not duplicate timers');
  tick();assert.equal(networkCalls,0,'periodic render and lifecycle restoration never fetch the events API');
 });

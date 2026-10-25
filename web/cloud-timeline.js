@@ -17,14 +17,14 @@ function matchReference(mid){return {sourceJob:timeline.archive?.sourceJob,...(t
 window.OWQS_MATCH_REFERENCE=matchReference;
 function timelineWindow(){return QS_HISTORY_MODEL.windowRange(timeline.all.length,TIMELINE_WINDOW,timeline.start);}
 function renderServerTimeline(){
- if(!timeline.statistics){$('chart').innerHTML='<div class="empty-state"><strong>查看最近快速对局</strong><span>输入战网昵称，查询并生成你的强度图</span></div>';return;}
+ if(!timeline.statistics){$('chart').innerHTML='<div class="empty-state"><strong>暂无对局</strong></div>';return;}
  paintTimeline();showPersonal();configureScroll();const w=timelineWindow();
- status((timeline.analysis?.offline?'离线缓存 · ':'')+(timeline.all.length?`已保留 ${timeline.all.length} 场历史 · 当前显示 ${w.end-w.start} 场`:'请输入战网昵称开始查询'));
+ status(timeline.analysis?.offline?'离线模式':timeline.all.length?'':'暂无对局');
 }
 function chartView(){const w=timelineWindow();return {...timeline.statistics,matches:timeline.all.slice(w.start,w.end),statsMatches:timeline.statistics.matches,windowOffset:w.start,plotScale:timeline.axis};}
 function paintTimeline(){
  const view=chartView(),w=timelineWindow(),images=timelineImages();model=view;timeline.pool=null;
- $('chart').innerHTML=view.matches.length?renderChart(view,QS_ART,$('art').checked,$('title').value||'快速强度图'):'<div class="empty-state"><strong>查看最近快速对局</strong><span>输入战网昵称，查询并生成你的强度图</span></div>';
+ $('chart').innerHTML=view.matches.length?renderChart(view,QS_ART,$('art').checked,$('title').value||'快速强度图'):'<div class="empty-state"><strong>暂无对局</strong></div>';
  $('chart').querySelectorAll('[data-match]').forEach(el=>{
   const show=()=>{if(Date.now()<timeline.suppressUntil)return;const index=Number(el.dataset.match);timeline.selected=model.matches[index]?.mid;$('matchSelect').value=String(index);showPlayers(index);};
   el.onclick=show;el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();show();}};
@@ -34,7 +34,7 @@ function paintTimeline(){
  timeline.selected=view.matches[selected]?.mid||null;
  $('matchSelect').innerHTML=view.matches.map((m,i)=>`<option value="${i}">第 ${(view.windowOffset||0)+i+1} 场 · ${QS.esc(QS_DATA.maps[m.mapGuid]?.name||m.mapName||'未知地图')}</option>`).join('');
  $('matchSelect').value=String(selected);if(timeline.detailMatch!==view.matches[selected]){showPlayers(selected);timeline.detailMatch=view.matches[selected];}else $('chart').querySelectorAll('.match-hit').forEach(n=>n.setAttribute('aria-pressed',String(Number(n.dataset.match)===selected)));
- timeline.lastEnd=w.end;$('timelinePosition').textContent=view.matches.length?`${w.start+1}—${w.end} / ${timeline.all.length} 场 · 按住图表左右拖动`:'尚无历史对局';
+ timeline.lastEnd=w.end;$('timelinePosition').textContent=view.matches.length?`${w.start+1}—${w.end} / ${timeline.all.length} 场`:'暂无对局';
  $('timelineOlder').disabled=!w.start;$('timelineNewer').disabled=w.end>=timeline.all.length;
  ['png','svg','json'].forEach(id=>$(id).disabled=!view.matches.length||!!timeline.exporting);
  $('chartZoom').disabled=!view.matches.length;applyChartZoom();
@@ -101,10 +101,10 @@ async function renderHistoryList(){
   if(!rows.length){body.textContent=accounts.length?'没有匹配的账号':'暂无已保存的战绩历史';return;}
   for(const a of rows){const section=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${a.tag} · ${a.matches.length} 场 · 更新于 ${new Date(a.updatedAt).toLocaleString('zh-CN')}`;section.append(summary);
    const open=document.createElement('button');open.type='button';open.textContent='打开历史图表';open.onclick=()=>activate(a.tag);section.append(open);
-   for(const m of [...a.matches].reverse()){const button=document.createElement('button');button.type='button';button.className='history-match';button.textContent=`${new Date(m.t).toLocaleString('zh-CN')} · ${QS_DATA.maps[m.mapGuid]?.name||m.mapName||'未知地图'} · ${m.ret===1?'胜':m.ret===-1?'负':'未知'} · ${m.mid}`;button.onclick=()=>activate(a.tag,m.mid);section.append(button);}body.append(section);
+   for(const m of [...a.matches].reverse()){const button=document.createElement('button');button.type='button';button.className='history-match';button.textContent=`${new Date(m.t).toLocaleString('zh-CN')} · ${QS_DATA.maps[m.mapGuid]?.name||m.mapName||'未知地图'} · ${m.ret===1?'胜':m.ret===-1?'负':'未知'}`;button.onclick=()=>activate(a.tag,m.mid);section.append(button);}body.append(section);
   }
  }catch(e){body.textContent=e.message;}
 }
 async function activate(tag,mid){if(activeJob){$('historyNotice').textContent='当前查询尚未完成，请完成或停止后再切换账号';return;}try{await openHistory(tag,mid);await Cloud.storage('latest',tag);$('historyDialog').close();}catch(e){$('historyNotice').textContent=e.message;}}
-$('historyOpen').onclick=async()=>{try{await Cloud.boot();const note=$('historyNotice');note.replaceChildren();const description=document.createElement('span');description.textContent='同账号自动同步战绩历史，每个战网账号最多500场。抽签记录、锐评及设置仍保存在本机。';const syncStatus=document.createElement('span');syncStatus.id='historySyncStatus';syncStatus.textContent=CloudHistory.status();syncStatus.style.display='block';const retry=document.createElement('button');retry.type='button';retry.textContent='同步历史';retry.onclick=async()=>{retry.disabled=true;try{await CloudHistory.sync();await renderHistoryList();}finally{retry.disabled=false;}};note.append(description,syncStatus,retry);$('historyDialog').showModal();await renderHistoryList();retry.click();}catch(e){status(e.message,true);}};
+$('historyOpen').onclick=async()=>{try{await Cloud.boot();const note=$('historyNotice');note.replaceChildren();const syncStatus=document.createElement('span');syncStatus.id='historySyncStatus';syncStatus.textContent=CloudHistory.status();syncStatus.style.display='block';const retry=document.createElement('button');retry.type='button';retry.textContent='同步历史';retry.onclick=async()=>{retry.disabled=true;try{await CloudHistory.sync();await renderHistoryList();}finally{retry.disabled=false;}};note.append(syncStatus,retry);$('historyDialog').showModal();await renderHistoryList();retry.click();}catch(e){status(e.message,true);}};
 $('historyClose').onclick=()=>$('historyDialog').close();$('historySearch').oninput=()=>{clearTimeout(timeline.searchTimer);timeline.searchTimer=setTimeout(renderHistoryList,120);};

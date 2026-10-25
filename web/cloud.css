@@ -30,3 +30,9 @@
 .api-key-doc summary{cursor:pointer;color:#303740}
 .api-key-doc code{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:#f2f2ee;padding:2px 5px;border-radius:4px;word-break:break-all}
 @media(max-width:600px){.api-key-row{flex-wrap:wrap}.api-key-row input{flex-basis:100%}.api-key-dialog{padding:20px}}
+
+.hint:empty,.auth-status:empty{display:none}
+.game-data-note:has(#gameDataStatus:empty):has(#retryGameData[hidden]){display:none}
+.intro{padding:26px 0 24px}
+.intro h1{font-size:30px;letter-spacing:-.5px}
+@media(max-width:760px){.intro{padding:22px 0}.intro h1{font-size:28px}}

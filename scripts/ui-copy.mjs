@@ -54,3 +54,39 @@ export function cleanDecorativeEnglish(html){
  for(const [id,description] of [['svg','可编辑，放大也清晰'],['png','把当前图表保存成图片'],['json','保存此账号的全部历史']])html=html.replace(new RegExp('<button\\b(?=[^>]*id="'+id+'")[^>]*>'),m=>m.slice(0,-1)+' title="'+description+'">');
  return html.replace(/<small>OVERWATCH TOOLBOX<\/small>/g,'').replace(/<span>(ROULETTE|CARD DRAW|SLOT MACHINE)<\/span>/g,'').replace(/<p class="eyebrow">[^<]+<\/p>/g,'').replace(/<small>CONFIGURATION<\/small>/g,'').replace('<a href="/" class="toolkit-return">工具箱</a>','<a href="/" class="toolkit-return">返回首页</a>').replace(/(<option value="(5|10|20)">)(5|10|20) 场/g,'$1往前$2场');
 }
+
+function replaceOnce(text,needle,replacement,name){
+ if(text.split(needle).length!==2)throw Error('Analysis UI adapter changed: '+name);
+ return text.replace(needle,replacement);
+}
+export function cleanAnalysisRuntime(app){
+ app=replaceOnce(app,"$('gameDataStatus').textContent=m?.hasGameData?(m.resourceDataChecked?'英雄为接口返回值；受治疗未拆分来源，承伤与抵挡不同；— 表示未返回。':'正在补齐本场受治疗与承伤数据…'):m?'正在读取本场游戏数据…':'游戏数据来自对局详情';","$('gameDataStatus').textContent=m&&(!m.hasGameData||!m.resourceDataChecked)?'本场数据不完整':'';",'gameDataStatus');
+ // Keep dynamic evidence labels and compact limitations in the existing block.
+ // Only the methodology paragraphs disappear; no extra help panel is added.
+ return replaceOnce(app," const value=v=>v===null||v===undefined?"," $('estimateDetail').querySelectorAll('p').forEach((node,index)=>{if(index===0){node.textContent=[estimate?.unanchored?'无段位参考':'',aux?.reason||''].filter(Boolean).join(' · ');if(!node.textContent)node.remove();}else node.remove();});\n const value=v=>v===null||v===undefined?",'estimate prose');
+}
+
+// Applied only after cloud template adaptation. The original local UI is untouched.
+export function cleanAnalysisUi(html){
+ const end=html.indexOf('</main>');if(end<0)throw Error('Missing analysis main');
+ let main=html.slice(0,end),rest=html.slice(end);
+ main=main.replace(/<div class="intro">[\s\S]*?(?=<div class="workspace">)/,'<div class="intro"><div><h1>对局分析</h1></div></div>');
+ // Remove explanatory prose, not status/error nodes or their DOM hooks.
+ main=main.replace(/<p class="hint(?: footnote)?">[\s\S]*?<\/p>/g,'')
+  .replace(/<div class="explain">[\s\S]*?<\/div>/g,'')
+  .replace(/<p class="(?:chart-scroll-hint|table-hint)">[\s\S]*?<\/p>/g,'');
+ const sources=[];
+ main=main.replace(/<details class="method">[\s\S]*?<\/details>/g,block=>{
+  sources.push(...block.matchAll(/<a\b[^>]*href="https:[^"]+"[^>]*>[\s\S]*?<\/a>/g));return '';
+ });
+ if(sources.length)main=main.replace('</footer>',sources.map(match=>match[0]).join(' · ')+'</footer>');
+ for(const id of ['queryStats','mapCacheStats','statisticsNote','zoomHint']){
+  main=main.replace(new RegExp('<(p|span)\\b(?=[^>]*id="'+id+'")[^>]*>'),tag=>tag.includes(' hidden')?tag:tag.slice(0,-1)+' hidden>');
+ }
+ // Successful-data boilerplate is empty; the runtime still reports missing data/errors.
+ main=main.replace(/(<span id="gameDataStatus"[^>]*>)[\s\S]*?(<\/span>)/,'$1$2')
+  .replace(/<span class="ai-review-kicker">[\s\S]*?<\/span>/,'')
+  .replace(/(<div class="ai-review-heading"><div>)<h2>[\s\S]*?<\/h2>/,'$1<h2>AI 锐评</h2>');
+ rest=rest.replace(/<p class="hint">滑动查看完整图表，点击场次返回查看明细。<\/p>/,'');
+ return main+rest;
+}

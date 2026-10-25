@@ -17,7 +17,7 @@
  function centerWheel(index){const item=$('wheelTrack').children[index];return -item.offsetLeft-item.offsetWidth/2;}
  function idle(){
   const candidates=pool(),hero=lastHero&&candidates.some(h=>h.id===lastHero.id)?lastHero:candidates[0];
-  $('poolCount').textContent=`当前英雄池 · ${candidates.length} 位英雄`;$('stagePool').textContent=role==='all'?'全英雄池':role+'英雄池';
+  $('poolCount').textContent=`${candidates.length} 位英雄`;$('stagePool').textContent=role==='all'?'全英雄池':role+'英雄池';
   $('wheelTrack').replaceChildren(...HeroDrawEngine.sequence(candidates,9,4,hero).map(hero=>cell(hero,'wheel-cell')));
   prepareWheel();$('wheelTrack').style.transform=`translateX(${centerWheel(4)}px)`;depthWheel(centerWheel(4));
   $('heroCard').classList.toggle('revealed',!!lastHero);setCard(hero);$('slotTrack').replaceChildren(cell(hero,'slot-cell'));$('slotTrack').style.transform='translateY(0)';
@@ -55,19 +55,19 @@
   }));
  }
  async function draw(){
-  if(busy||!ready)return;lock(true);$('drawStage').classList.remove('has-result');$('resultHint').textContent='英雄正在登场…';$('resultName').textContent='';$('resultRole').textContent='';
+  if(busy||!ready)return;lock(true);$('drawStage').classList.remove('has-result');$('resultHint').textContent='';$('resultName').textContent='';$('resultRole').textContent='';
   let hero;
   try{
    await Cloud.verify();hero=pick();const preload=new Image();preload.src=hero.portrait;await preload.decode().catch(()=>{});
    await ({wheel:runWheel,card:runCard,slot:runSlot})[mode](hero);
-   lastHero=hero;$('drawStage').classList.add('has-result');$('resultHint').textContent='命运选中了';$('resultName').textContent=hero.name;$('resultRole').textContent=hero.role;
+   lastHero=hero;$('drawStage').classList.add('has-result');$('resultHint').textContent='';$('resultName').textContent=hero.name;$('resultRole').textContent=hero.role;
    records=[{hero:hero.id,mode,at:new Date().toISOString()},...records].slice(0,50);
    try{await Cloud.storage('hero-draw-history',records);}catch{$('resultHint').textContent='已抽中，记录保存失败';}history();
   }catch(error){$('resultHint').textContent=error.message;if(hero)idle();}finally{lock(false);history();}
  }
- function switchMode(next){if(busy||!ready)return;lastHero=null;$('resultHint').textContent='运气正在待命。';$('resultName').textContent='';$('resultRole').textContent='';$('drawStage').classList.remove('has-result');$('drawButton').firstElementChild.textContent='开始抽取';mode=next;$('drawStage').dataset.mode=mode;for(const button of document.querySelectorAll('button[data-mode]'))button.setAttribute('aria-pressed',String(button.dataset.mode===mode));for(const name of Object.keys(modes))$(name+'View').hidden=name!==mode;idle();Cloud.storage('hero-draw-mode',mode).catch(()=>{});}
+ function switchMode(next){if(busy||!ready)return;lastHero=null;$('resultHint').textContent='';$('resultName').textContent='';$('resultRole').textContent='';$('drawStage').classList.remove('has-result');$('drawButton').firstElementChild.textContent='开始抽取';mode=next;$('drawStage').dataset.mode=mode;for(const button of document.querySelectorAll('button[data-mode]'))button.setAttribute('aria-pressed',String(button.dataset.mode===mode));for(const name of Object.keys(modes))$(name+'View').hidden=name!==mode;idle();Cloud.storage('hero-draw-mode',mode).catch(()=>{});}
  for(const button of document.querySelectorAll('button[data-mode]'))button.onclick=()=>switchMode(button.dataset.mode);
- for(const button of document.querySelectorAll('[data-role]'))button.onclick=()=>{if(busy||!ready)return;role=button.dataset.role;lastHero=null;for(const item of document.querySelectorAll('[data-role]'))item.setAttribute('aria-pressed',String(item.dataset.role===role));$('resultHint').textContent='英雄池已切换，准备出发。';$('resultName').textContent='';$('resultRole').textContent='';$('drawStage').classList.remove('has-result');idle();};
+ for(const button of document.querySelectorAll('[data-role]'))button.onclick=()=>{if(busy||!ready)return;role=button.dataset.role;lastHero=null;for(const item of document.querySelectorAll('[data-role]'))item.setAttribute('aria-pressed',String(item.dataset.role===role));$('resultHint').textContent='';$('resultName').textContent='';$('resultRole').textContent='';$('drawStage').classList.remove('has-result');idle();};
  $('drawButton').onclick=draw;$('historyOpen').onclick=()=>{history();$('drawHistory').showModal();};$('historyClose').onclick=()=>$('drawHistory').close();
  const drawCard=$('heroCard');drawCard.setAttribute('role','button');drawCard.tabIndex=0;drawCard.setAttribute('aria-label','抽个英雄');drawCard.onclick=()=>{if(mode==='card')draw();};drawCard.onkeydown=event=>{if(mode==='card'&&(event.key==='Enter'||event.key===' ')){event.preventDefault();draw();}};
  $('clearDrawHistory').onclick=async()=>{if(busy||!ready||!records.length)return;if(!confirm('清空当前账号在此浏览器的抽取记录？'))return;try{await Cloud.storage('hero-draw-history',[]);records=[];history();}catch(error){$('resultHint').textContent=error.message;}};

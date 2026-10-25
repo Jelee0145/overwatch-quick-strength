@@ -25,3 +25,19 @@
 /* Keep the reel backing consistent when portrait cells become emblems. */
 .slot-window{background:linear-gradient(145deg,#ede1cd,#b89b7b);box-shadow:inset 0 0 0 4px #fff2}
 .slot-emblem{color:#49382b}
+
+.hub-intro{padding:34px 0 26px}
+.hub-intro h1{margin:0;font-size:32px;letter-spacing:-.8px}
+.tool-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-bottom:40px}
+.tool-art{height:auto;aspect-ratio:4/3}
+.tool-copy{padding:20px 22px}
+.tool-copy h2{margin:0;font-size:21px;letter-spacing:-.4px}
+.tool-copy h2 span{font-size:24px}
+.draw-heading{padding:8px 0 24px}
+.draw-heading h1{margin:0;font-size:30px}
+.mode-switch button{min-width:84px;padding:12px 0 15px}
+.draw-result{min-height:0;padding-top:22px}
+.draw-result:has(#resultName:empty):has(#resultHint:empty){display:none}
+#resultHint:empty{display:none}
+.draw-controls{padding-bottom:36px}
+@media(max-width:760px){.hub-intro{padding:28px 0 22px}.hub-intro h1{font-size:28px}.tool-grid{grid-template-columns:1fr;gap:18px}.tool-art{aspect-ratio:16/9}.tool-copy{padding:18px 20px}.tool-copy h2{font-size:22px}.draw-heading h1{font-size:28px}.draw-result{padding-top:20px}}
