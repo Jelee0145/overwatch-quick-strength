@@ -5,6 +5,7 @@
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
+import {pathToFileURL} from 'node:url';
 
 const root=path.resolve(import.meta.dirname,'..');
 const run=(command,args=[])=>execFileSync(command,args,{cwd:root,stdio:'inherit'});
@@ -21,9 +22,17 @@ function retrySync(fn,timeout){
 if(output('git',['status','--porcelain','--untracked-files=no']))throw Error('工作区有未提交改动，先提交再发布');
 run('npm',['run','backend:build']);
 run('npm',['run','web:build']);
-// The service runs as the owqs user from this checkout, so source modules must stay
-// readable: an editor that writes 0600 files would otherwise break the restart.
-run('bash',['-c',"find public dist/backend-assets -type d -exec chmod 755 {} +; find public dist/backend-assets src server -type f -exec chmod 644 {} +"]);
+// The service runs as the owqs user from this checkout, so source modules and the
+// directories that contain them must stay readable: a 0600 file or 0700 directory
+// would otherwise break the restart and leave Nginx answering 502.
+run('bash',['-c',"find public dist/backend-assets src server -type d -exec chmod 755 {} +; find public dist/backend-assets src server -type f -exec chmod 644 {} +"]);
+// Restarting into a tree the service cannot read takes the site down until someone
+// notices, so prove it loads while the previous process is still serving.
+const probe=path.join(root,'src/worker.mjs');
+if(process.platform==='linux'&&process.getuid?.()===0){
+ try{execFileSync('runuser',['-u','owqs','--',process.execPath,'--input-type=module','-e','await import('+JSON.stringify(pathToFileURL(probe).href)+')'],{cwd:root,stdio:'pipe'});}
+ catch{throw Error('服务用户无法加载 '+probe+'，已停止发布并保留当前运行版本');}
+}
 run('systemctl',['restart','owqs']);
 
 // Nginx answers 502 for the moment between restart and the port binding.
