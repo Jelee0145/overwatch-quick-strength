@@ -9,6 +9,7 @@ import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..');
 const run=(command,args=[])=>execFileSync(command,args,{cwd:root,stdio:'inherit'});
 const output=(command,args=[])=>execFileSync(command,args,{cwd:root,encoding:'utf8'}).trim();
+const quiet=(command,args=[])=>execFileSync(command,args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
 function retrySync(fn,timeout){
  const end=Date.now()+timeout;
  for(;;){
@@ -23,7 +24,7 @@ run('npm',['run','web:build']);
 run('systemctl',['restart','owqs']);
 
 // Nginx answers 502 for the moment between restart and the port binding.
-const health=retrySync(()=>output('curl',['--fail','--silent','--show-error','--max-time','5','--resolve','106.55.47.68:8443:127.0.0.1','https://106.55.47.68:8443/api/health']),20000);
+const health=retrySync(()=>quiet('curl',['--fail','--silent','--max-time','5','--resolve','106.55.47.68:8443:127.0.0.1','https://106.55.47.68:8443/api/health']),20000);
 const value=JSON.parse(health),revision=output('git',['rev-parse','HEAD']);
 if(value.revision!==revision)throw Error('线上版本与当前提交不一致：'+value.revision);
 
