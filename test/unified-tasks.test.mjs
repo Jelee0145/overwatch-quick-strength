@@ -1,13 +1,10 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {UserTasks} from '../src/tasks.mjs';import {AuthDirectory} from '../src/auth.mjs';
+import {UserTasks} from '../src/actors/tasks.mjs';import {AuthDirectory} from '../src/actors/auth.mjs';
 import {getBlob,putBlob,mac} from '../src/security.mjs';
-import {mintQueryIndex,verifyQueryIndex} from '../src/cache-records.mjs';
-import {normalizeQueryOptions,legacyQueryOptions} from '../src/application/query-options.mjs';
+import {mintQueryIndex,verifyQueryIndex} from '../src/query/cache-records.mjs';
+import {normalizeQueryOptions,legacyQueryOptions} from '../src/query/options.mjs';
 import {service} from './query-fixture.mjs';
-class MemoryStorage{
- constructor(){this.map=new Map();}
- async get(k){return structuredClone(this.map.get(k));}async put(k,v){this.map.set(k,structuredClone(v));}async delete(keys){for(const k of Array.isArray(keys)?keys:[keys])this.map.delete(k);}async list({prefix=''}){return new Map([...this.map].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)]));}async setAlarm(t){this.alarmTime=t;}async getAlarm(){return this.alarmTime;}async transaction(fn){return fn(this);}
-}
+import {MemoryStorage} from './helpers/storage.mjs';
 async function setup(){
  const storage=new MemoryStorage(),ledger=new MemoryStorage(),env={CACHE_SIGNING_KEY:'test-signing-key',DASHEN_SERVER:'1',DASHEN_DTS:'2026',DASHEN_TOKEN:'fixture-token',DASHEN_ROLE_ID:'fixture-role'};
  await ledger.put('user:u',{id:'u',status:'approved',version:1,queryDaily:100,aiDaily:100});

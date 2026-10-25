@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {createQuery,runQuery,queryStep,queryCheckpoint,restoreQuery,upgradeQuery,accountRecords} from '../src/query.mjs';import {Fault} from '../src/security.mjs';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {createQuery,runQuery,queryStep,queryCheckpoint,restoreQuery,upgradeQuery,accountRecords} from '../src/query/query.mjs';import {Fault} from '../src/security.mjs';
 import {service} from './query-fixture.mjs';
 async function finish(s,mock){for(let n=0;s.phase!=='done'&&n<100;n++)await runQuery(s,{}, {call:mock.call,budgetMs:30,minIntervalMs:0});assert.equal(s.phase,'done');return s.result;}
 test('three requests overlap; dense ranks skip all supplementary histories; warm cache only lists',async()=>{

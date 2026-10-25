@@ -27,7 +27,7 @@ test.after(async()=>{await rm(temp,{recursive:true,force:true});});
 test('injected chart service preserves the legacy SVG exactly and does not leak dependencies between renders',async()=>{
  const c=vm.createContext({});c.window=c;
  vm.runInContext(await readFile(path.join(root,'source/core.js'),'utf8'),c);
- vm.runInContext(await readFile(path.join(root,'source/data.js'),'utf8'),c);
+ vm.runInContext(await readFile(path.join(root,'web/base/data.js'),'utf8'),c);
  vm.runInContext(await readFile(path.join(root,'local/chart.js'),'utf8'),c);
  const raw=analysisFixture(),model=analysisService.analyzeBatch(raw);
  const maps=JSON.parse(JSON.stringify(c.QS_DATA.maps));

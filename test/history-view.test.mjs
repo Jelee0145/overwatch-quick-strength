@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 import {createDataService} from '../src/services/data.mjs';
 import * as historyGeometry from '../src/services/history-geometry.mjs';
-import {webAnalysisView,requireSlimFlag} from '../src/application/history-view.mjs';
+import {webAnalysisView,requireSlimFlag} from '../src/history/view.mjs';
 
 const source=await readFile(new URL('../web/history-model.js',import.meta.url),'utf8');
 const context=vm.createContext({OWQS_SERVICES:{data:createDataService(),historyGeometry}});

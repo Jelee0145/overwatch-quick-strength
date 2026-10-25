@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {broadcastsFor} from '../src/events-broadcasts.mjs';
-import {parseEvents} from '../src/events-parser.mjs';
+import {broadcastsFor} from '../src/events/broadcasts.mjs';
+import {parseEvents} from '../src/events/parser.mjs';
 import {card,page} from './events-fixture.mjs';
 
 const owcs=(region,extra={})=>({region,tournament:'OWCS 2026',...extra});

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>对局分析 · 狸狸天眼查</title>{{HEAD_ASSETS}}</head>
+<body class="cloud-pending">
+<header><a class="brand" href="/" aria-label="狸狸天眼查首页">{{SITE_MARK}}<span>狸狸天眼查</span></a><div class="cloud-user"><span id="cloudIdentity"></span><button id="apiKeyOpen" type="button">API</button><button id="changelogOpen" type="button">更新说明</button><button id="cloudLogout">退出登录</button></div></header>
+<main><a href="/" class="analysis-back-link">← 返回首页</a>
+<div class="intro"><div><h1>对局分析</h1></div></div><div class="workspace">
+<aside>
+<div class="section-head"><span>查询设置</span><button id="mobileSettingsToggle" type="button" aria-expanded="true">收起设置</button></div>
+<form id="onlinePanel" autocomplete="off"><label>战网账号<input id="battleTag" placeholder="昵称#12345" value="" required maxlength="80"></label><label>对局模式<select id="pool"><option value="">全部快速模式</option><option value="55">快速 5v5</option><option value="66">快速 6v6</option></select></label><label class="check"><input id="supplementOtherMatches" type="checkbox">补查对局</label><div class="field-pair chart-range"><label>查几场<select id="limit"><option value="10">最近 10 场</option><option value="5">最近 5 场</option><option value="20">最近 20 场</option></select></label><label hidden>玩家范围<select id="side"><option value="all">双方玩家</option><option value="T">我方玩家</option><option value="E">对方玩家</option></select></label></div><button type="submit" id="query" class="primary full">查询战绩</button><button type="button" id="cancel" class="full" hidden>停止查询</button><button type="button" id="resumeQuery" class="full" hidden>继续查询</button></form><div id="status" class="status" role="status" aria-live="polite">正在读取最近查询…</div>
+<div class="divider"></div>
+<label hidden>图表标题<input id="title" value="对局分析" maxlength="40"></label>
+
+<label hidden>段位选取方式<select id="strategy"><option value="legacy">职责优先，跨职责补充</option><option value="role">仅匹配本局职责</option><option value="highest">最高已知职责段位</option></select></label>
+<label hidden class="check"><input id="estimate" type="checkbox" checked>缺失或段位稀疏时显示融合估值</label>
+<label hidden class="check"><input id="art" type="checkbox" checked>显示地图背景</label>
+<label>统计场数<select id="statisticsRange"><option value="all">全部历史</option><option value="5">往前5场</option><option value="10">往前10场</option><option value="20">往前20场</option></select></label><button id="historyOpen" type="button" class="full history-open">对局记录</button><p id="statisticsNote" class="hint" hidden></p>
+<p id="queryStats" class="hint" hidden></p><p id="mapCacheStats" class="hint" hidden></p><details id="cacheRecordsPanel" class="method" hidden><summary>缓存记录</summary><div id="cacheRecordsBody"></div></details>
+
+</aside>
+<section class="results">
+<div class="result-toolbar"><div class="chart-tools"><button id="mobileChartOpen" type="button" class="mobile-chart-open">放大图表</button><button id="chartZoom" type="button" aria-pressed="false">放大图表</button><span id="zoomHint" hidden>点击场次查看依据</span></div><div class="actions"><button id="json" title="保存此账号的全部历史">保存数据</button><button id="svg" title="可编辑，放大也清晰">保存图表</button><button id="png" class="dark-btn" title="把当前图表保存成图片">保存图片</button></div></div>
+<div id="mobileSummary" class="mobile-summary" aria-label="对局统计摘要"></div><div class="canvas-wrap"><div id="chart" aria-label="快速强度分布图"></div></div>
+<div class="timeline-navigation"><button id="timelineOlder" type="button" aria-label="上一页">← 上一页</button><span id="timelinePosition" role="status"></span><button id="timelineNewer" type="button" aria-label="下一页">下一页 →</button></div><div id="timelineScroll" class="timeline-scroll" tabindex="0" aria-label="历史对局横向滚动条"><div id="timelineTrack"></div></div>
+<details id="personalDetail" class="method personal-detail"><summary>预测依据</summary><div id="personalBody"></div></details><section id="aiReviewPanel" class="ai-review" aria-label="AI点评" hidden>
+<div class="ai-review-heading"><div><h2>AI点评</h2></div></div>
+<p id="aiReviewText" class="ai-review-text muted" aria-live="polite">看看谁在尽力，谁在让队友坐牢。</p>
+<div class="ai-review-actions"><button type="button" id="aiReviewGenerate" class="primary">生成点评</button><button type="button" id="aiReviewAgain" hidden>重新点评</button><span id="aiReviewStatus" class="hint" role="status"></span></div>
+<small class="ai-review-disclaimer">娱乐点评，仅供参考</small></section><div class="detail-head"><h2>本场玩家</h2><select id="matchSelect" aria-label="选择对局"></select></div>
+<p id="matchMeta" class="hint"></p><section id="estimateDetail" class="estimate-detail" aria-label="估算依据" hidden></section><div class="game-data-note"><span id="gameDataStatus" role="status" aria-live="polite"></span><button id="retryGameData" hidden>重新读取</button></div><div class="table-wrap"><table><thead><tr><th>玩家</th><th>队伍</th><th>对局英雄</th><th title="击杀 / 助攻 / 死亡">击杀 / 助攻 / 死亡</th><th>最后一击</th><th>伤害</th><th>治疗</th><th>抵挡</th><th title="受治疗来源未拆分，不能视为全部来自队友">受治疗</th><th title="实际受到的伤害，不是抵挡">承伤</th><th>参考段位</th><th>强度</th><th class="performance-cell">英雄表现</th></tr></thead><tbody id="players"></tbody></table></div><section id="performancePanel" class="performance-panel" aria-live="polite" hidden></section>
+
+
+</section>
+</div><footer><span>对局分析</span><span>段位快照 · 对局数据</span><a href="https://www.counterwatch.gg/stats/overwatch/heroes/tracer" target="_blank" rel="noreferrer">Counterwatch 公开指标与打法标签</a> · <a href="https://overbuddy.com/heroes/TRACER/" target="_blank" rel="noreferrer">OverBuddy 最后一击基准状态</a> · <a href="https://news.blizzard.com/en-us/article/23910161/overwatch-2-developer-blog-explaining-matchmaker-goals-and-plans-part-2" target="_blank" rel="noreferrer">暴雪匹配说明</a> · <a href="https://github.com/AddOneSecondL/Overstats/blob/main/src/modules/dashen_quick_strength/engine.py" target="_blank" rel="noreferrer">Overstats 快速强度引擎</a></footer>
+</main>{{CHANGELOG}}{{API_KEY}}<dialog id="mobileChartDialog" class="mobile-chart-dialog"><div class="mobile-chart-heading"><h2>对局图表</h2><button id="mobileChartClose" type="button">关闭</button></div><div id="mobileChartBody" class="mobile-chart-body"></div></dialog><dialog id="historyDialog" class="history-dialog"><div class="history-heading"><h2>对局记录</h2><button id="historyClose" type="button">关闭</button></div><label>搜索账号<input id="historySearch" placeholder="昵称或完整战网标签" maxlength="80"></label><p id="historyNotice" class="hint"></p><div id="historyList"></div></dialog></body></html>

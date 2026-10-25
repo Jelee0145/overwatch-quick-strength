@@ -7,9 +7,9 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {staticAssets} from '../server/assets.mjs';
 import {generatePushKeys} from '../server/web-push.mjs';
-import {broadcastsFor} from '../src/events-broadcasts.mjs';
+import {broadcastsFor} from '../src/events/broadcasts.mjs';
 import {matchIdentity} from '../server/event-reminders.mjs';
-import {filterEvents} from '../src/events-filter.mjs';
+import {filterEvents} from '../src/events/filter.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const port = Number(process.env.PORT) || 8790;

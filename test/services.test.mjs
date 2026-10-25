@@ -6,8 +6,8 @@ import vm from 'node:vm';
 import {build} from 'esbuild';
 import {createMatchService,createDataService,ServiceError} from '../src/services/index.mjs';
 import {analysisService,dataService} from '../src/services/runtime.mjs';
-import {analyzeResult} from '../src/api-analysis.mjs';
-import {prepareReview,MODEL} from '../src/review.mjs';
+import {analyzeResult} from '../src/api/analysis.mjs';
+import {prepareReview,MODEL} from '../src/adapters/review.mjs';
 import {prompt,version} from '../src/prompt.mjs';
 import {digest,canonical} from '../src/security.mjs';
 import {service} from './query-fixture.mjs';
@@ -34,7 +34,7 @@ test('shared analysis preserves pre-refactor Bot output and AI payload/fingerpri
 test('review baseline accepts both LF and CRLF checkouts while fingerprints bind the exact runtime prompt',async()=>{
  const raw=analysisFixture(),lf=prompt.replaceAll('\r\n','\n'),fingerprints=[];
  for(const runtimePrompt of [lf,lf.replaceAll('\n','\r\n')]){
-  const compiled=await build({entryPoints:[new URL('../src/review.mjs',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,format:'esm',platform:'neutral',write:false,plugins:[{name:'checkout-line-endings',setup(b){
+  const compiled=await build({entryPoints:[new URL('../src/adapters/review.mjs',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')],bundle:true,format:'esm',platform:'neutral',write:false,plugins:[{name:'checkout-line-endings',setup(b){
    b.onLoad({filter:/[\\/]src[\\/]prompt\.mjs$/},()=>({contents:`export const prompt=${JSON.stringify(runtimePrompt)};export const version=${JSON.stringify(version)};`,loader:'js'}));
   }}]});
   const runtime=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
@@ -134,7 +134,7 @@ test('browser service bundle preserves display normalization without importing s
  assert.equal(browser.analysis,undefined);
  assert.deepEqual(json(browser.data.normalize(raw)),json(dataService.normalize(raw)));
  assert.ok(!Object.keys(compiled.metafile.inputs).some(name=>/[\\/]services[\\/](analysis|chart)\.mjs$/.test(name)));
- for(const name of ['cloud-timeline.js','server-analysis.js']){
+ for(const name of ['app/timeline.js','server-analysis.js']){
   const source=await readFile(new URL('../web/'+name,import.meta.url),'utf8');
   assert.doesNotMatch(source,/\.analyzeBatch\s*\(|\.analyzeHistory\s*\(|\.summarize\s*\(/);
  }

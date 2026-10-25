@@ -4,7 +4,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createMatchService,createChartService,ServiceError} from '../../../src/services/index.mjs';
 import {analysisService,dataService} from '../../../src/services/runtime.mjs';
-import {upstream} from '../../../src/dashen.mjs';
+import {upstream} from '../../../src/adapters/dashen.mjs';
 import {canonical,digest,token} from '../../../src/security.mjs';
 
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));

@@ -35,6 +35,25 @@
 
 现有投递渠道仍为 Web Push。Bot 读取/管理预约不代表支持主动发送聊天提醒；App 和小程序登录、推送渠道在其正式接入时实现。Cloudflare 没有 Node REMINDERS 绑定，必须检查 capabilities，不能将它当作腾讯云数据副本或透明回退服务。
 
+## 来源与职责
+
+| 位置 | 职责 | 修改方式 |
+|---|---|---|
+| `source/` | 云端算法、数据、提示词、图表和媒体权威源 | 算法/数据/提示词经 `sync-local` 预检后逐文件写入；`chart.js` 与 `local/chart.js` 各自维护 |
+| `web/base/` | 云端基础 UI 定义：`app.js`、`style.css`、`data.js` | 直接维护 |
+| `web/app/` | 云端增量模块：时间轴、导出、查询轮询、启动接线 | 由 `boot.js` 显式串联，直接维护 |
+| `web/pages/` | 页面模板与占位符 | 直接维护；构建只替换资源占位符 |
+| `web/` | 登录、管理、赛事、抽取等其他页面与共享浏览器模块 | 直接维护 |
+| `src/` | Worker/Node 后端运行时 | 直接维护 |
+| `src/api/` | `/api/v1` 路由表、历史分支与冻结的旧 `/api/*` 适配层 | 直接维护；旧接口只翻译 |
+| `src/actors/` | 有状态对象 `AuthDirectory`、`UserTasks` | 直接维护；只按路径分派 |
+| `src/history/` | 历史存储、分析、视图与响应缓存 | 直接维护；不改 v2 格式 |
+| `src/events/` | 赛事来源、解析、筛选、补查与刷新 | 直接维护 |
+| `src/query/` | 查询参数、引擎、缓存记录 | 直接维护 |
+| `src/adapters/` | 外部 I/O：大神、DeepSeek | 直接维护 |
+| `src/lib/`、`src/http/` | 加密、快照、Blob 与 HTTP 响应 | 直接维护 |
+| `src/shared/`、`public/` | 构建产物 | 不手改 |
+
 ## 构建与运行
 
 | 命令 | 产物与副作用 |
@@ -46,7 +65,7 @@
 | `npm run server:build` | 后端独立包 dist/owqs-server.tar.gz，不含完整 public |
 | `npm run web:package` | 网页独立包 dist/owqs-web.tar.gz |
 
-`source/` 是现有线上算法规范源，`src/shared/` 为生成文件；不要手工改生成文件或隐式执行 `sync-local`。旧本机工具及 stdio Bot 作为独立旧模式保留，统一线上入口使用 API Bot。运行仍为一个 Node 24 实例和一个 SQLite 文件，尚未引入多实例锁或分布式队列。
+`source/` 是云端算法、数据、提示词、图表和媒体权威源，网页基础定义归 `web/base/`，云端增量模块在 `web/app/`，页面模板在 `web/pages/`；`src/shared/` 为生成文件，不要手工改生成文件或隐式执行 `sync-local`。`scripts/build.mjs` 只做入口编排，网页由 `scripts/build-web.mjs` 组装；`source/chart.js` 同时供浏览器与后端使用，不做构建期替换。同步脚本默认只预检，只同步算法、数据和提示词，写入必须显式 `--apply --only=<file>`。旧本机工具及 stdio Bot 作为独立旧模式保留，统一线上入口使用 API Bot。运行仍为一个 Node 24 实例和一个 SQLite 文件，尚未引入多实例锁或分布式队列。
 
 后端默认仅服务 API、renderer 媒体只供内部出图。组合开发预览可设 `OWQS_SERVE_WEB=1`，网页根目录可设 `OWQS_WEB_ROOT`，renderer 可设 `OWQS_RENDERER_ROOT`。仓库内 `scripts/preview-unified.mjs` 使用内存数据库和合成数据，经桌面预览启动，不读取真实配置。
 
@@ -54,6 +73,6 @@ Nginx 模板将 `/api/*` 转发 Node、网页指向 `/opt/owqs/web-current/publi
 
 ## 精简与兼容
 
-合并了网页 JSON 请求层和服务端参数规范化；任务创建、失败补偿及状态结算集中；网页退出评分执行链，构建提取后端准备阶段和完整查询轮询模块，减少字符串补丁。旧缓存握手仍仅服务存量任务；历史验签、通用本地存储、Bot 地图/图标、原始图表与展示组件仍有调用者，不作为死代码误删。
+合并了网页 JSON 请求层和服务端参数规范化；任务创建、失败补偿及状态结算集中；网页退出评分执行链。查询/轮询、时间轴、导出和启动逻辑拆为 `web/app/` 显式模块，由 `boot.js` 串联；基础 UI 定义在 `web/base/app.js`，页面模板为 `web/pages/strength.html`。`scripts/build.mjs` 只做入口编排，`scripts/build-web.mjs` 组装网页，构建不再注入或改写 `app.js`/`chart.js` 字符串。旧缓存握手仍仅服务存量任务；历史验签、通用本地存储、Bot 地图/图标、原始图表与展示组件仍有调用者，不作为死代码误删。
 
 新 App/小程序只需接业务契约并增加平台登录和通知适配，不复制采集或评分。不在本次实现客户端实体、迁库、换框架或跨云同步。

@@ -1,12 +1,9 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {AuthDirectory} from '../src/auth.mjs';import {UserTasks} from '../src/tasks.mjs';import worker from '../src/worker.mjs';
-import {passwordHash,mac,signSnapshot,verifySnapshot,putBlob,getBlob,deleteBlob,day} from '../src/security.mjs';import {createQuery,queryStep} from '../src/query.mjs';import {prepareReview,callReview} from '../src/review.mjs';import {heroes} from '../src/shared/data.mjs';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {AuthDirectory} from '../src/actors/auth.mjs';import {UserTasks} from '../src/actors/tasks.mjs';import worker from '../src/worker.mjs';
+import {passwordHash,mac,signSnapshot,verifySnapshot,putBlob,getBlob,deleteBlob,day} from '../src/security.mjs';import {createQuery,queryStep} from '../src/query/query.mjs';import {prepareReview,callReview} from '../src/adapters/review.mjs';import {heroes} from '../src/shared/data.mjs';
 import {service} from './query-fixture.mjs';
-import {mintCacheRecords,cacheEntries} from '../src/cache-records.mjs';
-export class MemoryStorage{
- constructor(){this.map=new Map();this.alarmTime=null;}
- async transaction(fn){const before=structuredClone(this.map);try{return await fn(this);}catch(error){this.map=before;throw error;}}
- async get(k){return structuredClone(this.map.get(k));}async put(k,v){this.map.set(k,structuredClone(v));}async delete(keys){for(const k of Array.isArray(keys)?keys:[keys])this.map.delete(k);}async list({prefix=''}){return new Map([...this.map].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)]));}async setAlarm(t){this.alarmTime=t;}async getAlarm(){return this.alarmTime;}
-}
+import {mintCacheRecords,cacheEntries} from '../src/query/cache-records.mjs';
+import {MemoryStorage} from './helpers/storage.mjs';
+export {MemoryStorage};
 const hero=Object.keys(heroes)[0],player=(name,side='T')=>({name,hero,side,stats:{kill:20,assist:8,death:4,heroDamage:10000,cure:500,resistDamage:6000,finalHit:10,soloKill:null,targetCompetingTime:10,healingTaken:5000,damageTaken:9000},res:{rows:[]}});
 const match=(mid='m1',tag='Test#123')=>({mid,t:100,ret:-1,mapGuid:'576460752303425366',duration:300,teamScore:2,opponentScore:0,hasGameData:true,resourceDataChecked:true,players:[player(tag),player('Other#124','E')]});
 const snapshot=(tag='Test#123')=>({battletag:tag,matches:[match('m1',tag)],recentHistory:[],queriedAt:new Date().toISOString()});

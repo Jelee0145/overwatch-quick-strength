@@ -4,7 +4,7 @@
 
 历史分析的网页精简投影、窗口缓存、批次同步与存储回退见 [历史性能验收](docs/history-performance.md)。本机合成数据结果与生产验收分开记录；完整 API 视图仍为默认。
 
-完整项目位于 `D:\project\owqs`；本机工具位于 `local/`，云端项目不修改它。`source` 保存评分、强度预测、图表和素材的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。本机算法更新后，可手动运行 `node scripts/sync-local.mjs` 同步白名单源码。
+完整项目位于 `D:\project\owqs`；本机工具位于 `local/`，云端项目不修改它。`source` 保存算法、数据、提示词、图表和媒体的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。云端网页由 `web/` 组成：基础 UI 定义在 `web/base/`，时间轴、导出、查询和启动模块在 `web/app/`，页面模板为 `web/pages/strength.html`；`scripts/build.mjs` 只做入口编排，`scripts/build-web.mjs` 负责网页组装。`source/chart.js` 是浏览器与后端共用的图表权威源，不从本机同步。本机算法更新后，先运行 `node scripts/sync-local.mjs` 预检；确需写入时用 `--apply --only=<file>` 逐文件同步算法、数据和提示词。
 
 ## 使用与管理
 

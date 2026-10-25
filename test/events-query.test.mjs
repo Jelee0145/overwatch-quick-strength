@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EventCenter} from '../src/events.mjs';
-import {eventApi,eventQuery} from '../src/events-source.mjs';
-import {parseEvents} from '../src/events-parser.mjs';
+import {EventCenter} from '../src/events/center.mjs';
+import {eventApi,eventQuery} from '../src/events/source.mjs';
+import {parseEvents} from '../src/events/parser.mjs';
 import worker from '../src/worker.mjs';
 import {card,page,response} from './events-fixture.mjs';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -10,14 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRuntime} from '../server/runtime.mjs';
 
-class Storage{
- constructor(){this.map=new Map();}
- async get(key){return structuredClone(this.map.get(key));}
- async put(key,value){this.map.set(key,structuredClone(value));}
- async delete(key){this.map.delete(key);}
- async setAlarm(at){this.alarm=at;}
- async getAlarm(){return this.alarm;}
-}
+import {MemoryStorage as Storage} from './helpers/storage.mjs';
 const stamp=date=>String(Date.parse(date)/1000);
 const history=days=>page('',days.map(day=>card({timestamp:stamp('2026-10-'+day+'T11:00:00Z'),teams:['Weibo Gaming','All Gamers'],scores:[3,0],finished:true})).join(''));
 function setup(fetcher,{snapshot=true}={}){

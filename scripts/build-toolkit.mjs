@@ -35,7 +35,7 @@ export async function buildToolkit({base,brandPage,logo,staticFile,releaseNotes,
  const common=['window.QS_RELEASE_NOTES='+JSON.stringify(releaseNotes)+';',await readFile(path.join(base,'web/http-client.js'),'utf8'),await readFile(path.join(base,'web/cloud-cache.js'),'utf8'),await readFile(path.join(base,'web/toolkit-session.js'),'utf8'),await readFile(path.join(base,'web/api-key.js'),'utf8'),await readFile(path.join(base,'web/changelog.js'),'utf8')].join('\n');
  // Reminders stay out of the page bundles; the events page needs the engine before its own script.
  const reminderEngine=await staticFile(await readFile(path.join(base,'web/event-reminders.js'),'utf8'),'js','event-reminders');
- const reminderLoader=await staticFile((await readFile(path.join(base,'web/event-reminders-loader.js'),'utf8')).replace('__EVENT_REMINDERS_URL__',reminderEngine),'js','event-reminders-loader');
+ const lazyLoader=await staticFile((await readFile(path.join(base,'web/lazy-loader.js'),'utf8')).replace('__OWQS_LAZY__',JSON.stringify({reminders:reminderEngine})),'js','lazy-loader');
  const owMark='<svg class="ow-mark" viewBox="0 0 100 100" fill="none" aria-hidden="true"><path d="M22 18A43 43 0 0 1 78 18" stroke="#f58220" stroke-width="10"/><path d="M15 25A43 43 0 1 0 85 25" stroke="currentColor" stroke-width="10"/><path d="M22 78L42 59V34L50 26L58 34V59L78 78L67 85L50 69L33 85Z" fill="currentColor"/></svg>';
  const fan=['genji','tracer','dva'].map(id=>'<img loading="lazy" src="'+heroes.find(h=>h.id===id).portrait+'" alt="">').join('');
  for(const page of ['toolkit','draw','events']){
@@ -51,7 +51,7 @@ export async function buildToolkit({base,brandPage,logo,staticFile,releaseNotes,
    scripts=`<script defer src="${before}"></script><script defer src="${reminderEngine}"></script><script defer src="${after}"></script>`;
   }else{
    const script=await staticFile(rewriteCopy(code+'\n'+await readFile(path.join(base,'web/mobile-shell.js'),'utf8')),'js',page);
-   scripts=`<script defer src="${script}"></script><script defer src="${reminderLoader}"></script>`;
+   scripts=`<script defer src="${script}"></script><script defer src="${lazyLoader}"></script>`;
   }
   html=html.replace('</head>',`<link rel="stylesheet" href="${css}">${eventsCSS}${scripts}</head>`);
   await writeFile(path.join(base,page==='toolkit'?'public/index.html':'public/tools/'+page+'.html'),rewriteCopy(cleanDecorativeEnglish(html)));

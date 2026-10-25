@@ -4,12 +4,12 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {analysisFixture,archiveFixture} from './services-fixture.mjs';
 import {analysisService,dataService} from '../src/services/runtime.mjs';
-import {analyzeArchive,selectArchiveMatch,selectArchiveEnvelope,normalizeHistoryAnalysisOptions,createHistoryAnalysisService} from '../src/application/history-analysis.mjs';
-import {renderAnalysisChart,renderApiChart} from '../src/api-chart.mjs';
-import {selectApiMatch,projectApiMatch} from '../src/api-match.mjs';
+import {analyzeArchive,selectArchiveMatch,selectArchiveEnvelope,normalizeHistoryAnalysisOptions,createHistoryAnalysisService} from '../src/history/analysis.mjs';
+import {renderAnalysisChart,renderApiChart} from '../src/api/chart.mjs';
+import {selectApiMatch,projectApiMatch} from '../src/api/match.mjs';
 import {digest} from '../src/security.mjs';
-import {normalizeQueryOptions} from '../src/application/query-options.mjs';
-import {webAnalysisView} from '../src/application/history-view.mjs';
+import {normalizeQueryOptions} from '../src/query/options.mjs';
+import {webAnalysisView} from '../src/history/view.mjs';
 
 const clone=value=>JSON.parse(JSON.stringify(value));
 const assets={async fetch(){return new Response('',{status:404});}};
@@ -53,6 +53,9 @@ test('window statistics and chart reuse selected summary and shared axis without
  const anchored=chart.render({...view.chartView,summary:{...view.model.summary,unanchored:0}});assert.match(anchored,/5 场 \/ /);
  // The explicit whole-archive axis is used even when a statistics/window selection is smaller.
  const scaled=chart.render({...view.chartView,plotScale:{min:500,max:5000}});assert.match(scaled,/>5000<\/text>/);
+ const art={map:'data:image/webp;base64,AAAA'};
+ const embedded=chart.render({...view.chartView,lazyArt:false},{art,showArt:true});assert.match(embedded,/href="data:image\/webp;base64,AAAA"/);assert.doesNotMatch(embedded,/data-map-art/);
+ const lazy=chart.render({...view.chartView,lazyArt:true},{art,showArt:true});assert.match(lazy,/data-map-art="map"/);assert.doesNotMatch(lazy,/href="data:image\/webp/);
  const old=chart.render(view.model),withDefault=chart.render({...view.model,statsMatches:view.model.matches});assert.equal(old,withDefault);
  const distribution=svg=>svg.slice(svg.indexOf('<rect x="34" y="837"'),svg.indexOf('<rect x="34" y="957"'));
  assert.equal(distribution(svg),distribution(old));

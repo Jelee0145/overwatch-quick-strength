@@ -1,5 +1,5 @@
 import {Fault,getCookie} from '../security.mjs';
-import {authCall} from '../tasks.mjs';
+import {authCall} from '../actors/tasks.mjs';
 
 export async function readBody(request){
  if(Number(request.headers.get('Content-Length'))>3000000)throw new Fault('请求数据过大',413);

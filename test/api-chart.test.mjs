@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import {renderApiChart} from '../src/api-chart.mjs';
+import {renderApiChart} from '../src/api/chart.mjs';
 import {analysisFixture} from './services-fixture.mjs';
 import {staticAssets} from '../server/assets.mjs';
 import media from '../source/media/manifest.json' with {type:'json'};

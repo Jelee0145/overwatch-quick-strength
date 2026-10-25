@@ -7,9 +7,9 @@ export async function buildApiCapture({base,html,app,css}){
  const section=(start,end)=>{const a=html.indexOf(start),b=html.indexOf(end,a);if(a<0||b<0)throw Error('Website capture markup changed');return html.slice(a,b);};
  const review=section('<section id="aiReviewPanel"','<div class="detail-head">');
  const data=section('<div class="detail-head">','<section id="performancePanel"');
- const start=app.indexOf('function showPlayers('),end=app.indexOf('function showPerformance(',start);
+ const start=app.indexOf('function showPlayers('),end=app.indexOf('async function showPerformance(',start);
  if(start<0||end<0)throw Error('Website player renderer changed');
- const script=await readFile(path.join(base,'source/core.js'),'utf8')+'\n'+await readFile(path.join(base,'source/data.js'),'utf8')+`\nconst $=id=>document.getElementById(id);const timeline={};const raw=INPUT.raw;const model={matches:[INPUT.match],options:INPUT.options};function showPerformance(){}\n`+app.slice(start,end)+`
+ const script=await readFile(path.join(base,'source/core.js'),'utf8')+'\n'+await readFile(path.join(base,'web/base/data.js'),'utf8')+`\nconst $=id=>document.getElementById(id);const timeline={};const raw=INPUT.raw;const model={matches:[INPUT.match],options:INPUT.options};function showPerformance(){}\n`+app.slice(start,end)+`
 if(INPUT.kind==='data'){
  $('matchSelect').innerHTML='<option></option>';
  $('matchSelect').firstChild.textContent='第 '+INPUT.index+' 场 · '+INPUT.mapName;

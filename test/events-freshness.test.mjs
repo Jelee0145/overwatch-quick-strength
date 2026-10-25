@@ -1,17 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {eventRefreshInterval,nextEventRefresh} from '../src/events-freshness.mjs';
-import {EventCenter} from '../src/events.mjs';
+import {eventRefreshInterval,nextEventRefresh} from '../src/events/freshness.mjs';
+import {EventCenter} from '../src/events/center.mjs';
 import {page,card,response} from './events-fixture.mjs';
 const MINUTE=60000,HOUR=60*MINUTE,now=Date.parse('2026-10-24T08:00:00Z');
 const match=(offset,status='scheduled')=>({startsAt:new Date(now+offset).toISOString(),status});
-class Storage{
- constructor(){this.map=new Map();}
- async get(k){return structuredClone(this.map.get(k));}
- async put(k,v){this.map.set(k,structuredClone(v));}
- async setAlarm(at){this.alarm=at;}
- async getAlarm(){return this.alarm;}
-}
+import {MemoryStorage as Storage} from './helpers/storage.mjs';
 test('event freshness follows live, imminent, warm and idle windows without mistaking unknown dates as live',()=>{
  assert.equal(eventRefreshInterval([],now),15*MINUTE);
  assert.equal(eventRefreshInterval([{startsAt:null,status:'scheduled'}],now),15*MINUTE);

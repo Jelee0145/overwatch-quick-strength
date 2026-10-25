@@ -1,10 +1,7 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {AuthDirectory} from '../src/auth.mjs';import {UserTasks} from '../src/tasks.mjs';import worker from '../src/worker.mjs';
+import {AuthDirectory} from '../src/actors/auth.mjs';import {UserTasks} from '../src/actors/tasks.mjs';import worker from '../src/worker.mjs';
 import {passwordHash,putBlob,getBlob} from '../src/security.mjs';import {service} from './query-fixture.mjs';
-class MemoryStorage{
- constructor(){this.map=new Map();this.alarmTime=null;}
- async get(k){return structuredClone(this.map.get(k));}async put(k,v){this.map.set(k,structuredClone(v));}async delete(keys){for(const k of Array.isArray(keys)?keys:[keys])this.map.delete(k);}async list({prefix=''}){return new Map([...this.map].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)]));}async setAlarm(t){this.alarmTime=t;}async getAlarm(){return this.alarmTime;}async transaction(fn){return fn(this);}
-}
+import {MemoryStorage} from './helpers/storage.mjs';
 async function setup(){
  const storage=new MemoryStorage(),env={PASSWORD_PEPPER:'test-only-pepper',CACHE_SIGNING_KEY:'test-only-signing-key',API_KEY_ENCRYPTION_KEY:'test-only-api-key-secret',DASHEN_DTS:'2026',DASHEN_SERVER:'1',DASHEN_ROLE_ID:'test-role',DASHEN_TOKEN:'test-token'};
  env.ADMIN_PASSWORD_HASH=JSON.stringify(await passwordHash('admin-password',env.PASSWORD_PEPPER));

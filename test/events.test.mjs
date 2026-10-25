@@ -4,21 +4,15 @@ import vm from 'node:vm';
 import {readFile,mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {EventCenter,EVENTS_API,nextEventSync} from '../src/events.mjs';
-import {nextEventRefresh} from '../src/events-freshness.mjs';
-import {parseEvents,liquipediaLink,liquipediaLogo} from '../src/events-parser.mjs';
+import {EventCenter,EVENTS_API,nextEventSync} from '../src/events/center.mjs';
+import {nextEventRefresh} from '../src/events/freshness.mjs';
+import {parseEvents,liquipediaLink,liquipediaLogo} from '../src/events/parser.mjs';
 import worker from '../src/worker.mjs';
 import {createRuntime} from '../server/runtime.mjs';
 import {card,page,response} from './events-fixture.mjs';
-import {filterEvents} from '../src/events-filter.mjs';
+import {filterEvents} from '../src/events/filter.mjs';
 
-class Storage{
- constructor(){this.map=new Map();}
- async get(k){return structuredClone(this.map.get(k));}
- async put(k,v){this.map.set(k,structuredClone(v));}
- async setAlarm(at){this.alarm=at;}
- async getAlarm(){return this.alarm;}
-}
+import {MemoryStorage as Storage} from './helpers/storage.mjs';
 function setup(fetcher=async()=>response(page())){const storage=new Storage(),env={EVENTS_CONTACT:'https://site.test',EVENTS_FETCH:fetcher},center=new EventCenter({storage},env);let now=1792310400000;center.now=()=>now;return {center,storage,env,advance:ms=>{now+=ms;}};}
 const request=()=>new Request('https://events.internal/');
 

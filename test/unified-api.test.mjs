@@ -5,7 +5,7 @@ import {analysisResponseCache} from '../src/api/v1.mjs';
 import {createRuntime} from '../server/runtime.mjs';
 import {signSnapshot,putBlob} from '../src/security.mjs';
 import {analysisFixture} from './services-fixture.mjs';
-import {warmHistoryAnalysis} from '../src/application/history-response.mjs';
+import {warmHistoryAnalysis} from '../src/history/response.mjs';
 import {createHttpServer} from '../server/http.mjs';
 import http from 'node:http';
 import {gunzipSync,brotliDecompressSync} from 'node:zlib';

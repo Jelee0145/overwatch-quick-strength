@@ -58,8 +58,8 @@ test('main web client adapts legacy app paths and starts v1 queries without brow
 });
 
 test('completed query with archive warning shows its job view even when local persistence fails',async()=>{
- const text=await source('cloud-query.js'),opened=[],messages=[],job={state:'done',message:'完成',archiveWarning:'历史空间已满',envelope:{content:{data:{battletag:'New#100'}}}};
- const context={activeJob:'fixture-job',pollTimer:null,clearTimeout(){},busy(){},status:value=>messages.push(value),Cloud:{api:async()=>job,save:async()=>{throw Error('IDB unavailable');}},OWQS_SERVER_ANALYSIS:{invalidate(){}},openHistory:async(...args)=>opened.push(args)};
+ const text=await source('app/query.js'),opened=[],messages=[],job={state:'done',message:'完成',archiveWarning:'历史空间已满',envelope:{content:{data:{battletag:'New#100'}}}};
+ const elements={resumeQuery:{},query:{},cancel:{}};const context={activeJob:'fixture-job',pollTimer:null,clearTimeout(){},$:id=>elements[id],status:value=>messages.push(value),Cloud:{api:async()=>job,save:async()=>{throw Error('IDB unavailable');}},OWQS_SERVER_ANALYSIS:{invalidate(){}},openHistory:async(...args)=>opened.push(args)};
  vm.runInNewContext(text,context);await context.poll();assert.deepEqual(opened,[['New#100',null,'fixture-job']]);assert.match(messages.at(-1),/历史空间已满/);assert.match(messages.at(-1),/本次查询结果/);assert.match(messages.at(-1),/IDB unavailable/);
  job.archiveWarning=null;context.activeJob='second-job';opened.length=0;context.openHistory=async(...args)=>{opened.push(args);if(!args[2])throw Error('archive offline');};await context.poll();assert.deepEqual(opened,[['New#100'],['New#100',null,'second-job']]);assert.match(messages.at(-1),/archive offline/);
 });

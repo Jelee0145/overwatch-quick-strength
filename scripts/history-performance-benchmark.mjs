@@ -2,8 +2,8 @@
 import {gzipSync,brotliCompressSync} from 'node:zlib';
 import {performance} from 'node:perf_hooks';
 import {analysisFixture} from '../test/services-fixture.mjs';
-import {analyzeArchive,analyzeCachedArchive,historyComputationCache} from '../src/application/history-analysis.mjs';
-import {webAnalysisView} from '../src/application/history-view.mjs';
+import {analyzeArchive,analyzeCachedArchive,historyComputationCache} from '../src/history/analysis.mjs';
+import {webAnalysisView} from '../src/history/view.mjs';
 
 export function performanceArchive(count){
  const fixture=analysisFixture(),batches={};

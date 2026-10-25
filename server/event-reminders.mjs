@@ -1,6 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {Fault} from '../src/security.mjs';
-import {broadcastsFor} from '../src/events-broadcasts.mjs';
+import {broadcastsFor} from '../src/events/broadcasts.mjs';
 import {validateSubscription} from './web-push.mjs';
 
 const MINUTE=60000,DAY=86400000;

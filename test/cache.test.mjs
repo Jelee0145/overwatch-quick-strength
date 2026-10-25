@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {createQuery,runQuery,ingestCache,accountRecords} from '../src/query.mjs';import {cacheEntries,mintCacheRecords,verifyCacheRecord,cleanManifest} from '../src/cache-records.mjs';import {service} from './query-fixture.mjs';
+import {createQuery,runQuery,ingestCache,accountRecords} from '../src/query/query.mjs';import {cacheEntries,mintCacheRecords,verifyCacheRecord,cleanManifest} from '../src/query/cache-records.mjs';import {service} from './query-fixture.mjs';
 const env={CACHE_SIGNING_KEY:'test-only',DASHEN_SERVER:'1',DASHEN_DTS:'2026'};
 const manifest=records=>records.map(r=>({type:r.content.type,key:r.content.key,names:r.content.names,updatedAt:r.content.updatedAt}));
 async function finish(s,mock,records=[]){for(let i=0;s.phase!=='done'&&i<150;i++){await runQuery(s,env,{call:mock.call,minIntervalMs:0,budgetMs:50});if(s.cacheRequest){const wanted=new Set(s.cacheRequest.keys.map(k=>k.type+'|'+k.key));const entries=[];for(const r of records)if(wanted.has(r.content.type+'|'+r.content.key))entries.push(await verifyCacheRecord(r,'u',env));ingestCache(s,entries);}}assert.equal(s.phase,'done');return s.result;}

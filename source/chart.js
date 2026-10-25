@@ -5,26 +5,33 @@ function createChartService({core:QS,maps={},avatar='',rankArt={}}){
  const QS_DATA={maps},QS_AVATAR=avatar,QS_RANK_ART=rankArt;
 function renderChart(model,art,showArt,title){
  const {esc,rank,bands}=QS,s=model.summary,matches=model.matches,n=matches.length,statsMatches=model.statsMatches||matches,statsCount=statsMatches.length;
- const W=Math.max(1440,n*120+220),H=1100,left=136,right=W-72,top=256,bottom=698,cw=(right-left)/Math.max(1,n);
+ // The browser timeline passes windowOffset/windowSize; API and Bot charts keep the
+ // original fixed-ten output when those options are absent.
+ const windowed=model.windowOffset!==undefined||model.windowSize!==undefined;
+ const lazyArt=model.lazyArt===true;
+ const windowSize=model.windowSize||n,columnOffset=model.columnOffset||0;
+ const W=Math.max(1440,windowSize*120+220),H=1100,left=136,right=W-72,top=256,bottom=698,cw=(right-left)/Math.max(1,windowSize);
  const ink='#eff3f7',muted='#93a2b3',observed='#82e4df',estimated='#ffb466',grid='#34404c';
  const colors=['#c89071','#aeb8c4','#e2bb63','#92c9b3','#47cba4','#72a7dc','#a1cc78','#aa9bc9','#ba9bd4'];
  const values=matches.flatMap(m=>[...m.scores,...m.allRoleScores,...(m.estimateRange?[m.estimateRange.min,m.estimateRange.max]:[]),...(m.mean!==null?[m.mean]:[])]).filter(Number.isFinite);
  let lo=values.length?Math.max(500,Math.floor((Math.min(...values)-100)/500)*500):500,hi=values.length?Math.min(5000,Math.ceil((Math.max(...values)+150)/500)*500):3000;
  if(hi<=lo)hi=Math.min(5000,lo+500);
  if(model.plotScale&&Number.isFinite(model.plotScale.min)&&Number.isFinite(model.plotScale.max)&&model.plotScale.max>model.plotScale.min){lo=model.plotScale.min;hi=model.plotScale.max;}
- const y=v=>bottom-(v-lo)/(hi-lo)*(bottom-top),center=i=>left+(i+.5)*cw;
+ const y=v=>bottom-(v-lo)/(hi-lo)*(bottom-top),center=i=>left+(i+.5+columnOffset)*cw;
  const z=[],text=(x,y,t,size=16,color=muted,extra='')=>z.push(`<text x="${x}" y="${y}" font-size="${size}" fill="${color}" ${extra}>${esc(t)}</text>`);
  const line=(x1,y1,x2,y2,stroke,w=1,extra='')=>z.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" ${extra}/>`);
  const rect=(x,y,w,h,fill,extra='')=>z.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" ${extra}/>`);
  const panel=(x,y,w,h)=>rect(x,y,w,h,'#151d27','rx="10" stroke="#303b47"');
  const value=v=>Number.isFinite(v)?v.toFixed(1):'—',pointValue=v=>Number.isFinite(v)?Math.round(v):'—';
  const observedMatches=statsMatches.filter(m=>m.observedMean!==null).length,metricStart=425,metricWidth=(W-metricStart-46)/3;
- z.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)}：顶部为强度预估、个人段位预测和预估可信度；轨迹青色为实测，橙色为估算" data-chart-version="${QS_CHART_VERSION}" style="font-family:Microsoft YaHei,PingFang SC,sans-serif;font-variant-numeric:tabular-nums"><defs>
+ const plotScale=windowed?` data-plot-min="${lo}" data-plot-max="${hi}"`:'';
+ const timelineClip=windowed?`<clipPath id="timeline-window"><rect x="${left}" y="${top}" width="${right-left}" height="554"/></clipPath>`:'';
+ z.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)}：顶部为强度预估、个人段位预测和预估可信度；轨迹青色为实测，橙色为估算" data-chart-version="${QS_CHART_VERSION}"${plotScale} style="font-family:Microsoft YaHei,PingFang SC,sans-serif;font-variant-numeric:tabular-nums"><defs>
  <linearGradient id="chart-back" x2="1" y2="1"><stop stop-color="#27303a"/><stop offset="1" stop-color="#111822"/></linearGradient>
  <linearGradient id="map-shade" x2="0" y2="1"><stop stop-color="#121b26" stop-opacity=".26"/><stop offset=".55" stop-color="#121b26" stop-opacity=".50"/><stop offset="1" stop-color="#121b26" stop-opacity=".93"/></linearGradient>
  <radialGradient id="orange-halo"><stop stop-color="#f58220" stop-opacity=".13"/><stop offset="1" stop-color="#f58220" stop-opacity="0"/></radialGradient>
  <pattern id="estimate-hatch" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M-1 1l10 10M8 -1l2 2" stroke="${estimated}" stroke-width="1" opacity=".10"/></pattern>
- <clipPath id="chart-avatar"><circle cx="93" cy="91" r="32"/></clipPath><clipPath id="chart-name"><rect x="143" y="55" width="245" height="76"/></clipPath></defs>`);
+ <clipPath id="chart-avatar"><circle cx="93" cy="91" r="32"/></clipPath><clipPath id="chart-name"><rect x="143" y="55" width="245" height="76"/></clipPath>${timelineClip}</defs>`);
  rect(0,0,W,H,'url(#chart-back)');z.push('<ellipse cx="405" cy="72" rx="340" ry="140" fill="url(#orange-halo)"/>');
  // Cut corners and registration marks give the chart a restrained OW HUD character.
  z.push(`<path d="M24 38V24h32M${W-56} 24h32v14M24 ${H-38}v14h32M${W-56} ${H-24}h32v-14" fill="none" stroke="#68727d" stroke-width="1" opacity=".55"/>`);
@@ -33,7 +40,7 @@ function renderChart(model,art,showArt,title){
  if(typeof QS_AVATAR!=='undefined'&&QS_AVATAR)z.push(`<image href="${esc(QS_AVATAR)}" x="61" y="59" width="64" height="64" clip-path="url(#chart-avatar)"/>`);else text(93,102,'Q',30,ink,'text-anchor="middle"');
  const [name,tag]=model.battletag.split('#');
  z.push(`<g clip-path="url(#chart-name)"><title>${esc(model.battletag)}</title>`);text(145,88,name||'快速对局',28,ink,'font-weight="700"');text(145,113,tag?'#'+tag:'快速对局记录',15,muted);z.push('</g>');
- const caption=title||'快速强度图';text(61,156,caption.length>18?caption.slice(0,18)+'…':caption,15,'#c8d0d9');text(387,156,`${n} 场`,15,muted,'text-anchor="end"');
+ const caption=title||'快速强度图';text(61,156,caption.length>18?caption.slice(0,18)+'…':caption,15,'#c8d0d9');text(387,156,`${windowed?windowSize:n} 场`,15,muted,'text-anchor="end"');
  const rolesLabel=r=>QS.roles[r]||'未知职责';
  const personal=model.personalPrediction?.selected;
  const metrics=[
@@ -50,25 +57,30 @@ function renderChart(model,art,showArt,title){
  const confidenceX=metricStart+metricWidth*2,confidence=s.confidencePercent??0;
  z.push('<g><title>对局强度预估的证据完整与稳定性评分，非预测命中率；独立段位、职责覆盖、时效及战斗数据共同计算。</title>');
  line(confidenceX-20,60,confidenceX-20,158,grid);text(confidenceX,71,'预估可信度',15,muted);text(confidenceX,114,`${confidence}%`,38,ink,'font-weight="600"');
- rect(confidenceX,128,metricWidth-45,5,'#343e49','rx="2"');rect(confidenceX,128,(metricWidth-45)*confidence/100,5,observed,'rx="2"');text(confidenceX,156,'对局证据评分',14,muted);z.push('</g>');
+ const statisticsLabel=windowed?(model.statisticsLabel?.split(' · ').slice(0,2).join(' · ')||'对局证据评分'):'对局证据评分';
+ rect(confidenceX,128,metricWidth-45,5,'#343e49','rx="2"');rect(confidenceX,128,(metricWidth-45)*confidence/100,5,observed,'rx="2"');text(confidenceX,156,statisticsLabel,14,muted);z.push('</g>');
  panel(34,200,W-68,619);text(61,232,'对局强度轨迹',21,ink,'font-weight="600"');text(right,231,'青色＝实测  /  橙色＝估算  /  范围不代表置信区间',14,muted,'text-anchor="end"');
+ if(windowed)z.push('<g class="timeline-viewport" clip-path="url(#timeline-window)"><g class="timeline-trajectory">');
  // Map columns set the atmosphere; an overlay keeps every data mark legible.
  matches.forEach((m,i)=>{
-  const x=left+i*cw+3,width=cw-6,c=center(i),win=m.ret===1?'#71c7a9':m.ret===-1?'#d77a79':'#8b95a2';
+  const x=left+(i+columnOffset)*cw+3,width=cw-6,c=center(i),win=m.ret===1?'#71c7a9':m.ret===-1?'#d77a79':'#8b95a2';
   rect(x,top,width,bottom-top,'#1a2531','rx="3"');
-  if(showArt&&art[m.mapGuid]){z.push(`<image href="${esc(art[m.mapGuid])}" x="${x}" y="${top}" width="${width}" height="${bottom-top}" preserveAspectRatio="xMidYMid slice" opacity=".56"/>`);rect(x,top,width,bottom-top,'url(#map-shade)');}
-  rect(x,top,width,3,win);text(x+9,279,String(i+1).padStart(2,'0'),12,muted);text(c,279,m.ret===1?'胜':m.ret===-1?'负':'平 / 未知',13,win,'text-anchor="middle"');
+  if(lazyArt&&showArt){z.push(`<image data-map-art="${esc(m.mapGuid)}" x="${x}" y="${top}" width="${width}" height="${bottom-top}" preserveAspectRatio="xMidYMid slice" opacity=".56"/>`);rect(x,top,width,bottom-top,'url(#map-shade)');}
+  else if(!lazyArt&&showArt&&art[m.mapGuid]){z.push(`<image href="${esc(art[m.mapGuid])}" x="${x}" y="${top}" width="${width}" height="${bottom-top}" preserveAspectRatio="xMidYMid slice" opacity=".56"/>`);rect(x,top,width,bottom-top,'url(#map-shade)');}
+  rect(x,top,width,3,win);text(x+9,279,String((windowed?(model.windowOffset||0):0)+i+1).padStart(2,'0'),12,muted);text(c,279,m.ret===1?'胜':m.ret===-1?'负':'平 / 未知',13,win,'text-anchor="middle"');
  });
+ if(windowed)z.push('</g></g>');
  for(let v=lo;v<=hi;v+=500){line(left,y(v),right,y(v),grid,1,'opacity=".65"');text(left-18,y(v)+6,v===5000?'5000':rank(v),17,'#acb7c4','text-anchor="end"');}
+ if(windowed)z.push('<g class="timeline-viewport" clip-path="url(#timeline-window)"><g class="timeline-trajectory">');
  matches.forEach((m,i)=>{
-  const c=center(i),x=left+i*cw+3,width=cw-6;
+  const c=center(i),x=left+(i+columnOffset)*cw+3,width=cw-6;
   if(m.allRoleRange){const r=m.allRoleRange;line(c+22,y(r.min),c+22,y(r.max),'#afbdcc',2,'opacity=".7"');line(c+18,y(r.min),c+26,y(r.min),'#afbdcc',1);line(c+18,y(r.max),c+26,y(r.max),'#afbdcc',1);}
   if(m.roleRange){const r=m.roleRange,yy=y(r.max),height=y(r.min)-yy;
    if(height<1)line(c-14,yy,c+14,yy,observed,3);else rect(c-14,yy,28,height,'#82e4df12',`rx="2" stroke="${observed}" stroke-width="2.5"`);
   }
   if(m.observedMean!==null&&m.estimateSource){z.push(`<circle class="raw-observed-point" cx="${c}" cy="${y(m.observedMean)}" r="4" fill="#15212b" stroke="${observed}" stroke-width="1.5"/>`);}
   if(m.estimateRange){const r=m.estimateRange,yy=y(r.max);rect(c-14,yy,28,y(r.min)-yy,'url(#estimate-hatch)',`rx="2" stroke="${estimated}" stroke-width="2.5"`);}
-  const groups=new Map();m.known.forEach(p=>groups.set(p.score,(groups.get(p.score)||0)+1));groups.forEach((count,score)=>line(c-14,y(score),c+14,y(score),observed,2+Math.min(3,count)));
+  const groups=new Map();m.known.forEach(p=>{const score=typeof p==='number'?p:p.score;groups.set(score,(groups.get(score)||0)+1);});groups.forEach((count,score)=>line(c-14,y(score),c+14,y(score),observed,2+Math.min(3,count)));
   const map=QS_DATA.maps[m.mapGuid]?.name||m.mapName||'未知地图';text(c,731,map.length>7?map.slice(0,6)+'…':map,Math.min(16,cw/7.7),ink,'text-anchor="middle"');
   let date='时间未知';if(m.t&&Number.isFinite(m.t)){try{date=new Date(m.t).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});}catch{}}
   text(c,754,date,13,muted,'text-anchor="middle"');
@@ -89,8 +101,8 @@ function renderChart(model,art,showArt,title){
   z.push(`<circle class="${isEstimate?'estimated-point':'observed-point'}" data-value="${m.mean}" cx="${c}" cy="${py}" r="6" fill="${isEstimate?estimated:observed}" stroke="#15212b" stroke-width="2" pointer-events="none"/>`);
   text(c,Math.max(top+43,py-16),pointValue(m.mean),19,isEstimate?estimated:observed,'text-anchor="middle" font-weight="650" stroke="#14202b" stroke-width="4" paint-order="stroke" pointer-events="none"');
  });
- panel(34,837,W-68,102);text(61,865,'实测段位分布',17,ink);text(W-61,865,`${s.known} 个可查玩家位 · 玩家位均值 ${value(s.playerMean)} · 不含估算`,14,muted,'text-anchor="end"');
- const bins=Array(45).fill(0);statsMatches.flatMap(m=>m.scores).forEach(v=>bins[Math.min(44,Math.max(0,Math.floor((v-500)/100)))]++);
+ if(windowed)z.push('</g></g>');panel(34,837,W-68,102);text(61,865,'实测段位分布',17,ink);text(W-61,865,`${s.known} 个可查玩家位 · 玩家位均值 ${value(s.playerMean)} · 不含估算`,14,muted,'text-anchor="end"');
+ const bins=model.histogram||Array(45).fill(0);if(!model.histogram)statsMatches.flatMap(m=>m.scores).forEach(v=>bins[Math.min(44,Math.max(0,Math.floor((v-500)/100)))]++);
  const peak=Math.max(1,...bins),bw=(W-126)/45;
  bins.forEach((count,i)=>{const x=63+i*bw+2;rect(x,910-(count?count/peak*31:1),bw-4,count?count/peak*31:1,colors[Math.floor(i/5)],'rx="1"');});bands.forEach((b,i)=>text(63+(i*5+2.5)*bw,929,b,14,colors[i],'text-anchor="middle"'));
  panel(34,957,W-68,110);

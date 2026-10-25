@@ -14,7 +14,7 @@
     "server:test": "node --test test/standalone.test.mjs",
     "plugin:build": "npm run build && node scripts/build-plugin.mjs",
     "plugin:test": "node scripts/test-plugin.mjs",
-    "test": "node --test test/*.test.mjs tests/*.test.mjs && node scripts/native-fetch-check.mjs && node scripts/history-runtime-check.mjs && node scripts/api-analysis-runtime-check.mjs && node scripts/events-runtime-check.mjs",
+    "test": "node --test test/*.test.mjs tests/*.test.mjs && node scripts/runtime-check-suites.mjs",
     "dev": "npm run build && node scripts/wrangler.mjs dev",
     "deploy": "npm run build && node scripts/deploy-retry.mjs",
     "deploy:ci": "node scripts/deploy-retry.mjs",

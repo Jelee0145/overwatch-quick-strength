@@ -1,19 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {CloudHistory,HISTORY_LIMITS} from '../src/cloud-history.mjs';
+import {CloudHistory,HISTORY_LIMITS} from '../src/history/cloud-history.mjs';
 import {signSnapshot,verifySnapshot,digest,getBlob,putBlob} from '../src/security.mjs';
-import {UserTasks} from '../src/tasks.mjs';
+import {UserTasks} from '../src/actors/tasks.mjs';
 import worker from '../src/worker.mjs';
 import {service} from './query-fixture.mjs';
 import {restoreLegacyHistory} from '../scripts/history-storage-rollback.mjs';
-class Storage{
- constructor(){this.map=new Map();this.alarmTime=null;}
- async get(k){return structuredClone(this.map.get(k));}
- async put(k,v){assert.ok(new TextEncoder().encode(JSON.stringify(v)).length<128*1024,'DO value limit');this.map.set(k,structuredClone(v));}
- async delete(keys){for(const k of Array.isArray(keys)?keys:[keys])this.map.delete(k);}
- async list({prefix=''}){return new Map([...this.map].filter(([k])=>k.startsWith(prefix)).map(([k,v])=>[k,structuredClone(v)]));}
- async setAlarm(t){this.alarmTime=t;}
- async transaction(fn){const old=this.map;this.map=structuredClone(old);try{return await fn(this);}catch(e){this.map=old;throw e;}}
+import {MemoryStorage} from './helpers/storage.mjs';
+class Storage extends MemoryStorage{
+ constructor(){super();this.alarmTime=null;}
+ async put(k,v){assert.ok(new TextEncoder().encode(JSON.stringify(v)).length<128*1024,'DO value limit');return super.put(k,v);}
 }
 const env=()=>({CACHE_SIGNING_KEY:'cloud-history-fixture-only',DASHEN_SERVER:'1',DASHEN_DTS:'2026'});
 const data=(ids=['m1'],queriedAt='2026-10-15T00:00:00Z',tag='Main#100',extra={})=>({battletag:tag,queriedAt,matches:ids.map((mid,i)=>({mid,t:Number(mid.replace(/\D/g,''))||i,players:[],ret:1})),...extra});

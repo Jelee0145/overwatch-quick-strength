@@ -1,4 +1,4 @@
-import {createQuery,queryStep,accountRecords} from '../src/query.mjs';import {service} from '../test/query-fixture.mjs';import {mkdir,writeFile} from 'node:fs/promises';import {execFileSync} from 'node:child_process';
+import {createQuery,queryStep,accountRecords} from '../src/query/query.mjs';import {service} from '../test/query-fixture.mjs';import {mkdir,writeFile} from 'node:fs/promises';import {execFileSync} from 'node:child_process';
 const baseline=process.argv.find(x=>x.startsWith('--baseline='))?.slice(11)||'571a7df';
 await mkdir(new URL('../.private/query-baseline/',import.meta.url),{recursive:true});
 for(const name of ['query.mjs','security.mjs'])await writeFile(new URL('../.private/query-baseline/'+name,import.meta.url),execFileSync('git',['show',baseline+':src/'+name],{cwd:new URL('..',import.meta.url),encoding:'utf8',maxBuffer:5000000}));
