@@ -1,0 +1,16 @@
+{
+  "revision": "450dd5a",
+  "assets": "unavailable (deterministic no-media fallback)",
+  "cases": [
+    {
+      "mode": "LeisurePreset",
+      "sha256": "b3fbec935185a60dcc91a1e5155a97e392c65d36f615f37166a54b00f658f94b",
+      "displayed": 10
+    },
+    {
+      "mode": "Leisure6v6",
+      "sha256": "b3fbec935185a60dcc91a1e5155a97e392c65d36f615f37166a54b00f658f94b",
+      "displayed": 10
+    }
+  ]
+}
