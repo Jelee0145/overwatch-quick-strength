@@ -119,8 +119,8 @@ test('independent build commands exclude full website and Bot capture from backe
  assert.equal(pkg.scripts['web:build'],'node scripts/build.mjs --web-only');
  assert.equal(pkg.scripts['bot:capture'],'node scripts/build.mjs --web-only --bot-capture');
  const source=await readFile(path.join(root,'scripts/build.mjs'),'utf8'),webSource=await readFile(path.join(root,'scripts/build-web.mjs'),'utf8');
- assert.match(source,/if\(!process\.argv\.includes\('--web-only'\)\)await buildBackend/);
+ assert.match(source,/if\s*\(!process\.argv\.includes\('--web-only'\)\)\s*await buildBackend/);
  assert.match(source,/buildWeb/);
- assert.match(webSource,/if\(capture\)await buildApiCapture/);
+ assert.match(webSource,/if\s*\(capture\)\s*await buildApiCapture/);
  assert.doesNotMatch(source,/writeFile\(path\.join\(base,'src\//);
 });

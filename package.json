@@ -11,19 +11,22 @@
     "web:package": "npm run web:build && npm run package:web",
     "server:build": "npm run backend:build && node scripts/package-server.mjs",
     "server:start": "node server/main.mjs",
-    "server:test": "node --test test/standalone.test.mjs",
+    "server:test": "node --test test/release/standalone.test.mjs",
     "plugin:build": "npm run build && node scripts/build-plugin.mjs",
     "plugin:test": "node scripts/test-plugin.mjs",
-    "test": "node --test test/*.test.mjs tests/*.test.mjs && node scripts/runtime-check-suites.mjs",
+    "test": "node --test \"test/**/*.test.mjs\" tests/*.test.mjs && node scripts/runtime-check-suites.mjs",
     "dev": "npm run build && node scripts/wrangler.mjs dev",
     "deploy": "npm run build && node scripts/deploy-retry.mjs",
     "deploy:ci": "node scripts/deploy-retry.mjs",
     "check": "npm run build && node scripts/wrangler.mjs deploy --dry-run",
-    "login": "node scripts/wrangler.mjs login"
+    "login": "node scripts/wrangler.mjs login",
+    "format": "prettier --write \"src/**/*.mjs\" \"server/**/*.mjs\" \"web/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.mjs\" \"tests/**/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.mjs\" \"server/**/*.mjs\" \"web/**/*.js\" \"scripts/**/*.mjs\" \"test/**/*.mjs\" \"tests/**/*.mjs\""
   },
   "devDependencies": {
     "esbuild": "0.28.2",
     "parse5": "8.0.0",
+    "prettier": "3.9.10",
     "wrangler": "4.149.0"
   }
 }

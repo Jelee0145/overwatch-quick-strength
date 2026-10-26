@@ -1,0 +1,12 @@
+node_modules/
+public/
+dist/
+src/shared/
+src/prompt.mjs
+src/release.mjs
+source/
+local/
+.private/
+.dev.vars
+scripts/upstream-*.mjs
+test/upstream-*.test.mjs

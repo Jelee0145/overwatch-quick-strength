@@ -108,7 +108,7 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 
 `source/media/manifest.json` 覆盖全部133条地图记录，`coverage.json` 保存来源、同名别名和缺失项。现已取得131条真实素材；VPP Green Room、寺院没有可核实的来源，显示统一背景。预览最长边960，导出1920，不放大小图。日常 CI 使用已提交的 WebP，不请求外站。地图目录更新后，在本机用带 Pillow 的 Python 手动运行 `scripts/prepare-media.py`，检查覆盖报告，再构建部署；该脚本原图缓存仅留在 `.private`。
 
-性能比较使用本机独立 Playwright（安装环境提供，不属于线上依赖），`node scripts/speed-check.mjs`，基线网页需提前保存在 `.private/speed-baseline/public`。使用匿名模拟数据与同样网络条件，结果保存在 `.private/speed-results.json`，不会上传或暴露为网站功能。2026-10-12 最终比较：6 Mbps、100 ms 延迟、4倍 CPU 降速，各5次；可操作中位数15.719秒→2.620秒，完整图表15.863秒→3.205秒，传输8,592,280→626,424字节。以上为本地可复现基准，不代表每位用户的实际延迟，也不包含上游查询／AI耗时。
+性能比较使用本机独立 Playwright（安装环境提供，不属于线上依赖），`node scripts/diagnostics/speed-check.mjs`，基线网页需提前保存在 `.private/speed-baseline/public`。使用匿名模拟数据与同样网络条件，结果保存在 `.private/speed-results.json`，不会上传或暴露为网站功能。2026-10-12 最终比较：6 Mbps、100 ms 延迟、4倍 CPU 降速，各5次；可操作中位数15.719秒→2.620秒，完整图表15.863秒→3.205秒，传输8,592,280→626,424字节。以上为本地可复现基准，不代表每位用户的实际延迟，也不包含上游查询／AI耗时。
 
 ## 快／慢查询与迁移
 
@@ -120,7 +120,7 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 
 登录后自动显示当前版本更新日志，点击“我知道了”后按登录用户在此浏览器保存已读状态。刷新不再自动弹出，右上角“更新日志”可随时重看；每次功能或修复提交自动生成新的日志版本并重新提示未读用户。清理站点数据或换浏览器会再次显示。
 
-更新日志由 `scripts/release-notes.mjs` 从 baseline 后的 `feat:`／`feature:`／`fix:` 提交自动生成；正文使用 `Changelog: 中文用户可读说明`，支持多行。旧版本记录保存在 `web/release-notes.json`。日志内容变化才更新已读版本；维护提交不重复提示。当前页面每5分钟及回到标签页时检查更新，读取状态仍按账号与浏览器隔离。
+更新日志由 `scripts/build/release-notes.mjs` 从 baseline 后的 `feat:`／`feature:`／`fix:` 提交自动生成；正文使用 `Changelog: 中文用户可读说明`，支持多行。旧版本记录保存在 `web/release-notes.json`。日志内容变化才更新已读版本；维护提交不重复提示。当前页面每5分钟及回到标签页时检查更新，读取状态仍按账号与浏览器隔离。
 
 ## 英雄抽取与头像维护
 
@@ -132,4 +132,4 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 
 ## 品牌与界面文案
 
-云端统一使用“狸狸天眼查”和 `web/fox.svg` 像素狐狸。`scripts/ui-copy.mjs` 在构建末尾统一转换界面文案，保持元素 ID、接口字段和数据计算不变；原本机界面与 AI 提示词不参与转换。修改文案时同时检查手机摘要、动态按钮及导出名称，执行界面与算法回归。
+云端统一使用“狸狸天眼查”和 `web/fox.svg` 像素狐狸。`scripts/build/ui-copy.mjs` 在构建末尾统一转换界面文案，保持元素 ID、接口字段和数据计算不变；原本机界面与 AI 提示词不参与转换。修改文案时同时检查手机摘要、动态按钮及导出名称，执行界面与算法回归。

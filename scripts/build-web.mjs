@@ -3,11 +3,11 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {transform,build} from 'esbuild';
 import {sharedSources} from './build-backend.mjs';
-import {gitNotes} from './release-notes.mjs';
+import {gitNotes} from './build/release-notes.mjs';
 import {buildToolkit} from './build-toolkit.mjs';
-import {buildAssetPreload} from './build-asset-preload.mjs';
+import {buildAssetPreload} from './build/build-asset-preload.mjs';
 import {buildApiCapture} from './build-api-capture.mjs';
-import {rewriteCopy,cleanDecorativeEnglish} from './ui-copy.mjs';
+import {rewriteCopy,cleanDecorativeEnglish} from './build/ui-copy.mjs';
 
 // Build the browser product. App modules are concatenated in dependency order; the
 // server-facing chart and algorithm stay single-source in source/.
