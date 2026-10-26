@@ -1,19 +1,115 @@
-(function(root){
- const el=id=>document.getElementById(id);let current=null,busy=false,serial=0;
- function paint(review){el('aiReviewGenerate').hidden=!!review;el('aiReviewAgain').hidden=!review;el('aiReviewGenerate').disabled=busy||!current||!!current.reason;el('aiReviewAgain').disabled=busy||!current||!!current.reason;el('aiReviewText').textContent=review?.content?.review?.text||'选择一场对局，点击生成锐评。';el('aiReviewStatus').textContent=current?.reason|| (busy?'正在生成，请稍候…':review?'已显示本地保存的锐评':'手动生成 · 全场表现参考');}
- async function render(match,raw){const seq=++serial;if(!match){current=null;el('aiReviewPanel').hidden=true;return;}el('aiReviewPanel').hidden=false;const original=raw.matches.find(m=>m.mid===match.mid),subject=original?.players.filter(p=>p.name===raw.battletag)||[];const reason=raw.source?.startsWith('演示数据')?'演示数据仅供预览，不生成真实锐评':!original?.hasGameData||!original.duration?'本场缺少对局详情或有效时长':subject.length!==1?'本场缺少唯一的查询账号':null;
-  current={reason,tag:raw.battletag,mid:match.mid,key:null,review:null};paint();const key='review|'+await Cloud.key({tag:raw.battletag,match:original,version:'1.6-cloud.1'});const review=await Cloud.storage(key);if(seq!==serial)return;current={reason,tag:raw.battletag,mid:match.mid,key,review};paint(review);
- }
- async function wait(id,selected){for(;;){const job=await Cloud.api('/api/v1/jobs/'+id);if(job.state==='done'){await Cloud.storage(selected.key,job.reviewEnvelope);if(current?.key===selected.key)current.review=job.reviewEnvelope;return;}if(['failed','cancelled'].includes(job.state))throw Error(job.message);await new Promise(r=>setTimeout(r,1500));}}
- async function generate(force=false){const selected=current;if(busy||!selected?.key||selected.reason)return;busy=true;paint(selected.review);let error=null;
-  try{const ref=root.OWQS_MATCH_REFERENCE?.(selected.mid);if(!ref?.revision)throw Error('请先同步历史，读取最新分析后再生成锐评');const value=await Cloud.api('/api/v1/matches/review',{battletag:selected.tag,mid:selected.mid,revision:ref.revision,sourceJob:ref.sourceJob,force,cachedReview:selected.review,requestId:crypto.randomUUID(),reviewKey:selected.key});if(value.cached){await Cloud.storage(selected.key,value.reviewEnvelope);if(current?.key===selected.key)current.review=value.reviewEnvelope;}else await wait(value.id,selected);}
-  catch(e){error=e.message;}finally{busy=false;paint(current?.review);if(error&&current?.key===selected.key)el('aiReviewStatus').textContent=error;}
- }
- el('aiReviewGenerate').onclick=()=>generate();el('aiReviewAgain').onclick=()=>generate(true);
- root.QS_REVIEW={render};
- // The app may auto-open history before this chunk loads; replay the match it already rendered.
- const last=root.OWQS_LAST_ANALYSIS;
- if(last?.model?.matches?.[last.index])render(last.model.matches[last.index],last.raw);
- // Resume only an already-started generation after a refresh; never initiate a model call here.
- (async()=>{try{await Cloud.boot();const tasks=await Cloud.jobs(),active=tasks.find(job=>['ai-review','review','ai'].includes(job.kind)&&!['done','failed','cancelled'].includes(job.state));if(active){busy=true;const job=await Cloud.api('/api/v1/jobs/'+active.id);if(job.reviewKey)await wait(job.id,{key:job.reviewKey});busy=false;paint(current?.review);}}catch(e){busy=false;if(current)el('aiReviewStatus').textContent=e.message;}})();
+(function (root) {
+  const el = (id) => document.getElementById(id);
+  let current = null,
+    busy = false,
+    serial = 0;
+  function paint(review) {
+    el('aiReviewGenerate').hidden = !!review;
+    el('aiReviewAgain').hidden = !review;
+    el('aiReviewGenerate').disabled = busy || !current || !!current.reason;
+    el('aiReviewAgain').disabled = busy || !current || !!current.reason;
+    el('aiReviewText').textContent =
+      review?.content?.review?.text || '选择一场对局，点击生成锐评。';
+    el('aiReviewStatus').textContent =
+      current?.reason ||
+      (busy ? '正在生成，请稍候…' : review ? '已显示本地保存的锐评' : '手动生成 · 全场表现参考');
+  }
+  async function render(match, raw) {
+    const seq = ++serial;
+    if (!match) {
+      current = null;
+      el('aiReviewPanel').hidden = true;
+      return;
+    }
+    el('aiReviewPanel').hidden = false;
+    const original = raw.matches.find((m) => m.mid === match.mid),
+      subject = original?.players.filter((p) => p.name === raw.battletag) || [];
+    const reason = raw.source?.startsWith('演示数据')
+      ? '演示数据仅供预览，不生成真实锐评'
+      : !original?.hasGameData || !original.duration
+        ? '本场缺少对局详情或有效时长'
+        : subject.length !== 1
+          ? '本场缺少唯一的查询账号'
+          : null;
+    current = { reason, tag: raw.battletag, mid: match.mid, key: null, review: null };
+    paint();
+    const key =
+      'review|' +
+      (await Cloud.key({ tag: raw.battletag, match: original, version: '1.6-cloud.1' }));
+    const review = await Cloud.storage(key);
+    if (seq !== serial) return;
+    current = { reason, tag: raw.battletag, mid: match.mid, key, review };
+    paint(review);
+  }
+  async function wait(id, selected) {
+    for (;;) {
+      const job = await Cloud.api('/api/v1/jobs/' + id);
+      if (job.state === 'done') {
+        await Cloud.storage(selected.key, job.reviewEnvelope);
+        if (current?.key === selected.key) current.review = job.reviewEnvelope;
+        return;
+      }
+      if (['failed', 'cancelled'].includes(job.state)) throw Error(job.message);
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  async function generate(force = false) {
+    const selected = current;
+    if (busy || !selected?.key || selected.reason) return;
+    busy = true;
+    paint(selected.review);
+    let error = null;
+    try {
+      const ref = root.OWQS_MATCH_REFERENCE?.(selected.mid);
+      if (!ref?.revision) throw Error('请先同步历史，读取最新分析后再生成锐评');
+      const value = await Cloud.api('/api/v1/matches/review', {
+        battletag: selected.tag,
+        mid: selected.mid,
+        revision: ref.revision,
+        sourceJob: ref.sourceJob,
+        force,
+        cachedReview: selected.review,
+        requestId: crypto.randomUUID(),
+        reviewKey: selected.key
+      });
+      if (value.cached) {
+        await Cloud.storage(selected.key, value.reviewEnvelope);
+        if (current?.key === selected.key) current.review = value.reviewEnvelope;
+      } else await wait(value.id, selected);
+    } catch (e) {
+      error = e.message;
+    } finally {
+      busy = false;
+      paint(current?.review);
+      if (error && current?.key === selected.key) el('aiReviewStatus').textContent = error;
+    }
+  }
+  el('aiReviewGenerate').onclick = () => generate();
+  el('aiReviewAgain').onclick = () => generate(true);
+  root.QS_REVIEW = { render };
+  // The app may auto-open history before this chunk loads; replay the match it already rendered.
+  const last = root.OWQS_LAST_ANALYSIS;
+  if (last?.model?.matches?.[last.index]) render(last.model.matches[last.index], last.raw);
+  // Resume only an already-started generation after a refresh; never initiate a model call here.
+  (async () => {
+    try {
+      await Cloud.boot();
+      const tasks = await Cloud.jobs(),
+        active = tasks.find(
+          (job) =>
+            ['ai-review', 'review', 'ai'].includes(job.kind) &&
+            !['done', 'failed', 'cancelled'].includes(job.state)
+        );
+      if (active) {
+        busy = true;
+        const job = await Cloud.api('/api/v1/jobs/' + active.id);
+        if (job.reviewKey) await wait(job.id, { key: job.reviewKey });
+        busy = false;
+        paint(current?.review);
+      }
+    } catch (e) {
+      busy = false;
+      if (current) el('aiReviewStatus').textContent = e.message;
+    }
+  })();
 })(window);

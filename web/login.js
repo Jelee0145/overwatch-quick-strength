@@ -1,9 +1,128 @@
-'use strict';const el=id=>document.getElementById(id);let csrf='',busy=false;const resetCode=new URLSearchParams(location.hash.slice(1)).get('code');if(resetCode){el('emailLabel').hidden=true;el('email').required=false;el('submit').textContent='设置新密码';el('password').autocomplete='new-password';el('register').hidden=true;el('reset').hidden=true;history.replaceState(null,'','/reset');}
-const request=OWQS_HTTP.create({csrf:()=>csrf});
-const call=(path,body)=>request('/api/v1/auth/'+path,body);
-function message(s,error=false){el('message').textContent=s;el('message').classList.toggle('error',error);}
-async function check(){try{const s=await call('session');csrf=s.csrf;if(s.user.status==='approved'){const next=new URLSearchParams(location.search).get('next'),allowed=['/tools/strength','/tools/draw','/tools/strength/','/tools/draw/','/tools/strength.html','/tools/draw.html'];location.replace(allowed.includes(next)?next:'/');return;}el('authForm').hidden=true;el('apiKeyForm').hidden=true;el('waiting').hidden=false;el('waitText').textContent=s.user.email+' · '+({pending:'申请已提交，请联系管理员核验。',rejected:'申请未获批准，请联系管理员。',revoked:'访问权限已撤销，请联系管理员。'})[s.user.status];}catch{el('authForm').hidden=false;el('apiKeyForm').hidden=Boolean(resetCode);el('waiting').hidden=true;}}
-async function submit(register=false){if(busy||!el('authForm').reportValidity())return;busy=true;el('submit').disabled=true;const password=el('password').value;el('password').value='';try{if(resetCode){const v=await call('reset/confirm',{code:resetCode,password});message(v.message);setTimeout(()=>location.assign('/login'),1000);}else{const v=await call(register?'register':'login',{email:el('email').value.trim(),password});csrf=v.csrf;await check();}}catch(e){message(e.message,true);}finally{busy=false;el('submit').disabled=false;}}
-async function submitApiKey(e){e.preventDefault();if(busy||!el('apiKeyForm').reportValidity())return;busy=true;const input=el('apiKey'),apiKey=input.value.trim(),button=e.currentTarget.querySelector('button');input.value='';button.disabled=true;try{const v=await call('login',{apiKey});csrf=v.csrf;await check();}catch(e){message(e.message,true);}finally{busy=false;button.disabled=false;}}
-el('apiKeyForm').hidden=Boolean(resetCode);el('apiKeyForm').onsubmit=submitApiKey;
-el('authForm').onsubmit=e=>{e.preventDefault();submit();};el('register').onclick=()=>submit(true);el('reset').onclick=async()=>{if(!el('email').reportValidity()||busy)return;busy=true;try{message((await call('reset/request',{email:el('email').value.trim()})).message);}catch(e){message(e.message,true);}finally{busy=false;}};el('refresh').onclick=check;el('logout').onclick=async()=>{try{await call('logout',{});location.reload();}catch(e){message(e.message,true);}};if(!resetCode)check();
+'use strict';
+const el = (id) => document.getElementById(id);
+let csrf = '',
+  busy = false;
+const resetCode = new URLSearchParams(location.hash.slice(1)).get('code');
+if (resetCode) {
+  el('emailLabel').hidden = true;
+  el('email').required = false;
+  el('submit').textContent = '设置新密码';
+  el('password').autocomplete = 'new-password';
+  el('register').hidden = true;
+  el('reset').hidden = true;
+  history.replaceState(null, '', '/reset');
+}
+const request = OWQS_HTTP.create({ csrf: () => csrf });
+const call = (path, body) => request('/api/v1/auth/' + path, body);
+function message(s, error = false) {
+  el('message').textContent = s;
+  el('message').classList.toggle('error', error);
+}
+async function check() {
+  try {
+    const s = await call('session');
+    csrf = s.csrf;
+    if (s.user.status === 'approved') {
+      const next = new URLSearchParams(location.search).get('next'),
+        allowed = [
+          '/tools/strength',
+          '/tools/draw',
+          '/tools/strength/',
+          '/tools/draw/',
+          '/tools/strength.html',
+          '/tools/draw.html'
+        ];
+      location.replace(allowed.includes(next) ? next : '/');
+      return;
+    }
+    el('authForm').hidden = true;
+    el('apiKeyForm').hidden = true;
+    el('waiting').hidden = false;
+    el('waitText').textContent =
+      s.user.email +
+      ' · ' +
+      {
+        pending: '申请已提交，请联系管理员核验。',
+        rejected: '申请未获批准，请联系管理员。',
+        revoked: '访问权限已撤销，请联系管理员。'
+      }[s.user.status];
+  } catch {
+    el('authForm').hidden = false;
+    el('apiKeyForm').hidden = Boolean(resetCode);
+    el('waiting').hidden = true;
+  }
+}
+async function submit(register = false) {
+  if (busy || !el('authForm').reportValidity()) return;
+  busy = true;
+  el('submit').disabled = true;
+  const password = el('password').value;
+  el('password').value = '';
+  try {
+    if (resetCode) {
+      const v = await call('reset/confirm', { code: resetCode, password });
+      message(v.message);
+      setTimeout(() => location.assign('/login'), 1000);
+    } else {
+      const v = await call(register ? 'register' : 'login', {
+        email: el('email').value.trim(),
+        password
+      });
+      csrf = v.csrf;
+      await check();
+    }
+  } catch (e) {
+    message(e.message, true);
+  } finally {
+    busy = false;
+    el('submit').disabled = false;
+  }
+}
+async function submitApiKey(e) {
+  e.preventDefault();
+  if (busy || !el('apiKeyForm').reportValidity()) return;
+  busy = true;
+  const input = el('apiKey'),
+    apiKey = input.value.trim(),
+    button = e.currentTarget.querySelector('button');
+  input.value = '';
+  button.disabled = true;
+  try {
+    const v = await call('login', { apiKey });
+    csrf = v.csrf;
+    await check();
+  } catch (e) {
+    message(e.message, true);
+  } finally {
+    busy = false;
+    button.disabled = false;
+  }
+}
+el('apiKeyForm').hidden = Boolean(resetCode);
+el('apiKeyForm').onsubmit = submitApiKey;
+el('authForm').onsubmit = (e) => {
+  e.preventDefault();
+  submit();
+};
+el('register').onclick = () => submit(true);
+el('reset').onclick = async () => {
+  if (!el('email').reportValidity() || busy) return;
+  busy = true;
+  try {
+    message((await call('reset/request', { email: el('email').value.trim() })).message);
+  } catch (e) {
+    message(e.message, true);
+  } finally {
+    busy = false;
+  }
+};
+el('refresh').onclick = check;
+el('logout').onclick = async () => {
+  try {
+    await call('logout', {});
+    location.reload();
+  } catch (e) {
+    message(e.message, true);
+  }
+};
+if (!resetCode) check();

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Explicit administrator command. It never discovers or reads a default config.
-import {chmod, chown, lstat, open, readFile, realpath, rename, unlink} from 'node:fs/promises';
+import { chmod, chown, lstat, open, readFile, realpath, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import {randomBytes} from 'node:crypto';
-import {createPushSender, generatePushKeys} from '../server/web-push.mjs';
+import { randomBytes } from 'node:crypto';
+import { createPushSender, generatePushKeys } from '../server/web-push.mjs';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 const FIELDS = ['WEB_PUSH_PUBLIC_KEY', 'WEB_PUSH_PRIVATE_KEY', 'WEB_PUSH_SUBJECT'];
@@ -32,10 +32,10 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const options = {config: null, subject: null};
+  const options = { config: null, subject: null };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === '-h' || argument === '--help') return {help: true};
+    if (argument === '-h' || argument === '--help') return { help: true };
     if (argument === '--config') {
       if (options.config !== null) fail('--config 只能指定一次');
       if (index + 1 >= argv.length) fail('--config 需要一个绝对路径');
@@ -44,7 +44,8 @@ function parseArgs(argv) {
       if (options.config !== null) fail('--config 只能指定一次');
       options.config = argument.slice('--config='.length);
     } else if (argument === '--subject') {
-      if (options.subject !== null || index + 1 >= argv.length) fail('--subject 需要一个 mailto: 或 https: 地址');
+      if (options.subject !== null || index + 1 >= argv.length)
+        fail('--subject 需要一个 mailto: 或 https: 地址');
       options.subject = argv[++index];
     } else if (argument.startsWith('--subject=')) {
       if (options.subject !== null) fail('--subject 只能指定一次');
@@ -62,13 +63,16 @@ function hasValue(value) {
 
 function isInside(child, parent) {
   const relative = path.relative(parent, child);
-  return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
+  return (
+    relative === '' ||
+    (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))
+  );
 }
 
 function validatePush(publicKey, privateKey, subject, message) {
   try {
     // Reuse the runtime's VAPID validation without sending a notification.
-    createPushSender({publicKey, privateKey, subject});
+    createPushSender({ publicKey, privateKey, subject });
   } catch {
     fail(message);
   }
@@ -76,7 +80,10 @@ function validatePush(publicKey, privateKey, subject, message) {
 
 async function atomicWrite(target, config, original) {
   const directory = path.dirname(target);
-  const temporary = path.join(directory, `.${path.basename(target)}.${randomBytes(8).toString('hex')}.tmp`);
+  const temporary = path.join(
+    directory,
+    `.${path.basename(target)}.${randomBytes(8).toString('hex')}.tmp`
+  );
   let handle;
   try {
     handle = await open(temporary, 'wx', 0o600);
@@ -86,8 +93,10 @@ async function atomicWrite(target, config, original) {
     await handle.close();
     handle = null;
     if (process.platform !== 'win32') {
-      if (typeof process.getuid === 'function'
-          && (original.uid !== process.getuid() || original.gid !== process.getgid())) {
+      if (
+        typeof process.getuid === 'function' &&
+        (original.uid !== process.getuid() || original.gid !== process.getgid())
+      ) {
         // Keep the temporary file private while restoring the service-visible owner.
         try {
           await chown(temporary, original.uid, original.gid);
@@ -96,7 +105,7 @@ async function atomicWrite(target, config, original) {
         }
       }
       // Never broaden permissions to other users; the final file stays at most 0640.
-      const mode = (original.mode & 0o640) || 0o600;
+      const mode = original.mode & 0o640 || 0o600;
       try {
         await chmod(temporary, mode);
       } catch {
@@ -145,7 +154,8 @@ async function configure(options) {
   } catch {
     fail('目标配置不是有效 JSON');
   }
-  if (!config || typeof config !== 'object' || Array.isArray(config)) fail('目标配置必须是 JSON 对象');
+  if (!config || typeof config !== 'object' || Array.isArray(config))
+    fail('目标配置必须是 JSON 对象');
 
   const complete = FIELDS.every((field) => hasValue(config[field]));
   let publicKey;
@@ -155,8 +165,12 @@ async function configure(options) {
     publicKey = config.WEB_PUSH_PUBLIC_KEY;
     privateKey = config.WEB_PUSH_PRIVATE_KEY;
     subject = options.subject === null ? config.WEB_PUSH_SUBJECT : options.subject;
-    validatePush(publicKey, privateKey, subject,
-      '现有推送配置无效；未做修改。如需重新生成，请移除三项 WEB_PUSH_* 字段后重试');
+    validatePush(
+      publicKey,
+      privateKey,
+      subject,
+      '现有推送配置无效；未做修改。如需重新生成，请移除三项 WEB_PUSH_* 字段后重试'
+    );
     if (options.subject === null || options.subject === config.WEB_PUSH_SUBJECT) {
       console.log('预约推送配置已完成。');
       return;
@@ -165,20 +179,31 @@ async function configure(options) {
     const generated = generatePushKeys();
     publicKey = generated.publicKey;
     privateKey = generated.privateKey;
-    subject = options.subject === null
-      ? (hasValue(config.WEB_PUSH_SUBJECT) ? config.WEB_PUSH_SUBJECT : null)
-      : options.subject;
+    subject =
+      options.subject === null
+        ? hasValue(config.WEB_PUSH_SUBJECT)
+          ? config.WEB_PUSH_SUBJECT
+          : null
+        : options.subject;
     if (!subject) fail('缺少 WEB_PUSH_SUBJECT，请通过 --subject mailto:... 或 https://... 指定');
-    validatePush(publicKey, privateKey, subject,
-      '推送 SUBJECT 无效，请使用 mailto:... 或 https://... 地址');
+    validatePush(
+      publicKey,
+      privateKey,
+      subject,
+      '推送 SUBJECT 无效，请使用 mailto:... 或 https://... 地址'
+    );
   }
 
-  await atomicWrite(target, {
-    ...config,
-    WEB_PUSH_PUBLIC_KEY: publicKey,
-    WEB_PUSH_PRIVATE_KEY: privateKey,
-    WEB_PUSH_SUBJECT: subject,
-  }, original);
+  await atomicWrite(
+    target,
+    {
+      ...config,
+      WEB_PUSH_PUBLIC_KEY: publicKey,
+      WEB_PUSH_PRIVATE_KEY: privateKey,
+      WEB_PUSH_SUBJECT: subject
+    },
+    original
+  );
   console.log('预约推送配置已完成。');
 }
 

@@ -1,47 +1,384 @@
 // Independent local-only browser benchmark. No real accounts or provider calls.
 // Browser plugin is not listed in this session; use the installed Playwright runtime.
-import http from 'node:http';import fs from 'node:fs/promises';import path from 'node:path';import vm from 'node:vm';import zlib from 'node:zlib';import assert from 'node:assert/strict';import {chromium} from 'playwright';
-const base=path.resolve(import.meta.dirname,'../..'),baseline=path.join(base,'.private/speed-baseline/public'),results=[],contentCache=new Map();
-const afterOnly=process.argv.includes('--after-only');if(afterOnly)results.push(...JSON.parse(await fs.readFile(path.join(base,'.private/speed-results.json'),'utf8')).results.filter(r=>r.variant==='before'));
-const seed={window:{}};vm.createContext(seed);vm.runInContext(await fs.readFile(path.join(baseline,'art.js'),'utf8'),seed);
-const guids=Object.keys(seed.window.QS_ART).slice(0,10),hero='207165582859042818';
-const stats={kill:20,assist:8,death:4,heroDamage:10000,cure:500,resistDamage:6000,finalHit:10,soloKill:1,targetCompetingTime:10,healingTaken:5000,damageTaken:9000};
-const player=(name,side='T')=>({name,hero,side,stats,res:{rows:[]}});
-const raw={battletag:'Speed#100',matches:guids.map((guid,i)=>({mid:'speed-'+i,t:100+i,ret:i%2?1:-1,mapGuid:guid,duration:600,teamScore:2,opponentScore:0,hasGameData:true,resourceDataChecked:true,players:[player('Speed#100'),player('Test#200','E')]})),recentHistory:[]};
-const envelope={content:{user:'speed-test-user',data:raw},signature:'local-test-only'};
-const mime=file=>({'.js':'text/javascript','.css':'text/css','.html':'text/html','.webp':'image/webp','.png':'image/png','.img':'image/webp','.jpg':'image/jpeg'})[path.extname(file)]||'application/octet-stream';
-const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://local'),p=url.pathname;
- if(p.startsWith('/api/')){const json=p==='/api/auth/session'?{csrf:'test',user:{id:'speed-test-user',email:'speed@example.test',status:'approved'},scope:{server:'1',dts:'2026'}}:p==='/api/latest'?{activeJob:null,activeAI:null}:p==='/api/map-art'?{images:{}}:{error:'Unexpected test API'};res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(json));return;}
- const old=p.startsWith('/before/'),relative=old?p.slice('/before/'.length):p.startsWith('/after/')?p.slice('/after/'.length):p.slice(1),dir=old?baseline:path.join(base,'public');
- const entry=!old&&relative==='index.html'?'tools/strength.html':relative||(old?'index.html':'tools/strength.html');const file=path.resolve(dir,entry);if(!file.startsWith(dir+path.sep)){res.writeHead(403);res.end();return;}
- let buffer=contentCache.get(file);if(!buffer){const plain=await fs.readFile(file);buffer=/\.(js|css|html)$/.test(file)?zlib.brotliCompressSync(plain,{params:{[zlib.constants.BROTLI_PARAM_QUALITY]:4}}):plain;contentCache.set(file,buffer);}
- const headers={'Content-Type':mime(file),'Cache-Control':p.startsWith('/static/')||p.startsWith('/media/')?'public,max-age=31536000,immutable':'no-cache'};if(/\.(js|css|html)$/.test(file))headers['Content-Encoding']='br';res.writeHead(200,headers);res.end(buffer);
- }catch{res.writeHead(404);res.end();}});
-await new Promise(resolve=>server.listen(18767,'127.0.0.1',resolve));const origin='http://127.0.0.1:18767';
-const browser=await chromium.launch({headless:true});let ctx;
-async function prepare(blockExternal=true){const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});if(blockExternal)await context.route(/https:\/\//,route=>route.abort());await context.addInitScript(async envelope=>{const db=await new Promise(resolve=>{const r=indexedDB.open('qs-cloud-v1',1);r.onupgradeneeded=()=>r.result.createObjectStore('cache');r.onsuccess=()=>resolve(r.result);});await new Promise(resolve=>{const tx=db.transaction('cache','readwrite'),s=tx.objectStore('cache');s.put('Speed#100','speed-test-user|latest');s.put(envelope,'speed-test-user|snapshot|1|2026|Speed#100');tx.oncomplete=resolve;});db.close();},envelope);return context;}
-try{
- for(const variant of afterOnly?['after']:['before','after'])for(let run=1;run<=5;run++){
-  ctx=await prepare();const page=await ctx.newPage(),cdp=await ctx.newCDPSession(page);await cdp.send('Network.enable');await cdp.send('Network.emulateNetworkConditions',{offline:false,latency:100,downloadThroughput:6*1024*1024/8,uploadThroughput:1024*1024,connectionType:'cellular4g'});await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
-  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(origin+'/'+variant+'/index.html',{waitUntil:'domcontentloaded',timeout:90000});await page.locator('#chart svg').waitFor({timeout:90000});const interactive=await page.evaluate(()=>performance.now());
-  await page.waitForFunction(()=>[...document.querySelectorAll('#chart [data-map-art]')].every(n=>n.getAttribute('href')?.startsWith('data:')),{},{timeout:30000});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
-  const measure=await page.evaluate(()=>({complete:performance.now(),fcp:performance.getEntriesByType('paint').find(p=>p.name==='first-contentful-paint')?.startTime||null,transfer:performance.getEntriesByType('resource').reduce((sum,r)=>sum+r.transferSize,0),maps:document.querySelectorAll('#chart [data-map-art]').length,summary:document.querySelector('#chart svg').textContent}));assert.deepEqual(errors,[]);
-  results.push({variant,run,interactiveMs:Math.round(interactive),completeMs:Math.round(measure.complete),fcpMs:Math.round(measure.fcp),transferBytes:measure.transfer});console.log(JSON.stringify(results.at(-1)));
-  if(variant==='after'&&run===5){
-   const modelBefore=measure.summary;const selected=await page.locator('#matchSelect').inputValue();await page.locator('#matchSelect').selectOption('4');await page.waitForTimeout(100);assert.equal(await page.locator('#matchSelect').inputValue(),'4');
-   await page.locator('#art').uncheck();assert.equal(await page.locator('#chart [data-map-art]').count(),0);await page.locator('#art').check();await page.waitForFunction(()=>[...document.querySelectorAll('#chart [data-map-art]')].every(n=>n.hasAttribute('href')));
-   assert.equal((await page.locator('#chart svg').textContent()),modelBefore);assert.equal(await page.locator('#matchSelect').inputValue(),'4');
-   const imageCount=await page.locator('#chart image').count();const downloadPromise=page.waitForEvent('download');await page.locator('#svg').click();const download=await downloadPromise;const svgPath=path.join(base,'.private/speed-export.svg');await download.saveAs(svgPath);const svg=await fs.readFile(svgPath,'utf8');assert.ok(!svg.includes('href="/'));assert.equal((svg.match(/data:image\/webp;base64/g)||[]).length,imageCount);
-   const pngPromise=page.waitForEvent('download');await page.locator('#png').click();await (await pngPromise).saveAs(path.join(base,'.private/speed-export.png'));
-   const signature=raw=>{const m=QS.build(QS.normalize(raw),{limit:10,side:'all',strategy:'legacy',estimate:true},QS_DATA.heroes,(p,m)=>QS_PERFORMANCE.evaluate(p,m,QS_DATA.heroes,QS_BENCHMARKS));return JSON.stringify({summary:m.summary,points:m.matches.map(m=>({mean:m.mean,range:m.estimateRange,scores:m.players.map(p=>p.performance.score)})),personal:m.personalPrediction});};
-   const originalPage=await ctx.newPage();await originalPage.goto(origin+'/before/index.html');await originalPage.locator('#chart svg').waitFor();assert.equal(await originalPage.evaluate(signature,raw),await page.evaluate(signature,raw));await originalPage.close();console.log('Original and optimized numerical calculations match exactly.');
-   await page.screenshot({path:path.join(base,'.private/speed-desktop.png'),fullPage:false});await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(base,'.private/speed-mobile.png'),fullPage:false});
-   let interrupted=false;await ctx.route('**/media/maps/**',r=>{if(!interrupted){interrupted=true;return r.abort();}return r.continue();});await page.reload({waitUntil:'domcontentloaded'});await page.locator('#chart [data-asset-failed]').waitFor();await ctx.unroute('**/media/maps/**');await page.locator('#art').uncheck();await page.locator('#art').check();await page.locator('#limit').selectOption('20');await page.locator('#limit').selectOption('10');await page.waitForFunction(()=>[...document.querySelectorAll('#chart [data-map-art]')].every(n=>n.hasAttribute('href')));assert.equal(await page.locator('#chart [data-asset-failed]').count(),0);
-   // Playwright routing disables HTTP caching; use a separate unrouted context for the warm-cache check.
-   const warm=await prepare(false),warmPage=await warm.newPage(),warmCdp=await warm.newCDPSession(warmPage);await warmCdp.send('Network.enable');await warmCdp.send('Network.setBlockedURLs',{urls:['https://*']});await warmPage.goto(origin+'/after/index.html');await warmPage.waitForFunction(()=>document.querySelectorAll('#chart [data-map-art]').length===10&&[...document.querySelectorAll('#chart [data-map-art]')].every(n=>n.hasAttribute('href')));await warmPage.reload({waitUntil:'domcontentloaded'});await warmPage.waitForFunction(()=>document.querySelectorAll('#chart [data-map-art]').length===10&&[...document.querySelectorAll('#chart [data-map-art]')].every(n=>n.hasAttribute('href')));const cacheResult=await warmPage.evaluate(()=>({readyMs:performance.now(),transferBytes:performance.getEntriesByType('resource').filter(r=>/\/(static|media)\//.test(r.name)).reduce((s,r)=>s+r.transferSize,0)}));assert.equal(cacheResult.transferBytes,0);console.log('Warm cached assets',JSON.stringify(cacheResult));await warm.close();
-   const allMedia=JSON.parse(await fs.readFile(path.join(base,'source/media/manifest.json'),'utf8'));const previewUrls=[...new Set(Object.values(allMedia.maps).map(m=>m.preview).filter(Boolean))];const mediaPage=await ctx.newPage();const decoded=await mediaPage.evaluate(async urls=>Promise.all(urls.map(url=>new Promise(resolve=>{const image=new Image();image.onload=()=>resolve({ok:true,width:image.naturalWidth,height:image.naturalHeight});image.onerror=()=>resolve({ok:false});image.src=url;}))),previewUrls.map(url=>origin+url));assert.ok(decoded.every(m=>m.ok&&Math.max(m.width,m.height)<=960));await mediaPage.close();console.log('All unique map previews decoded in Chromium:',decoded.length);
+import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import vm from 'node:vm';
+import zlib from 'node:zlib';
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+const base = path.resolve(import.meta.dirname, '../..'),
+  baseline = path.join(base, '.private/speed-baseline/public'),
+  results = [],
+  contentCache = new Map();
+const afterOnly = process.argv.includes('--after-only');
+if (afterOnly)
+  results.push(
+    ...JSON.parse(
+      await fs.readFile(path.join(base, '.private/speed-results.json'), 'utf8')
+    ).results.filter((r) => r.variant === 'before')
+  );
+const seed = { window: {} };
+vm.createContext(seed);
+vm.runInContext(await fs.readFile(path.join(baseline, 'art.js'), 'utf8'), seed);
+const guids = Object.keys(seed.window.QS_ART).slice(0, 10),
+  hero = '207165582859042818';
+const stats = {
+  kill: 20,
+  assist: 8,
+  death: 4,
+  heroDamage: 10000,
+  cure: 500,
+  resistDamage: 6000,
+  finalHit: 10,
+  soloKill: 1,
+  targetCompetingTime: 10,
+  healingTaken: 5000,
+  damageTaken: 9000
+};
+const player = (name, side = 'T') => ({ name, hero, side, stats, res: { rows: [] } });
+const raw = {
+  battletag: 'Speed#100',
+  matches: guids.map((guid, i) => ({
+    mid: 'speed-' + i,
+    t: 100 + i,
+    ret: i % 2 ? 1 : -1,
+    mapGuid: guid,
+    duration: 600,
+    teamScore: 2,
+    opponentScore: 0,
+    hasGameData: true,
+    resourceDataChecked: true,
+    players: [player('Speed#100'), player('Test#200', 'E')]
+  })),
+  recentHistory: []
+};
+const envelope = { content: { user: 'speed-test-user', data: raw }, signature: 'local-test-only' };
+const mime = (file) =>
+  ({
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.html': 'text/html',
+    '.webp': 'image/webp',
+    '.png': 'image/png',
+    '.img': 'image/webp',
+    '.jpg': 'image/jpeg'
+  })[path.extname(file)] || 'application/octet-stream';
+const server = http.createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url, 'http://local'),
+      p = url.pathname;
+    if (p.startsWith('/api/')) {
+      const json =
+        p === '/api/auth/session'
+          ? {
+              csrf: 'test',
+              user: { id: 'speed-test-user', email: 'speed@example.test', status: 'approved' },
+              scope: { server: '1', dts: '2026' }
+            }
+          : p === '/api/latest'
+            ? { activeJob: null, activeAI: null }
+            : p === '/api/map-art'
+              ? { images: {} }
+              : { error: 'Unexpected test API' };
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(json));
+      return;
+    }
+    const old = p.startsWith('/before/'),
+      relative = old
+        ? p.slice('/before/'.length)
+        : p.startsWith('/after/')
+          ? p.slice('/after/'.length)
+          : p.slice(1),
+      dir = old ? baseline : path.join(base, 'public');
+    const entry =
+      !old && relative === 'index.html'
+        ? 'tools/strength.html'
+        : relative || (old ? 'index.html' : 'tools/strength.html');
+    const file = path.resolve(dir, entry);
+    if (!file.startsWith(dir + path.sep)) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    let buffer = contentCache.get(file);
+    if (!buffer) {
+      const plain = await fs.readFile(file);
+      buffer = /\.(js|css|html)$/.test(file)
+        ? zlib.brotliCompressSync(plain, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } })
+        : plain;
+      contentCache.set(file, buffer);
+    }
+    const headers = {
+      'Content-Type': mime(file),
+      'Cache-Control':
+        p.startsWith('/static/') || p.startsWith('/media/')
+          ? 'public,max-age=31536000,immutable'
+          : 'no-cache'
+    };
+    if (/\.(js|css|html)$/.test(file)) headers['Content-Encoding'] = 'br';
+    res.writeHead(200, headers);
+    res.end(buffer);
+  } catch {
+    res.writeHead(404);
+    res.end();
   }
-  await ctx.close();ctx=null;
- }
- assert.equal(results.length,10);await fs.writeFile(path.join(base,'.private/speed-results.json'),JSON.stringify({conditions:{Mbps:6,latencyMs:100,cpuSlowdown:4,runs:5},results},null,2));console.log('Browser QA passed: same scores, selection, background toggle, independent SVG and PNG, desktop/mobile, warm cache.');
-}finally{await fs.writeFile(path.join(base,'.private/speed-results.json'),JSON.stringify({conditions:{Mbps:6,latencyMs:100,cpuSlowdown:4,runs:5},results},null,2));if(ctx)await ctx.close();await browser.close();server.close();}
+});
+await new Promise((resolve) => server.listen(18767, '127.0.0.1', resolve));
+const origin = 'http://127.0.0.1:18767';
+const browser = await chromium.launch({ headless: true });
+let ctx;
+async function prepare(blockExternal = true) {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    acceptDownloads: true
+  });
+  if (blockExternal) await context.route(/https:\/\//, (route) => route.abort());
+  await context.addInitScript(async (envelope) => {
+    const db = await new Promise((resolve) => {
+      const r = indexedDB.open('qs-cloud-v1', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('cache');
+      r.onsuccess = () => resolve(r.result);
+    });
+    await new Promise((resolve) => {
+      const tx = db.transaction('cache', 'readwrite'),
+        s = tx.objectStore('cache');
+      s.put('Speed#100', 'speed-test-user|latest');
+      s.put(envelope, 'speed-test-user|snapshot|1|2026|Speed#100');
+      tx.oncomplete = resolve;
+    });
+    db.close();
+  }, envelope);
+  return context;
+}
+try {
+  for (const variant of afterOnly ? ['after'] : ['before', 'after'])
+    for (let run = 1; run <= 5; run++) {
+      ctx = await prepare();
+      const page = await ctx.newPage(),
+        cdp = await ctx.newCDPSession(page);
+      await cdp.send('Network.enable');
+      await cdp.send('Network.emulateNetworkConditions', {
+        offline: false,
+        latency: 100,
+        downloadThroughput: (6 * 1024 * 1024) / 8,
+        uploadThroughput: 1024 * 1024,
+        connectionType: 'cellular4g'
+      });
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.goto(origin + '/' + variant + '/index.html', {
+        waitUntil: 'domcontentloaded',
+        timeout: 90000
+      });
+      await page.locator('#chart svg').waitFor({ timeout: 90000 });
+      const interactive = await page.evaluate(() => performance.now());
+      await page.waitForFunction(
+        () =>
+          [...document.querySelectorAll('#chart [data-map-art]')].every((n) =>
+            n.getAttribute('href')?.startsWith('data:')
+          ),
+        {},
+        { timeout: 30000 }
+      );
+      await page.evaluate(
+        () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      );
+      const measure = await page.evaluate(() => ({
+        complete: performance.now(),
+        fcp:
+          performance.getEntriesByType('paint').find((p) => p.name === 'first-contentful-paint')
+            ?.startTime || null,
+        transfer: performance
+          .getEntriesByType('resource')
+          .reduce((sum, r) => sum + r.transferSize, 0),
+        maps: document.querySelectorAll('#chart [data-map-art]').length,
+        summary: document.querySelector('#chart svg').textContent
+      }));
+      assert.deepEqual(errors, []);
+      results.push({
+        variant,
+        run,
+        interactiveMs: Math.round(interactive),
+        completeMs: Math.round(measure.complete),
+        fcpMs: Math.round(measure.fcp),
+        transferBytes: measure.transfer
+      });
+      console.log(JSON.stringify(results.at(-1)));
+      if (variant === 'after' && run === 5) {
+        const modelBefore = measure.summary;
+        const selected = await page.locator('#matchSelect').inputValue();
+        await page.locator('#matchSelect').selectOption('4');
+        await page.waitForTimeout(100);
+        assert.equal(await page.locator('#matchSelect').inputValue(), '4');
+        await page.locator('#art').uncheck();
+        assert.equal(await page.locator('#chart [data-map-art]').count(), 0);
+        await page.locator('#art').check();
+        await page.waitForFunction(() =>
+          [...document.querySelectorAll('#chart [data-map-art]')].every((n) =>
+            n.hasAttribute('href')
+          )
+        );
+        assert.equal(await page.locator('#chart svg').textContent(), modelBefore);
+        assert.equal(await page.locator('#matchSelect').inputValue(), '4');
+        const imageCount = await page.locator('#chart image').count();
+        const downloadPromise = page.waitForEvent('download');
+        await page.locator('#svg').click();
+        const download = await downloadPromise;
+        const svgPath = path.join(base, '.private/speed-export.svg');
+        await download.saveAs(svgPath);
+        const svg = await fs.readFile(svgPath, 'utf8');
+        assert.ok(!svg.includes('href="/'));
+        assert.equal((svg.match(/data:image\/webp;base64/g) || []).length, imageCount);
+        const pngPromise = page.waitForEvent('download');
+        await page.locator('#png').click();
+        await (await pngPromise).saveAs(path.join(base, '.private/speed-export.png'));
+        const signature = (raw) => {
+          const m = QS.build(
+            QS.normalize(raw),
+            { limit: 10, side: 'all', strategy: 'legacy', estimate: true },
+            QS_DATA.heroes,
+            (p, m) => QS_PERFORMANCE.evaluate(p, m, QS_DATA.heroes, QS_BENCHMARKS)
+          );
+          return JSON.stringify({
+            summary: m.summary,
+            points: m.matches.map((m) => ({
+              mean: m.mean,
+              range: m.estimateRange,
+              scores: m.players.map((p) => p.performance.score)
+            })),
+            personal: m.personalPrediction
+          });
+        };
+        const originalPage = await ctx.newPage();
+        await originalPage.goto(origin + '/before/index.html');
+        await originalPage.locator('#chart svg').waitFor();
+        assert.equal(
+          await originalPage.evaluate(signature, raw),
+          await page.evaluate(signature, raw)
+        );
+        await originalPage.close();
+        console.log('Original and optimized numerical calculations match exactly.');
+        await page.screenshot({
+          path: path.join(base, '.private/speed-desktop.png'),
+          fullPage: false
+        });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.screenshot({
+          path: path.join(base, '.private/speed-mobile.png'),
+          fullPage: false
+        });
+        let interrupted = false;
+        await ctx.route('**/media/maps/**', (r) => {
+          if (!interrupted) {
+            interrupted = true;
+            return r.abort();
+          }
+          return r.continue();
+        });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.locator('#chart [data-asset-failed]').waitFor();
+        await ctx.unroute('**/media/maps/**');
+        await page.locator('#art').uncheck();
+        await page.locator('#art').check();
+        await page.locator('#limit').selectOption('20');
+        await page.locator('#limit').selectOption('10');
+        await page.waitForFunction(() =>
+          [...document.querySelectorAll('#chart [data-map-art]')].every((n) =>
+            n.hasAttribute('href')
+          )
+        );
+        assert.equal(await page.locator('#chart [data-asset-failed]').count(), 0);
+        // Playwright routing disables HTTP caching; use a separate unrouted context for the warm-cache check.
+        const warm = await prepare(false),
+          warmPage = await warm.newPage(),
+          warmCdp = await warm.newCDPSession(warmPage);
+        await warmCdp.send('Network.enable');
+        await warmCdp.send('Network.setBlockedURLs', { urls: ['https://*'] });
+        await warmPage.goto(origin + '/after/index.html');
+        await warmPage.waitForFunction(
+          () =>
+            document.querySelectorAll('#chart [data-map-art]').length === 10 &&
+            [...document.querySelectorAll('#chart [data-map-art]')].every((n) =>
+              n.hasAttribute('href')
+            )
+        );
+        await warmPage.reload({ waitUntil: 'domcontentloaded' });
+        await warmPage.waitForFunction(
+          () =>
+            document.querySelectorAll('#chart [data-map-art]').length === 10 &&
+            [...document.querySelectorAll('#chart [data-map-art]')].every((n) =>
+              n.hasAttribute('href')
+            )
+        );
+        const cacheResult = await warmPage.evaluate(() => ({
+          readyMs: performance.now(),
+          transferBytes: performance
+            .getEntriesByType('resource')
+            .filter((r) => /\/(static|media)\//.test(r.name))
+            .reduce((s, r) => s + r.transferSize, 0)
+        }));
+        assert.equal(cacheResult.transferBytes, 0);
+        console.log('Warm cached assets', JSON.stringify(cacheResult));
+        await warm.close();
+        const allMedia = JSON.parse(
+          await fs.readFile(path.join(base, 'source/media/manifest.json'), 'utf8')
+        );
+        const previewUrls = [
+          ...new Set(
+            Object.values(allMedia.maps)
+              .map((m) => m.preview)
+              .filter(Boolean)
+          )
+        ];
+        const mediaPage = await ctx.newPage();
+        const decoded = await mediaPage.evaluate(
+          async (urls) =>
+            Promise.all(
+              urls.map(
+                (url) =>
+                  new Promise((resolve) => {
+                    const image = new Image();
+                    image.onload = () =>
+                      resolve({ ok: true, width: image.naturalWidth, height: image.naturalHeight });
+                    image.onerror = () => resolve({ ok: false });
+                    image.src = url;
+                  })
+              )
+            ),
+          previewUrls.map((url) => origin + url)
+        );
+        assert.ok(decoded.every((m) => m.ok && Math.max(m.width, m.height) <= 960));
+        await mediaPage.close();
+        console.log('All unique map previews decoded in Chromium:', decoded.length);
+      }
+      await ctx.close();
+      ctx = null;
+    }
+  assert.equal(results.length, 10);
+  await fs.writeFile(
+    path.join(base, '.private/speed-results.json'),
+    JSON.stringify(
+      { conditions: { Mbps: 6, latencyMs: 100, cpuSlowdown: 4, runs: 5 }, results },
+      null,
+      2
+    )
+  );
+  console.log(
+    'Browser QA passed: same scores, selection, background toggle, independent SVG and PNG, desktop/mobile, warm cache.'
+  );
+} finally {
+  await fs.writeFile(
+    path.join(base, '.private/speed-results.json'),
+    JSON.stringify(
+      { conditions: { Mbps: 6, latencyMs: 100, cpuSlowdown: 4, runs: 5 }, results },
+      null,
+      2
+    )
+  );
+  if (ctx) await ctx.close();
+  await browser.close();
+  server.close();
+}

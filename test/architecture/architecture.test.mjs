@@ -1,38 +1,66 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readdir,readFile} from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import {build} from 'esbuild';
+import { build } from 'esbuild';
 
-const root=path.resolve(import.meta.dirname,'../..');
-async function modules(directory){
- const result=[];
- for(const entry of await readdir(path.join(root,directory),{withFileTypes:true})){
-  const file=directory+'/'+entry.name;
-  if(entry.isDirectory())result.push(...await modules(file));
-  else if(/\.[cm]?js$/.test(file))result.push(file);
- }
- return result;
+const root = path.resolve(import.meta.dirname, '../..');
+async function modules(directory) {
+  const result = [];
+  for (const entry of await readdir(path.join(root, directory), { withFileTypes: true })) {
+    const file = directory + '/' + entry.name;
+    if (entry.isDirectory()) result.push(...(await modules(file)));
+    else if (/\.[cm]?js$/.test(file)) result.push(file);
+  }
+  return result;
 }
 
-test('domain modules do not depend on transport routes; services stay platform-neutral',async()=>{
- const entries=(await modules('src')).filter(file=>!file.startsWith('src/shared/'));
- const result=await build({absWorkingDir:root,entryPoints:entries,bundle:true,write:false,outdir:'unused',metafile:true,logLevel:'silent',platform:'neutral'});
- for(const [file,info] of Object.entries(result.metafile.inputs)){
-  for(const dependency of info.imports){
-   const target=dependency.path;
-   if(/^src\/(history|query|actors|adapters)\//.test(file))assert.ok(!target.startsWith('src/api/'),`${file} -> ${target}`);
-   if(file.startsWith('src/services/'))assert.match(target,/^src\/(services|shared)\//,`${file} -> ${target}`);
-   assert.ok(!dependency.path.startsWith('node:'),`${file} must run in Workers`);
+test('domain modules do not depend on transport routes; services stay platform-neutral', async () => {
+  const entries = (await modules('src')).filter((file) => !file.startsWith('src/shared/'));
+  const result = await build({
+    absWorkingDir: root,
+    entryPoints: entries,
+    bundle: true,
+    write: false,
+    outdir: 'unused',
+    metafile: true,
+    logLevel: 'silent',
+    platform: 'neutral'
+  });
+  for (const [file, info] of Object.entries(result.metafile.inputs)) {
+    for (const dependency of info.imports) {
+      const target = dependency.path;
+      if (/^src\/(history|query|actors|adapters)\//.test(file))
+        assert.ok(!target.startsWith('src/api/'), `${file} -> ${target}`);
+      if (file.startsWith('src/services/'))
+        assert.match(target, /^src\/(services|shared)\//, `${file} -> ${target}`);
+      assert.ok(!dependency.path.startsWith('node:'), `${file} must run in Workers`);
+    }
+    if (file.startsWith('src/services/')) {
+      const source = await readFile(path.join(root, file), 'utf8');
+      assert.doesNotMatch(
+        source,
+        /\b(?:fetch|Response|Request)\s*\(|\b(?:document|window|localStorage|sessionStorage)\s*[.[]/,
+        file
+      );
+    }
   }
-  if(file.startsWith('src/services/')){
-   const source=await readFile(path.join(root,file),'utf8');
-   assert.doesNotMatch(source,/\b(?:fetch|Response|Request)\s*\(|\b(?:document|window|localStorage|sessionStorage)\s*[.[]/,file);
-  }
- }
 });
 
-test('browser service graph cannot acquire backend hosts, state owners or Node builtins',async()=>{
- const result=await build({absWorkingDir:root,entryPoints:['web/services.js'],bundle:true,write:false,platform:'browser',metafile:true,logLevel:'silent'});
- for(const file of Object.keys(result.metafile.inputs))assert.doesNotMatch(file,/^(?:server\/|src\/(?:actors|api|history|events|query|adapters|lib|http)\/)/,file);
+test('browser service graph cannot acquire backend hosts, state owners or Node builtins', async () => {
+  const result = await build({
+    absWorkingDir: root,
+    entryPoints: ['web/services.js'],
+    bundle: true,
+    write: false,
+    platform: 'browser',
+    metafile: true,
+    logLevel: 'silent'
+  });
+  for (const file of Object.keys(result.metafile.inputs))
+    assert.doesNotMatch(
+      file,
+      /^(?:server\/|src\/(?:actors|api|history|events|query|adapters|lib|http)\/)/,
+      file
+    );
 });

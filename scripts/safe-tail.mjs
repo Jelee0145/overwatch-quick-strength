@@ -1,4 +1,75 @@
-import {spawn} from 'node:child_process';import path from 'node:path';
-const base=path.resolve(import.meta.dirname,'..');const child=spawn(process.execPath,[path.join(base,'node_modules/wrangler/bin/wrangler.js'),'tail','quick-strength-friends','--format','json'],{cwd:base,stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false',WRANGLER_LOG_SANITIZE:'true',WRANGLER_LOG_PATH:path.join(base,'.wrangler/logs'),XDG_CONFIG_HOME:path.join(base,'.private/config')}});
-let buffer='';child.stdout.on('data',chunk=>{buffer+=chunk;for(;;){const start=buffer.indexOf('{');if(start<0){buffer='';break;}let depth=0,string=false,escape=false,end=-1;for(let n=start;n<buffer.length;n++){const c=buffer[n];if(string){if(escape)escape=false;else if(c==='\\')escape=true;else if(c==='"')string=false;}else if(c==='"')string=true;else if(c==='{')depth++;else if(c==='}'&&--depth===0){end=n;break;}}if(end<0){buffer=buffer.slice(start);break;}try{const event=JSON.parse(buffer.slice(start,end+1));for(const log of event.logs||[])if(log.message?.[0]==='dashen-fetch-failed')console.log(JSON.stringify({at:new Date().toISOString(),diagnostic:JSON.parse(log.message[1])}));if(event.exceptions?.length)console.log(JSON.stringify({exceptions:event.exceptions.map(e=>({name:e.name}))}));}catch{}buffer=buffer.slice(end+1);}});
-child.stderr.on('data',()=>{});console.log('Waiting for a single user retry; only sanitized upstream timing is printed.');setTimeout(()=>{child.kill();process.exit();},180000);
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+const base = path.resolve(import.meta.dirname, '..');
+const child = spawn(
+  process.execPath,
+  [
+    path.join(base, 'node_modules/wrangler/bin/wrangler.js'),
+    'tail',
+    'quick-strength-friends',
+    '--format',
+    'json'
+  ],
+  {
+    cwd: base,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      WRANGLER_SEND_METRICS: 'false',
+      WRANGLER_LOG_SANITIZE: 'true',
+      WRANGLER_LOG_PATH: path.join(base, '.wrangler/logs'),
+      XDG_CONFIG_HOME: path.join(base, '.private/config')
+    }
+  }
+);
+let buffer = '';
+child.stdout.on('data', (chunk) => {
+  buffer += chunk;
+  for (;;) {
+    const start = buffer.indexOf('{');
+    if (start < 0) {
+      buffer = '';
+      break;
+    }
+    let depth = 0,
+      string = false,
+      escape = false,
+      end = -1;
+    for (let n = start; n < buffer.length; n++) {
+      const c = buffer[n];
+      if (string) {
+        if (escape) escape = false;
+        else if (c === '\\') escape = true;
+        else if (c === '"') string = false;
+      } else if (c === '"') string = true;
+      else if (c === '{') depth++;
+      else if (c === '}' && --depth === 0) {
+        end = n;
+        break;
+      }
+    }
+    if (end < 0) {
+      buffer = buffer.slice(start);
+      break;
+    }
+    try {
+      const event = JSON.parse(buffer.slice(start, end + 1));
+      for (const log of event.logs || [])
+        if (log.message?.[0] === 'dashen-fetch-failed')
+          console.log(
+            JSON.stringify({ at: new Date().toISOString(), diagnostic: JSON.parse(log.message[1]) })
+          );
+      if (event.exceptions?.length)
+        console.log(
+          JSON.stringify({ exceptions: event.exceptions.map((e) => ({ name: e.name })) })
+        );
+    } catch {}
+    buffer = buffer.slice(end + 1);
+  }
+});
+child.stderr.on('data', () => {});
+console.log('Waiting for a single user retry; only sanitized upstream timing is printed.');
+setTimeout(() => {
+  child.kill();
+  process.exit();
+}, 180000);

@@ -1,6 +1,6 @@
 // Factory only: never part of the normal website entry point.
-export function migrationBridge({original='worker.js',expiresAt}){
- return `import original,{AuthDirectory,UserTasks} from './${original}';
+export function migrationBridge({ original = 'worker.js', expiresAt }) {
+  return `import original,{AuthDirectory,UserTasks} from './${original}';
 const expiresAt=${Number(expiresAt)};
 const valid=(request,env)=>Date.now()<expiresAt&&env.OWQS_MIGRATION_KEY&&request.headers.get('Authorization')==='Bearer '+env.OWQS_MIGRATION_KEY;
 for(const Class of [AuthDirectory,UserTasks]){
