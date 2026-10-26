@@ -142,7 +142,6 @@ export function rewriteCopy(text) {
   );
   return text
     .replace(pattern, (value) => wording[value])
-    .replace("role+'英雄池'", "role+'英雄'")
     .replace(/(['">])轮盘(?=['<])/g, '$1转盘')
     .replace(/(['">])抽卡(?=['<])/g, '$1翻牌')
     .replace(/(['">])SVG(?=['<])/g, '$1保存图表')

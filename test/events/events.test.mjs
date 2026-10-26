@@ -530,7 +530,7 @@ test('events UI has a manual action, refreshes once on entry and explains pendin
     script = await readFile(new URL('../../web/events.js', import.meta.url), 'utf8');
   assert.ok(html.includes('eventsRefresh'));
   assert.match(script, /await refresh\(false\)/);
-  assert.match(script, /setInterval\(updateTimeStatus,15000\)/);
+  assert.match(script, /setInterval\(updateTimeStatus,\s*15000\)/);
   assert.match(html, /CC BY-SA 3\.0/);
   assert.doesNotMatch(html, /动态同步|events-reminders-help/);
   assert.match(script, /赛果待公布/);

@@ -159,6 +159,7 @@ test('draw idle and selection changes rely on the selected controls rather than 
   await app.mode('card');
   assert.equal(app.get('resultHint').textContent, '');
   await app.role('支援');
+  assert.equal(app.get('stagePool').textContent, '支援英雄');
   assert.equal(app.get('resultHint').textContent, '');
   assert.match(app.get('poolCount').textContent, /^\d+ 位英雄$/);
 });

@@ -2,6 +2,7 @@
   "tabWidth": 2,
   "printWidth": 100,
   "singleQuote": true,
+  "quoteProps": "preserve",
   "trailingComma": "none",
   "endOfLine": "lf",
   "embeddedLanguageFormatting": "off"

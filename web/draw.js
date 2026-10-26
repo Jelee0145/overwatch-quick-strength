@@ -61,7 +61,7 @@
     const candidates = pool(),
       hero = lastHero && candidates.some((h) => h.id === lastHero.id) ? lastHero : candidates[0];
     $('poolCount').textContent = `${candidates.length} 位英雄`;
-    $('stagePool').textContent = role === 'all' ? '全英雄池' : role + '英雄池';
+    $('stagePool').textContent = role === 'all' ? '全英雄池' : role + '英雄';
     $('wheelTrack').replaceChildren(
       ...HeroDrawEngine.sequence(candidates, 9, 4, hero).map((hero) => cell(hero, 'wheel-cell'))
     );

@@ -523,7 +523,7 @@ test('a delayed retained notice is labeled as a catch-up reminder', async () => 
 test('reservation status distinguishes generated notices from push acceptance and unverified due times', () => {
   const events = fs.readFileSync(new URL('../../web/events.js', import.meta.url), 'utf8');
   const statusFunction = events.match(
-    / function reservationStatus\(r,now=Date\.now\(\)\)\{[\s\S]*?\n \}/
+    /function reservationStatus\b[\s\S]*?(?=\s*function renderReminders\b)/
   )?.[0];
   assert.ok(statusFunction);
   const sandbox = {};

@@ -1,12 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { UserTasks } from '../../src/actors/tasks.mjs';
-import { AuthDirectory } from '../../src/actors/auth.mjs';
 import { getBlob, putBlob, mac } from '../../src/security.mjs';
 import { mintQueryIndex, verifyQueryIndex } from '../../src/query/cache-records.mjs';
 import { normalizeQueryOptions, legacyQueryOptions } from '../../src/query/options.mjs';
-import { service } from '../query-fixture.mjs';
-import { MemoryStorage } from '../helpers/storage.mjs';
 import { setup, request, start, speed, finish, fixture } from '../helpers/tasks.mjs';
 
 test('shared normalization preserves defaults and rejects conflicting query aliases', () => {
