@@ -36,3 +36,6 @@
 .intro{padding:26px 0 24px}
 .intro h1{font-size:30px;letter-spacing:-.5px}
 @media(max-width:760px){.intro{padding:22px 0}.intro h1{font-size:28px}}
+/* Suspended query: visibly unavailable, not merely busy (the shared rule uses wait). */
+.primary:disabled,.primary[disabled]{background:#c9ccd1;border-color:#c0c4ca;color:#fff;cursor:not-allowed;opacity:1}.primary:disabled:hover{background:#c9ccd1}
+.status.notice{margin-top:10px;color:#8a5a1f;background:#fdf3e3;border:1px solid #f0dcc0;border-radius:8px;padding:10px 12px;line-height:1.6}

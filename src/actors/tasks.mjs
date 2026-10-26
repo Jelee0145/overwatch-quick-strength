@@ -37,6 +37,7 @@ import {
   ingestCache
 } from '../query/query.mjs';
 import { prepareReview, callReview } from '../adapters/review.mjs';
+import { QUERY_SUSPENDED_MESSAGE, querySuspended } from '../query/suspension.mjs';
 export async function authCall(env, path, body = {}, rest = {}) {
   const r = await env.AUTH.get(env.AUTH.idFromName('directory')).fetch('https://internal/', {
     method: 'POST',
@@ -60,6 +61,9 @@ export function adaptPacing(data, { rateLimitFailures = 0, reduced = false } = {
   data.minIntervalMs = rateLimitFailures ? Math.min(2000, 500 * rateLimitFailures) : 0;
   return data;
 }
+// While the switch is on, creation answers with a suspended job record instead of throwing:
+// clients already understand `state`, so the page shows one notice and no quota is reserved.
+export { QUERY_SUSPENDED_MESSAGE, querySuspended } from '../query/suspension.mjs';
 export const RATE_LIMIT_BACKOFF_MS = 30000,
   FAILURE_BACKOFF_MS = 5000,
   MAX_BACKOFF_MS = 120000;
@@ -206,7 +210,26 @@ export class UserTasks {
     const job = { id: token(), createdAt: now, until: now + 3600000, ...metadata };
     return this.persistCreation(job, data, { legacy });
   }
+  /** A stable record so every client renders the suspension instead of an error toast. */
+  suspendedJob(user, version, api = false) {
+    return {
+      id: token(),
+      kind: 'query',
+      state: 'suspended',
+      suspended: true,
+      message: QUERY_SUSPENDED_MESSAGE,
+      progress: null,
+      createdAt: Date.now(),
+      finishedAt: Date.now(),
+      policyVersion: 2,
+      api: !!api,
+      battletag: null,
+      quota: 'none',
+      billingReason: 'suspended'
+    };
+  }
   async createUnified(user, version, b, api) {
+    if (querySuspended(this.env)) return this.suspendedJob(user, version, api);
     const options = normalizeQueryOptions(b),
       requestId = queryRequestId(b),
       scope = { server: this.env.DASHEN_SERVER, dts: this.env.DASHEN_DTS };
@@ -340,6 +363,8 @@ export class UserTasks {
     return this.#createLegacyJob(request);
   }
   async #createLegacyJob({ user, version, path, body: b }) {
+    // AI review reuses saved results and keeps working; only new upstream queries stop.
+    if (path === '/query' && querySuspended(this.env)) return this.suspendedJob(user, version);
     const kind = path === '/query' ? 'query' : 'ai',
       options = kind === 'query' ? legacyQueryOptions(b) : null,
       prior = b.envelope ? await verifySnapshot(b.envelope, user, this.env, b.battletag) : null;
@@ -673,6 +698,11 @@ export class UserTasks {
             };
             job.message = await runQuery(data, this.env, {
               checkpoint,
+              accountMatches:
+                job.apiOptions?.syncHistory === false
+                  ? undefined
+                  : async (ownerName) =>
+                      (await this.priorFromHistory(job.user, ownerName))?.matches || [],
               shouldStop: async () => !!(await this.storage.get('job:' + job.id))?.cancel
             });
             // Reaching this point means the upstream accepted the query at the current pacing.

@@ -304,7 +304,12 @@ test('main account lookup repairs ASCII case only after provider confirms the co
 test('case fallback rejects a different discriminator and bounds requests for unknown players', async () => {
   const s = createQuery('wrong#100', 5),
     lookups = [];
+  let selfLookups = 0;
   const call = async (e, p, q, b) => {
+    if (p === '/queryCard') {
+      selfLookups++;
+      return { name: 'Wrong#101', customerToken: 'wrong-player-private' };
+    }
     lookups.push(b.name);
     return b.name === 'wrong#100'
       ? null
@@ -314,7 +319,97 @@ test('case fallback rejects a different discriminator and bounds requests for un
   assert.equal(s.phase, 'account');
   assert.ok(lookups.length <= 4);
   assert.ok(lookups.every((n) => n.endsWith('#100')));
+  assert.equal(selfLookups, 1);
   assert.equal(s.mainToken, undefined);
+});
+
+test('empty account search recovers only an exact self identity, including after a checkpoint', async () => {
+  const env = {
+    DASHEN_TOKEN: 'fixture-auth',
+    DASHEN_ROLE_ID: '12345',
+    DASHEN_DTS: '2026',
+    DASHEN_SERVER: '1'
+  };
+  const mock = service({ newGames: 5 }),
+    raw = mock.call,
+    calls = [];
+  mock.call = async (e, p, q, b, options) => {
+    calls.push({ path: p, params: q, priority: options?.priority });
+    if (p === '/searchBnetAccount') return undefined;
+    if (p === '/queryCard') return { name: 'Main#100', customerToken: 'main-private' };
+    return raw(e, p, q, b);
+  };
+  let s = createQuery('main#100', 5);
+  for (let i = 0; !s.accountSelfAttempt && i < 5; i++) await queryStep(s, env, mock.call);
+  assert.equal(s.accountSelfAttempt, true);
+  assert.ok(!calls.some((c) => c.path === '/queryCard'));
+  s = restoreQuery(queryCheckpoint(s), s.prior);
+  await queryStep(s, env, mock.call);
+  assert.equal(s.phase, 'list');
+  assert.equal(s.tag, 'Main#100');
+  assert.equal(s.mainToken, 'main-private');
+  assert.deepEqual(
+    calls.find((c) => c.path === '/queryCard'),
+    {
+      path: '/queryCard',
+      priority: 'high',
+      params: { token: 'fixture-auth', roleId: 12345, dts: '2026', server: '1' }
+    }
+  );
+  const result = await finish(s, mock);
+  assert.equal(result.matches.length, 5);
+  assert.equal(calls.filter((c) => c.path === '/queryCard').length, 1);
+  assert.ok(!JSON.stringify(result).includes('main-private'));
+});
+
+test('self fallback requires a full matching identity and preserves not-found for unknown IDs', async () => {
+  for (const profile of [
+    undefined,
+    { name: 'main', customerToken: 'private' },
+    { name: 'Main#101', customerToken: 'private' },
+    { name: 'Other#100', customerToken: 'private' },
+    { name: 'Main#100' }
+  ]) {
+    const s = createQuery('main#100', 5);
+    let cards = 0;
+    await assert.rejects(
+      finish(s, {
+        call: async (_e, p) => {
+          if (p === '/queryCard') {
+            cards++;
+            return profile;
+          }
+          assert.equal(p, '/searchBnetAccount');
+          return undefined;
+        }
+      }),
+      (error) => error.status === 400 && error.message === '未找到可查询玩家'
+    );
+    assert.equal(cards, 1);
+    assert.equal(s.mainToken, undefined);
+  }
+});
+
+test('known-history lookup failure is upstream-unavailable and a refused self lookup remains retryable', async () => {
+  const s = createQuery('main#100', 5, { matches: [], matchIndex: [{ mid: 'known-match' }] });
+  await assert.rejects(
+    finish(s, { call: async () => undefined }),
+    (error) => error.status === 502 && error.message.includes('已保存历史仍可查看')
+  );
+  const rateLimited = createQuery('main#100', 5);
+  const call = async (_env, path) => {
+    if (path === '/queryCard') throw new Fault('limited', 429);
+    return undefined;
+  };
+  await assert.rejects(finish(rateLimited, { call }), (error) => error.status === 429);
+  assert.equal(rateLimited.phase, 'account');
+  assert.equal(rateLimited.accountSelfAttempt, true);
+  const resumed = restoreQuery(queryCheckpoint(rateLimited), rateLimited.prior);
+  await queryStep(resumed, {}, async (_env, path) => {
+    assert.equal(path, '/queryCard');
+    return { name: 'Main#100', customerToken: 'main-private' };
+  });
+  assert.equal(resumed.phase, 'list');
 });
 test('every request tells the shared schedule what the user is waiting for', async () => {
   const mock = service({ dense: false }),

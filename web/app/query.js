@@ -1,11 +1,28 @@
 // Online query/polling adapter. The local product keeps its own implementation.
+// While the upstream nickname search is down (the official Dashen app fails too) the server
+// answers query creation with a suspended job record. The page reads the authoritative capability
+// flag on boot, so reopening queries is a server config change with no redeploy, and a suspended
+// button never wastes a click. Existing jobs still poll and finish, and saved history, charts,
+// exports and AI review are untouched.
+let querySuspended = false;
+const SUSPENDED_NOTICE =
+  '上游数据接口故障，昵称查询已暂停；历史记录与已保存结果仍可正常查看。';
 async function request(path, body) {
   return Cloud.api(path, body);
 }
 function busy(value) {
   $('resumeQuery').hidden = true;
-  $('query').disabled = value;
+  // A suspended query button must stay disabled even after a job ends.
+  $('query').disabled = value || querySuspended;
   $('cancel').hidden = !value;
+}
+/** The server is authoritative; this only mirrors its answer. */
+function setSuspended(value) {
+  if (querySuspended === value) return;
+  querySuspended = value;
+  $('query').disabled = value;
+  $('querySuspended').hidden = !value;
+  $('query').title = value ? '上游数据接口故障，查询暂停' : '';
 }
 async function poll() {
   if (!activeJob) return;
@@ -75,6 +92,8 @@ function wireQuery() {
   $('onlinePanel').onsubmit = async (e) => {
     e.preventDefault();
     if (activeJob) return;
+    // The page mirrors the server capability; the server refuses too while suspended.
+    if (querySuspended) return status(SUSPENDED_NOTICE, true);
     try {
       busy(true);
       status('正在建立查询…');
@@ -84,6 +103,13 @@ function wireQuery() {
         $('supplementOtherMatches').checked,
         $('pool').value
       );
+      // The server answers with a suspended record while the upstream is down; show it and stop.
+      if (r.state === 'suspended') {
+        setSuspended(true);
+        busy(false);
+        return status(r.message || SUSPENDED_NOTICE);
+      }
+      setSuspended(false);
       activeJob = r.id;
       poll();
     } catch (e) {

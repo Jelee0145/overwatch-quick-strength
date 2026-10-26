@@ -1,4 +1,5 @@
 import policy from '../../access-policy.json' with { type: 'json' };
+import { querySuspended } from '../query/suspension.mjs';
 import {
   Fault,
   token,
@@ -226,7 +227,9 @@ export class AuthDirectory {
     return {
       user: this.view(s.account),
       csrf: await mac({ csrf: i.userToken, admin: false }, this.env.PASSWORD_PEPPER),
-      usage: usage.day === day() ? usage : { day: day(), query: 0, ai: 0 }
+      usage: usage.day === day() ? usage : { day: day(), query: 0, ai: 0 },
+      // The page greys the query button from this flag, so reopening needs only a config change.
+      capabilities: { queries: !querySuspended(this.env), reads: true }
     };
   }
   async logout(i) {

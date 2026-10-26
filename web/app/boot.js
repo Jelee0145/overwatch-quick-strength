@@ -20,7 +20,9 @@ $('matchSelect').onchange = () => showPlayers(Number($('matchSelect').value));
 generate();
 (async () => {
   try {
-    await Cloud.boot();
+    const session = await Cloud.boot();
+    // Query availability comes from the server, so reopening it needs no redeploy.
+    if (session?.capabilities) setSuspended(!session.capabilities.queries);
     const latest = await Cloud.latest();
     if (latest.historyTag) await openHistory(latest.historyTag);
     else if (latest.result) {

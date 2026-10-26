@@ -1,4 +1,5 @@
 import { Fault, json, digest, verifySnapshot } from '../security.mjs';
+import { querySuspended } from '../query/suspension.mjs';
 import { authenticate, taskClient, requireMethod, jsonInput, operationKey } from './context.mjs';
 import { normalizeQueryOptions } from '../query/options.mjs';
 import { readArchive } from '../history/store.mjs';
@@ -17,7 +18,10 @@ const capabilities = (env, auth) => ({
   idempotency: true,
   sharedQuota: true,
   reservations: auth.tier !== 'free' && !!env.REMINDERS,
-  webPush: auth.tier !== 'free' && !!env.REMINDERS
+  webPush: auth.tier !== 'free' && !!env.REMINDERS,
+  // The page mirrors this flag, so reopening queries needs only a config change.
+  queries: !querySuspended(env),
+  reads: true
 });
 function personal(auth) {
   if (auth.tier === 'free') throw new Fault('免费服务账号不支持个人历史或预约', 403);
@@ -61,6 +65,8 @@ const routes = [
         options = normalizeQueryOptions(input);
       options.requestId = operationKey(request, input);
       if (auth.tier === 'free') options.syncHistory = false;
+      // A suspended upstream answers with a job-shaped record, so the response shape never
+      // changes: clients read `state` and render the notice instead of an error.
       const created = await call('/api-query', options);
       return json({ ...created, status: '/api/v1/jobs/' + created.id });
     }

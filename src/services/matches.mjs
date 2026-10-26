@@ -182,6 +182,9 @@ export function createMatchService({
   // promoted by ageing, so they cannot starve.
   const PRIORITY = Object.freeze({
     account: 'high',
+    'account-self': 'high',
+    'account-roster': 'high',
+    'account-verify': 'high',
     list: 'high',
     detail: 'high',
     ranks: 'normal',
@@ -685,7 +688,51 @@ export function createMatchService({
       ])
     ];
   }
+  const sameFullTag = (name, tag) =>
+    typeof name === 'string' &&
+    name.length <= 80 &&
+    tagOK(name) &&
+    nameKey(name).toLowerCase() === nameKey(tag).toLowerCase();
+  function accountMiss(s) {
+    if (s.prior.matches?.length || s.prior.matchIndex?.length || s.accountRecovery?.mids?.length)
+      throw new Fault('大神暂未返回该玩家资料，已保存历史仍可查看，请稍后重试', 502);
+    throw new Fault('未找到可查询玩家');
+  }
+  function nextAccountCandidate(s) {
+    const recovery = s.accountRecovery;
+    delete recovery.candidate;
+    if (++recovery.index >= recovery.mids.length) accountMiss(s);
+  }
   function operations(s, env) {
+    if (s.phase === 'account' && s.accountRecovery) {
+      const recovery = s.accountRecovery;
+      if (recovery.candidate)
+        return [
+          operation('account-verify', { name: s.tag }, '/customer/queryCard', {
+            token: recovery.candidate.token
+          })
+        ];
+      return [
+        operation(
+          'account-roster',
+          { mid: recovery.mids[recovery.index] },
+          '/customer/queryMatchInfo',
+          {
+            token: recovery.ownerToken,
+            matchId: recovery.mids[recovery.index]
+          }
+        )
+      ];
+    }
+    if (s.phase === 'account' && s.accountSelfAttempt)
+      return [
+        operation('account-self', { name: s.tag }, '/queryCard', {
+          token: env.DASHEN_TOKEN,
+          roleId: Number(env.DASHEN_ROLE_ID),
+          dts: String(env.DASHEN_DTS),
+          server: env.DASHEN_SERVER
+        })
+      ];
     if (s.phase === 'account')
       return [
         operation(
@@ -769,11 +816,51 @@ export function createMatchService({
     }
     return [];
   }
-  async function apply(s, o, v, env) {
+  async function apply(s, o, v, env, options = {}) {
     const t = o.target;
-    if (['account', 'rank-account', 'history-account'].includes(o.kind)) {
-      if (o.kind === 'account') {
-        const attempt = s.accountCaseAttempt || 0,
+    if (o.kind === 'account-roster') {
+      const ownerPresent = (v?.teammateList || []).some((p) =>
+        sameFullTag(p.name, s.accountRecovery.ownerName)
+      );
+      const candidate =
+        ownerPresent &&
+        [...(v?.teammateList || []).slice(0, 15), ...(v?.enemyList || []).slice(0, 15)].find(
+          (p) =>
+            sameFullTag(p.name, s.tag) &&
+            typeof p.customerToken === 'string' &&
+            p.customerToken.length > 0 &&
+            p.customerToken.length <= 4096
+        );
+      if (candidate)
+        s.accountRecovery.candidate = { token: candidate.customerToken, bnetId: candidate.bnetId };
+      else nextAccountCandidate(s);
+      return;
+    }
+    if (o.kind === 'account-verify') {
+      const candidate = s.accountRecovery.candidate;
+      if (
+        !sameFullTag(v?.name, s.tag) ||
+        typeof v?.customerToken !== 'string' ||
+        !v.customerToken ||
+        v.customerToken.length > 4096 ||
+        (candidate.bnetId != null &&
+          v.bnetId != null &&
+          String(candidate.bnetId) !== String(v.bnetId))
+      ) {
+        nextAccountCandidate(s);
+        return;
+      }
+      s.tag = nameKey(v.name);
+      s.mainToken = v.customerToken;
+      touchToken(s, s.tag, v.customerToken);
+      delete s.accountRecovery;
+      s.phase = 'list';
+      return;
+    }
+    if (['account', 'account-self', 'rank-account', 'history-account'].includes(o.kind)) {
+      if (o.kind === 'account' || o.kind === 'account-self') {
+        const self = o.kind === 'account-self',
+          attempt = s.accountCaseAttempt || 0,
           canonical =
             typeof v?.name === 'string' &&
             tagOK(v.name) &&
@@ -782,18 +869,67 @@ export function createMatchService({
               : null;
         // A fallback is accepted only when the provider confirms the entire same ID,
         // including its numeric discriminator. Never select a similarly named player.
-        if (!v?.customerToken || (attempt > 0 && !canonical)) {
-          if (attempt + 1 < accountNames(s.tag).length) {
-            s.accountCaseAttempt = attempt + 1;
+        if (!v?.customerToken || ((self || attempt > 0) && !canonical)) {
+          if (!self) {
+            if (attempt + 1 < accountNames(s.tag).length) s.accountCaseAttempt = attempt + 1;
+            else s.accountSelfAttempt = true;
             return;
           }
-          throw new Fault('未找到可查询玩家');
+          // Profile clicks use tokens from an already-known match roster. Recover that
+          // route only from this query's prior or its owner's same-user archived history.
+          if (
+            typeof v?.customerToken === 'string' &&
+            v.customerToken &&
+            typeof v.name === 'string' &&
+            v.name.length <= 80 &&
+            tagOK(v.name)
+          ) {
+            let extra = [];
+            if (options.accountMatches) {
+              try {
+                extra = await options.accountMatches(nameKey(v.name));
+              } catch {
+                throw new Fault('读取历史身份参考暂不可用，请稍后重试', 502);
+              }
+            }
+            const mids = [
+              ...new Set(
+                [
+                  ...(s.prior.matches || []).slice(0, 500),
+                  ...(Array.isArray(extra) ? extra.slice(0, 500) : [])
+                ]
+                  .filter(
+                    (m) =>
+                      typeof m.mid === 'string' &&
+                      m.mid.length > 0 &&
+                      m.mid.length <= 150 &&
+                      m.hasGameData &&
+                      m.resourceDataChecked &&
+                      m.duration > 0 &&
+                      m.players?.some((p) => sameFullTag(p.name, v.name)) &&
+                      m.players?.some((p) => sameFullTag(p.name, s.tag))
+                  )
+                  .sort((a, b) => (b.t || 0) - (a.t || 0))
+                  .map((m) => m.mid)
+              )
+            ].slice(0, 2);
+            if (mids.length) {
+              s.accountRecovery = {
+                ownerName: nameKey(v.name),
+                ownerToken: v.customerToken,
+                mids,
+                index: 0
+              };
+              return;
+            }
+          }
+          accountMiss(s);
         }
         if (canonical) s.tag = canonical;
       }
       if (!v?.customerToken) throw new Fault('未找到可查询玩家');
-      touchToken(s, t.name, v.customerToken);
-      if (o.kind === 'account') {
+      touchToken(s, o.kind === 'account-self' ? s.tag : t.name, v.customerToken);
+      if (o.kind === 'account' || o.kind === 'account-self') {
         s.mainToken = v.customerToken;
         s.phase = 'list';
       } else if (o.kind === 'rank-account') t.ct = v.customerToken;
@@ -1166,7 +1302,7 @@ export function createMatchService({
           const v = await call(env, o.path, o.params, o.body, {
             priority: PRIORITY[o.kind] || 'normal'
           });
-          await apply(s, o, v, env);
+          await apply(s, o, v, env, options);
           s.receipts[o.key] = 'done';
         } catch (e) {
           if (
