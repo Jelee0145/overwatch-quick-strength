@@ -22,7 +22,7 @@ const mock = service({ newGames: 5 });
 const runtime = createRuntime(config, {
   filename: ':memory:',
   assets: staticAssets(path.resolve(import.meta.dirname, '../../public')),
-  intervalMs: 0,
+  ratePerSecond: Infinity,
   eventsFetch: async () => new Response('', { status: 503 }),
   upstreamFetch: async (url, init) => {
     const value = new URL(url),

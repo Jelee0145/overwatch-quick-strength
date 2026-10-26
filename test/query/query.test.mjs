@@ -33,7 +33,7 @@ test('three requests overlap; dense ranks skip all supplementary histories; warm
   assert.equal(again.result.syncStatus.cachedOnly, true);
 });
 
-test('paced launches stop queued requests after a rate limit and respect burst deadline', async () => {
+test('rate limits stop queued launches, deadlines yield, and an explicit interval still paces', async () => {
   const s = createQuery('Main#100', 10),
     mock = service(),
     raw = mock.call;
@@ -53,12 +53,18 @@ test('paced launches stop queued requests after a rate limit and respect burst d
     (e) => e.status === 429
   );
   assert.equal(started, 1);
+  // The shared schedule owns start spacing, so a stale per-task marker must not add a delay.
+  const shared = createQuery('Main#100', 10);
+  shared.nextStartAt = Date.now() + 100;
+  await runQuery(shared, {}, { call: raw, budgetMs: 500 });
+  assert.ok(shared.requests > 0);
   const deadline = createQuery('Main#100', 10);
-  deadline.nextStartAt = Date.now() + 100;
-  await runQuery(deadline, {}, { call: raw, budgetMs: 5 });
+  await runQuery(deadline, {}, { call: raw, budgetMs: 0 });
   assert.equal(deadline.requests, 0);
   assert.equal(deadline.yielded, true);
+  // An explicitly configured interval is a deliberate per-task slowdown (probing, tests).
   const paced = createQuery('Main#100', 10);
+  paced.minIntervalMs = 0;
   await queryStep(paced, {}, raw);
   await queryStep(paced, {}, raw);
   paced.nextStartAt = 0;
@@ -309,4 +315,30 @@ test('case fallback rejects a different discriminator and bounds requests for un
   assert.ok(lookups.length <= 4);
   assert.ok(lookups.every((n) => n.endsWith('#100')));
   assert.equal(s.mainToken, undefined);
+});
+test('every request tells the shared schedule what the user is waiting for', async () => {
+  const mock = service({ dense: false }),
+    raw = mock.call,
+    seen = [];
+  const s = createQuery('Main#100', 5);
+  const call = (env, path, params, body, options) => {
+    seen.push({ path, phase: s.phase, priority: options?.priority });
+    return raw(env, path, params, body);
+  };
+  for (let n = 0; s.phase !== 'done' && n < 100; n++)
+    await runQuery(s, {}, { call, budgetMs: 30, minIntervalMs: 0 });
+  assert.equal(s.phase, 'done');
+  // The account search, the match list and the main details are what the user sees first.
+  for (const phase of ['account', 'list', 'details'])
+    assert.ok(
+      seen.filter((c) => c.phase === phase).every((c) => c.priority === 'high'),
+      phase
+    );
+  // Rank lookups fill the gaps, and everything sampled for recent peers is lowest.
+  assert.ok(seen.filter((c) => c.phase === 'ranks').every((c) => c.priority === 'normal'));
+  assert.ok(seen.filter((c) => c.phase === 'ranks').length > 0);
+  for (const c of seen.filter((x) => x.phase.startsWith('history')))
+    assert.equal(c.priority, 'low', c.path + ' ' + c.phase);
+  assert.ok(seen.some((c) => c.phase.startsWith('history')));
+  assert.ok(seen.every((c) => ['high', 'normal', 'low'].includes(c.priority)));
 });

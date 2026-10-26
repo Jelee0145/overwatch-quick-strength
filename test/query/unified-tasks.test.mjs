@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UserTasks } from '../../src/actors/tasks.mjs';
+import { UserTasks, adaptPacing } from '../../src/actors/tasks.mjs';
 import { getBlob, putBlob, mac } from '../../src/security.mjs';
 import { mintQueryIndex, verifyQueryIndex } from '../../src/query/cache-records.mjs';
 import { normalizeQueryOptions, legacyQueryOptions } from '../../src/query/options.mjs';
@@ -234,4 +234,76 @@ test('legacy persisted API cache hits remain charged and old signed indexes veri
   delete index.content.matches[0].gameMode;
   index.signature = await mac(index.content, ctx.env.CACHE_SIGNING_KEY);
   assert.equal((await verifyQueryIndex(index, 'u', 'Main#100', ctx.env))[0].mid, 'm');
+});
+test('an upstream rate limit pauses the job, backs off longer on repeats and clears after success', async () => {
+  // One match keeps the recovery run short: the point is the pause, not query size.
+  const ctx = await setup(),
+    a = await start(ctx.task, { requestId: 'limited' });
+  await speed(ctx, a.id);
+  // The adapter maps both a 429 status and a 429 body to the same task-visible fault.
+  const limited = async () =>
+    new Response(JSON.stringify({ code: 429 }), {
+      status: 429,
+      headers: { 'Retry-After': '4' }
+    });
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = limited;
+    const startedAt = Date.now();
+    await ctx.task.alarm();
+    let job = await ctx.storage.get('job:' + a.id);
+    assert.equal(job.state, 'paused');
+    assert.equal(job.rateLimitFailures, 1);
+    assert.ok(job.resumeAfter - startedAt >= 29000);
+    assert.ok(job.resumeAfter - startedAt < 31000);
+    // A refused task lowers its own concurrency and spreads its own starts.
+    assert.deepEqual(adaptPacing({}, { rateLimitFailures: job.rateLimitFailures }), {
+      concurrency: 1,
+      minIntervalMs: 500
+    });
+    job.state = 'running';
+    await ctx.storage.put('job:' + a.id, job);
+    const second = Date.now();
+    await ctx.task.alarm();
+    job = await ctx.storage.get('job:' + a.id);
+    assert.equal(job.state, 'paused');
+    assert.equal(job.rateLimitFailures, 2);
+    assert.ok(job.resumeAfter - second >= 59000);
+    assert.ok(job.resumeAfter - second < 62000);
+    // A healthy upstream finishes the query and forgets the failures.
+    await fixture(async () => {
+      job.state = 'running';
+      await ctx.storage.put('job:' + a.id, job);
+      assert.equal((await finish(ctx.task, a.id)).state, 'done');
+      const done = await ctx.storage.get('job:' + a.id);
+      assert.equal(done.rateLimitFailures, 0);
+      assert.equal(done.failures, 0);
+    });
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+test('pacing adaptation separates a rate limit from ordinary failures', () => {
+  assert.deepEqual(adaptPacing({}, {}), { concurrency: 3, minIntervalMs: 0 });
+  assert.deepEqual(adaptPacing({}, { rateLimitFailures: 1 }), {
+    concurrency: 1,
+    minIntervalMs: 500
+  });
+  assert.deepEqual(adaptPacing({}, { rateLimitFailures: 3 }), {
+    concurrency: 1,
+    minIntervalMs: 1500
+  });
+  assert.deepEqual(adaptPacing({}, { rateLimitFailures: 9 }), {
+    concurrency: 1,
+    minIntervalMs: 2000
+  });
+  // A user-requested resume is gentler without delaying every request.
+  assert.deepEqual(adaptPacing({}, { reduced: true }), { concurrency: 1, minIntervalMs: 0 });
+  const task = Object.create(UserTasks.prototype);
+  assert.equal(task.backoff(429, { rateLimits: 1 }), 30000);
+  assert.equal(task.backoff(429, { rateLimits: 2 }), 60000);
+  assert.equal(task.backoff(429, { rateLimits: 9 }), 120000);
+  assert.equal(task.backoff(504, { repeats: 1 }), 5000);
+  assert.equal(task.backoff(504, { repeats: 3 }), 20000);
+  assert.equal(task.backoff(400, { repeats: 4 }), 0);
 });

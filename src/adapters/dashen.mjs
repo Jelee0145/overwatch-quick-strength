@@ -24,7 +24,31 @@ export function unwrap(v) {
     v = v.data;
   return v;
 }
-export async function upstream(env, path, params, body, fetcher = fetch) {
+// Cooldown after an upstream refusal: never retry immediately, and honour Retry-After when sent.
+const COOLDOWN_MS = 3000,
+  MAX_COOLDOWN_MS = 60000,
+  cooldownOf = (response) => {
+    const value = Number(response?.headers?.get?.('Retry-After'));
+    return Number.isFinite(value) && value > 0
+      ? Math.min(MAX_COOLDOWN_MS, value * 1000)
+      : COOLDOWN_MS;
+  };
+/**
+ * @param {object} env
+ * @param {string} path
+ * @param {object} params
+ * @param {object} [body]
+ * @param {object} [options]
+ * @param {string} [options.priority] Shared-schedule class: 'high', 'normal' or 'low'.
+ * @param {Function} [options.fetcher] Transport override; defaults to the shared schedule or fetch.
+ */
+export async function upstream(
+  env,
+  path,
+  params,
+  body,
+  { priority = 'normal', fetcher = fetch } = {}
+) {
   fetcher = env.UPSTREAM_FETCH || fetcher;
   if (!env.DASHEN_TOKEN || !env.DASHEN_ROLE_ID)
     throw new Fault('查询凭证尚未配置，请联系管理员', 503);
@@ -46,13 +70,19 @@ export async function upstream(env, path, params, body, fetcher = fetch) {
   let r;
   const started = Date.now();
   try {
-    r = await fetcher(url, {
-      method: body ? 'POST' : 'GET',
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(25000),
-      redirect: 'manual'
-    });
+    // The priority travels beside RequestInit, never inside it: only this host's shared schedule
+    // understands it, while the platform fetch keeps receiving a spec-valid init.
+    r = await fetcher(
+      url,
+      {
+        method: body ? 'POST' : 'GET',
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(25000),
+        redirect: 'manual'
+      },
+      priority
+    );
   } catch (e) {
     const name = ['TimeoutError', 'AbortError', 'TypeError'].includes(e?.name)
       ? e.name
@@ -89,7 +119,12 @@ export async function upstream(env, path, params, body, fetcher = fetch) {
   }
   if (r.status >= 300 && r.status < 400) throw new Fault('大神接口发生重定向，已拒绝转发凭证', 502);
   if ([401, 403].includes(r.status)) throw new Fault('大神凭证已失效，请联系管理员更新', 503);
-  if (r.status === 429) throw new Fault('大神接口限流，当前任务已暂停，稍后继续', 429);
+  // Hold the whole shared schedule, not just this task: other tasks would otherwise keep
+  // starting requests into a refusal and the pause would never take effect.
+  if (r.status === 429) {
+    env.UPSTREAM_SCHEDULER?.coolDown(cooldownOf(r));
+    throw new Fault('大神接口限流，当前任务已暂停，稍后继续', 429);
+  }
   if (!r.ok) throw new Fault('大神接口暂不可用（HTTP ' + r.status + '）', 502);
   let v;
   try {
@@ -98,7 +133,10 @@ export async function upstream(env, path, params, body, fetcher = fetch) {
     throw new Fault('大神返回格式异常', 502);
   }
   if ([401, 403].includes(v.code)) throw new Fault('大神凭证已失效，请联系管理员更新', 503);
-  if (v.code === 429) throw new Fault('大神接口限流，当前任务已暂停，稍后继续', 429);
+  if (v.code === 429) {
+    env.UPSTREAM_SCHEDULER?.coolDown(cooldownOf(r));
+    throw new Fault('大神接口限流，当前任务已暂停，稍后继续', 429);
+  }
   if (![0, 200].includes(v.code) || v.success === false)
     throw new Fault('大神返回业务错误（' + text(v.code, 20) + '）', 502);
   return unwrap(v.data);

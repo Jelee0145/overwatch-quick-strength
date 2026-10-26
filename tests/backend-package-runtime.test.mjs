@@ -83,7 +83,8 @@ test('isolated backend package boots, authenticates, completes a query and rende
       filename: path.join(directory, 'state.sqlite3'),
       assets,
       upstreamFetch,
-      intervalMs: 0
+      // Tests run unpaced so the suite is not bound to the production start rate.
+      ratePerSecond: Infinity
     });
     server = createHttpServer(runtime, { origin: config.PUBLIC_ORIGIN, allowLoopback: true });
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

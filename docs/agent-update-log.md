@@ -1,5 +1,14 @@
 # Agent update log
 
+## 2026-10-26 Shared upstream schedule and query rate limit
+
+- Scope: implement the planned shared upstream rate limit from `docs/query-rate-limit-handoff.md`. No push, deployment or new production scan; the operator-chosen ceiling stays 8 req/s.
+- confirmed-current: `main` at `e3d37f2`, clean tree before work. Prior pacing was a global `intervalMs=500` wrapper plus per-task `minIntervalMs=500`/concurrency 3, i.e. double limiting at 2 req/s per task.
+- Hazards handled: a token bucket bursting to 2 plus the 125ms cadence would emit 9 starts inside the first second, the rate the scan showed being refused; a per-task `nextStartAt` would keep double limiting; putting a `priority` field into RequestInit would leak an unsupported option to workerd/undici `fetch`; the adapter's positional `fetcher` argument would be misread if a caller passes a priority string.
+- Implemented: new `src/services/scheduler.mjs` (one process-wide budget, `ratePerSecond` clamped to 8, `burst=1`, separate `concurrency=6`, priority classes with FIFO and ageing, cancellation, `coolDown`); `server/runtime.mjs` owns the scheduler and exports `env.UPSTREAM_SCHEDULER`; `server/limiter.mjs` now wraps that scheduler; engine operations carry `high` (account/list/main details) / `normal` (ranks) / `low` (recent-peer sampling); `dashen.mjs` passes priority as the third fetcher argument and pauses the whole schedule on 429 (3s or `Retry-After`, capped 60s); `tasks.mjs` keeps 429 as exponential backoff (30s→120s) and degrades only the affected job.
+- Verified locally: `npm test` 366/366 plus four native workerd checks, `npm run build`, `npm run check` dry-run and prettier all pass. New suites cover the 8-per-second window, burst, priority/FIFO, ageing, cancellation, cooldown recovery, adapter 429 handling and the runtime's single scheduler. A loopback fetch smoke test stayed at 7.6 req/s.
+- Not exercised: production deployment, real-account latency, live 429 recovery, and `npm run plugin:build` (the generated plugin runtime is unchanged and only bundles `src/`). Details and next steps: `docs/query-rate-limit-handoff.md`.
+
 ## 2026-10-22 Startup split and on-demand mobile release
 
 - User explicitly authorized pushing and deploying, including the concurrent player-table change. `main` pushed through `3363798`. Web-only release: backend revision remains `d8e804a`.

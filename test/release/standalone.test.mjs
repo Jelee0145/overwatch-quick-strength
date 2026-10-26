@@ -8,7 +8,7 @@ import { SqliteDatabase } from '../../server/storage.mjs';
 import { createRuntime } from '../../server/runtime.mjs';
 import { createHttpServer } from '../../server/http.mjs';
 import { staticAssets } from '../../server/assets.mjs';
-import { pacedFetch } from '../../server/limiter.mjs';
+import { createScheduler, pacedFetch } from '../../server/limiter.mjs';
 import { putBlob, getBlob, passwordHash } from '../../src/security.mjs';
 import { createMatchService } from '../../src/services/matches.mjs';
 import { analysisService } from '../../src/services/runtime.mjs';
@@ -92,6 +92,8 @@ test('aggregate fetch pacing limits starts and concurrency and recovers from abo
   const times = [];
   let active = 0,
     max = 0;
+  // 12ms spacing proves the wrapper routes every fetch through the shared schedule.
+  const scheduler = createScheduler({ ratePerSecond: 1000 / 12, burst: 1, concurrency: 2 });
   const call = pacedFetch(
     async () => {
       times.push(Date.now());
@@ -100,15 +102,67 @@ test('aggregate fetch pacing limits starts and concurrency and recovers from abo
       active--;
       return new Response('ok');
     },
-    { intervalMs: 12, concurrency: 2 }
+    { scheduler }
   );
   await Promise.all(Array.from({ length: 6 }, () => call('https://example.test')));
   assert.ok(max <= 2);
   for (let i = 1; i < times.length; i++) assert.ok(times[i] - times[i - 1] >= 9);
+  assert.equal(scheduler.stats().active, 0);
   const controller = new AbortController();
   controller.abort();
   await assert.rejects(call('https://example.test', { signal: controller.signal }));
   assert.equal((await call('https://example.test')).status, 200);
+  assert.equal(scheduler.stats().active, 0);
+  assert.equal(scheduler.stats().waiting, 0);
+});
+
+test('one runtime schedule serves every user, caps the rate below the operator ceiling and keeps priority', async () => {
+  const runtime = createRuntime(
+    {},
+    {
+      filename: ':memory:',
+      assets: staticAssets(os.tmpdir()),
+      // An over-large request is clamped, so no configuration can open a second budget.
+      ratePerSecond: 500,
+      // Only the ceilings below the rate may be tuned; one slot forces a real queue.
+      upstreamRates: { burst: 1, concurrency: 1 },
+      upstreamFetch: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return new Response('ok');
+      }
+    }
+  );
+  try {
+    const scheduler = runtime.scheduler,
+      stats = scheduler.stats();
+    assert.equal(stats.ratePerSecond, 8);
+    assert.ok(stats.burst <= 2);
+    assert.equal(runtime.env.UPSTREAM_SCHEDULER, scheduler);
+    const order = [];
+    await Promise.all([
+      runtime.env
+        .UPSTREAM_FETCH('https://example.test', undefined, 'low')
+        .then(() => order.push('low')),
+      // The first call already owns the only slot, so the queue decides what runs next.
+      new Promise((resolve) => setTimeout(resolve, 5)).then(() =>
+        Promise.all([
+          runtime.env
+            .UPSTREAM_FETCH('https://example.test', undefined, 'low')
+            .then(() => order.push('low')),
+          runtime.env
+            .UPSTREAM_FETCH('https://example.test', undefined, 'high')
+            .then(() => order.push('high'))
+        ])
+      )
+    ]);
+    // First arrival takes the free slot; under contention the queued high request goes first.
+    assert.deepEqual(order, ['low', 'high', 'low']);
+    assert.ok(scheduler.stats().active <= 1);
+    assert.equal(scheduler.stats().active, 0);
+    assert.equal(scheduler.stats().waiting, 0);
+  } finally {
+    await runtime.close();
+  }
 });
 
 test('standalone HTTP supports secure login, approval, Bot query, history and restart; rejects forged hosts and secret paths', async () => {
@@ -144,7 +198,7 @@ test('standalone HTTP supports secure login, approval, Bot query, history and re
     filename: path.join(dir, 'state.sqlite3'),
     assets: staticAssets(path.join(dir, 'public')),
     upstreamFetch,
-    intervalMs: 0
+    ratePerSecond: Infinity
   });
   const server = createHttpServer(runtime, {
     origin: 'https://owqs.test:8443',
@@ -222,7 +276,7 @@ test('standalone HTTP supports secure login, approval, Bot query, history and re
       filename: path.join(dir, 'state.sqlite3'),
       assets: staticAssets(path.join(dir, 'public')),
       upstreamFetch,
-      intervalMs: 0
+      ratePerSecond: Infinity
     });
     await runtime.instance('tasks:' + player.v.user.id).alarm();
     const status = await runtime.env.TASKS.get('tasks:' + player.v.user.id).fetch(

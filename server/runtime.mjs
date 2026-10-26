@@ -2,10 +2,14 @@ import { AuthDirectory } from '../src/actors/auth.mjs';
 import { UserTasks } from '../src/actors/tasks.mjs';
 import { EventCenter } from '../src/events/center.mjs';
 import { SqliteDatabase } from './storage.mjs';
-import { pacedFetch } from './limiter.mjs';
+import { createScheduler, pacedFetch } from './limiter.mjs';
 import { EventReminders } from './event-reminders.mjs';
 import { createPushSender } from './web-push.mjs';
 
+/**
+ * `ratePerSecond` is the shared upstream start rate for every user; `upstreamRates` may override
+ * only the concurrency ceiling, which is never a licence to exceed the start rate.
+ */
 export function createRuntime(
   config,
   {
@@ -14,17 +18,21 @@ export function createRuntime(
     upstreamFetch = fetch,
     eventsFetch = fetch,
     pushSender,
-    intervalMs = 500
+    ratePerSecond,
+    upstreamRates = {}
   } = {}
 ) {
   const database = new SqliteDatabase(filename),
     instances = new Map(),
     running = new Map();
+  // One schedule per runtime: it is the only cross-user budget, so it must own the fetcher.
+  const scheduler = createScheduler({ ...upstreamRates, ratePerSecond });
   const env = {
     ...config,
     ASSETS: assets,
     EVENTS_FETCH: eventsFetch,
-    UPSTREAM_FETCH: pacedFetch(upstreamFetch, { intervalMs })
+    UPSTREAM_SCHEDULER: scheduler,
+    UPSTREAM_FETCH: pacedFetch(upstreamFetch, { scheduler })
   };
   const send =
     pushSender ||
@@ -95,6 +103,7 @@ export function createRuntime(
     env,
     database,
     instance,
+    scheduler,
     tick,
     ready,
     async startEvents() {

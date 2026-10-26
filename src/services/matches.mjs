@@ -177,6 +177,20 @@ export function createMatchService({
       }
     return { owner, game: data.matchDetail(v, m, players, s.now) };
   }
+  // The shared schedule orders requests by what the user sees first: the account search, the
+  // match list and the main details. Rank and recent-peer supplements fill the gaps and are
+  // promoted by ageing, so they cannot starve.
+  const PRIORITY = Object.freeze({
+    account: 'high',
+    list: 'high',
+    detail: 'high',
+    ranks: 'normal',
+    'rank-account': 'normal',
+    'history-start': 'low',
+    'history-account': 'low',
+    'history-list': 'low',
+    'history-detail': 'low'
+  });
   const project = data.projectBattle;
   function battle(s, mid, owner, listed) {
     for (const record of s.battles[mid] || []) {
@@ -271,7 +285,8 @@ export function createMatchService({
       actors: {},
       receipts: {},
       checkpointRevision: 0,
-      minIntervalMs: 500,
+      // Start spacing belongs to the shared scheduler; this only forces a deliberate slowdown.
+      minIntervalMs: 0,
       nextStartAt: 0,
       now: new Date(now()).toISOString(),
       fetched: 0,
@@ -1094,7 +1109,9 @@ export function createMatchService({
       if (before === s.phase) break;
     }
     if (s.phase === 'done' || s.cacheRequest) return message(s);
-    if (options.deadline && Math.max(now(), s.nextStartAt || 0) >= options.deadline) {
+    // The shared schedule owns start times and concurrency; a per-task nextStartAt would only
+    // add a second, task-local delay on top of the global ceiling.
+    if (options.deadline && now() >= options.deadline) {
       s.yielded = true;
       return message(s);
     }
@@ -1122,9 +1139,11 @@ export function createMatchService({
     };
     await Promise.all(
       ops.map(async (o) => {
-        // Serialize only launches, not requests: actual start gaps survive timer delays.
+        // A configured interval is a deliberate per-task slowdown (authorization probing and
+        // operator tests); otherwise the shared schedule is the only pacing that applies.
+        const gap = Math.max(0, s.minIntervalMs || 0);
         const ready = launches.then(async () => {
-          const startAt = Math.max(now(), s.nextStartAt || 0);
+          const startAt = gap ? Math.max(now(), s.nextStartAt || 0) : 0;
           if (options.deadline && startAt >= options.deadline) {
             s.yielded = true;
             return false;
@@ -1135,7 +1154,7 @@ export function createMatchService({
             return false;
           }
           if (fatal || (options.shouldStop && (await options.shouldStop()))) return false;
-          s.nextStartAt = now() + Math.max(0, s.minIntervalMs || 0);
+          if (gap) s.nextStartAt = now() + gap;
           s.requests++;
           if (o.kind === 'rank') s.rankRequests++;
           if (history) s.historyCalls++;
@@ -1144,7 +1163,9 @@ export function createMatchService({
         launches = ready.catch(() => {});
         if (!(await ready)) return;
         try {
-          const v = await call(env, o.path, o.params, o.body);
+          const v = await call(env, o.path, o.params, o.body, {
+            priority: PRIORITY[o.kind] || 'normal'
+          });
           await apply(s, o, v, env);
           s.receipts[o.key] = 'done';
         } catch (e) {

@@ -52,6 +52,17 @@ import {
   refundsCacheOnly,
   retriesAutomatically
 } from './task-policy.mjs';
+// A rate limit needs fewer starts; a failure needs fewer concurrent requests. Retained only for
+// the job that hit them, so one refused task cannot slow every other task down.
+export function adaptPacing(data, { rateLimitFailures = 0, reduced = false } = {}) {
+  data.concurrency = rateLimitFailures || reduced ? 1 : 3;
+  // 500ms after the first refusal, up to 2s; a manual resume alone adds no delay.
+  data.minIntervalMs = rateLimitFailures ? Math.min(2000, 500 * rateLimitFailures) : 0;
+  return data;
+}
+export const RATE_LIMIT_BACKOFF_MS = 30000,
+  FAILURE_BACKOFF_MS = 5000,
+  MAX_BACKOFF_MS = 120000;
 export class UserTasks {
   constructor(ctx, env) {
     this.ctx = ctx;
@@ -535,6 +546,14 @@ export class UserTasks {
     await this.schedule();
     return { ok: true };
   }
+  /** Exponential per error code, capped, so a long outage cannot spin the alarm either. */
+  backoff(status, { rateLimits = 0, repeats = 0 } = {}) {
+    if (status === 429)
+      return Math.min(MAX_BACKOFF_MS, RATE_LIMIT_BACKOFF_MS * 2 ** (Math.max(1, rateLimits) - 1));
+    if ([502, 504].includes(status))
+      return Math.min(MAX_BACKOFF_MS, FAILURE_BACKOFF_MS * 2 ** (Math.max(1, repeats) - 1));
+    return 0;
+  }
   async alarm() {
     if (this.executing) return;
     this.executing = true;
@@ -619,10 +638,12 @@ export class UserTasks {
                 data,
                 (await getBlob(this.storage, 'prior:' + job.id)) || { matches: [] }
               );
-            if (job.reducedConcurrency) {
-              data.concurrency = 1;
-              data.minIntervalMs = 1000;
-            }
+            // Recovery is decided per upstream error, not once per job: a rate limit and a
+            // timeout call for different remedies.
+            adaptPacing(data, {
+              rateLimitFailures: job.rateLimitFailures,
+              reduced: job.reducedConcurrency
+            });
             let persisted = -1;
             const checkpoint = async (s) => {
               if (s.checkpointRevision === persisted) return;
@@ -654,6 +675,9 @@ export class UserTasks {
               checkpoint,
               shouldStop: async () => !!(await this.storage.get('job:' + job.id))?.cancel
             });
+            // Reaching this point means the upstream accepted the query at the current pacing.
+            job.rateLimitFailures = 0;
+            job.failures = 0;
             if (data.cacheRequest) {
               job.state = 'awaiting-cache';
               job.cacheRequest = data.cacheRequest;
@@ -727,7 +751,12 @@ export class UserTasks {
         job.state =
           [429, 502, 504].includes(e.status) && job.kind === 'query' ? 'paused' : 'failed';
         job.message = e instanceof Fault ? e.message : '任务服务暂不可用';
-        job.resumeAfter = Date.now() + (e.status === 429 ? 30000 : 5000);
+        // Back off longer after repeated failures; a single rate limit keeps the established pause.
+        const rateLimits =
+            e.status === 429 ? (job.rateLimitFailures = (job.rateLimitFailures || 0) + 1) : 0,
+          repeats = (job.failures = e.status === 429 ? 0 : (job.failures || 0) + 1);
+        if (job.kind === 'query')
+          job.resumeAfter = Date.now() + this.backoff(e.status, { rateLimits, repeats });
       }
       const latest = await this.storage.get('job:' + job.id);
       if (latest?.cancel && job.kind === 'query' && job.state !== 'done') {
