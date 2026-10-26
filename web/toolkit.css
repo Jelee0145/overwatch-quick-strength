@@ -29,7 +29,7 @@
 .hub-intro{padding:34px 0 26px}
 .hub-intro h1{margin:0;font-size:32px;letter-spacing:-.8px}
 .tool-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-bottom:40px}
-.tool-art{height:auto;aspect-ratio:4/3}
+.tool-art{width:100%;height:auto;aspect-ratio:4/3}
 .tool-copy{padding:20px 22px}
 .tool-copy h2{margin:0;font-size:21px;letter-spacing:-.4px}
 .tool-copy h2 span{font-size:24px}
