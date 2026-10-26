@@ -1,6 +1,8 @@
-# 代码精简专项计划（2026-10-25 校准）
+# 代码精简专项计划（2026-10-26 完成本地实现）
 
-状态：Phase 1 的目录分层、security 拆分、v1 路由表、旧接口适配层和 auth/tasks 分派已完成；Phase 2 的懒加载器、运行时检查和测试夹具合并已完成；Phase 3（移除构建期源码手术）与 Phase 4 的文档、来源矩阵和生成物清理已在工作树完成。尚未提交、推送或部署。剩余项仅有任务创建/额度结算收敛和全量格式化，本文其余部分保留作为范围记录。上一版写于 2026-10-22；本文按当前工作树校准。
+状态（2026-10-26）：Phase 0–4 的本地实现、兼容护栏、目录整理与格式门禁已完成，位于分支 `codex/code-simplification-remaining`，基线为 `450dd5a`。旧策略与 v2 继续分别结算，历史存储格式、提示词、source/local 保持原样。本轮没有推送或部署。
+
+实测覆盖及未纳入本轮的验收边界见 [覆盖矩阵](code-simplification-coverage.md)；提交、验证结果与上线边界见 [交接文档](code-simplification-handoff.md)。下文中标明日期的规模表及早期阶段验证数是历史记录。
 
 ## 0. 校准结论
 
@@ -58,7 +60,7 @@
 | `local/` | 21 个代码文件 + 资源 | 2,998 | 独立本机版 |
 | `src/shared/`、`src/release.mjs`、`src/prompt.mjs`、`public/` | — | 生成物 | 已被 `.gitignore` 忽略 |
 
-`src/` 仍然是 1 空格缩进、多语句一行的高密度写法。行数低估了阅读成本。
+上表为 2026-10-25 历史统计；2026-10-26 已按明确范围格式化，行数不再作为精简指标。
 
 ### 2.2 主要复杂度热点
 
@@ -68,17 +70,17 @@
 | 基础 UI 来源混杂 | 已拆分（Phase 3） | 基础 UI 在 `web/base/`，增量模块在 `web/app/`，页面模板在 `web/pages/`；`source/` 只保留算法与素材 |
 | 本机同步覆盖云端 UI | 已收窄（Phase 3） | `sync-local` 只同步算法、数据和提示词；默认预检，写入需 `--apply --only=<file>`；图表不参与同步 |
 | 两套代码树仍有分叉 | `source/` 与 `local/` | 网页 UI 已分家；共享算法仍有少量差异，忽略行尾后约 core 22 行、chart 19 行，包含 `QS.summarize` 与固定坐标轴等云端能力 |
-| 旧接口与 v1 并行 | `src/worker.mjs:18-48`、`src/api/v1.mjs` | `/api/*` 与 `/api/v1/*` 各有一套路由、参数翻译和任务策略 |
-| HTTP 层承载历史策略 | `src/api/v1.mjs:42-64` | 历史分析分支约 22 行，包含 catalog 查询、revision 冲突、响应缓存、slim 投影和预热入口 |
-| 任务状态机单函数 | 已拆分（Phase 1） | `src/actors/tasks.mjs` 用路由映射分派到小处理器 |
-| 账号状态机单函数 | 已拆分（Phase 1） | `src/actors/auth.mjs` 用路由映射分派到小处理器 |
-| 安全模块职责混杂 | `src/security.mjs` | 错误、随机数/摘要、密码、Cookie、响应、快照签名、密钥加密、Blob 存储混在 27 行内 |
+| 旧接口与 v1 并行 | `src/api/legacy.mjs`、`src/api/v1.mjs` | 赛事共用 application；账号别名通过 legacy 翻译，保留响应与鉴权差异 |
+| HTTP 层承载历史策略 | `src/api/history.mjs`、`src/history/response.mjs` | 历史分析处理器及响应缓存已移出 v1 路由表；继续收敛应先确认剩余职责边界 |
+| 任务状态机入口 | 已拆分（Phase 1） | `src/actors/tasks.mjs` 用路由映射分派到小处理器 |
+| 账号状态机入口 | 已拆分（Phase 1） | `src/actors/auth.mjs` 用路由映射分派到小处理器 |
+| 安全兼容导出 | `src/security.mjs` | 仅再导出，实际职责已分到 lib/http/services |
 | 历史模块边界 | `src/history/` | 存储、分析、视图、缓存与预热分文件 |
 | 赛事模块 | `src/events/` | center、queries、parser、filter、broadcasts、source、freshness 同目录 |
 | 懒加载器重复 | 已合并（Phase 2） | `web/lazy-loader.js` 按需加载 extras、手机布局和提醒 |
 | 运行时检查入口重复 | 已合并（Phase 2） | `scripts/runtime-check-suites.mjs` 按 suite 运行四个原生检查 |
-| 测试夹具重复 | `test/*.test.mjs` | 至少 6 个测试各自实现 fake storage / env / clock |
-| 脚本继续膨胀 | `scripts/` | 已增至 46 个；发布、迁移、诊断、构建混在同一层 |
+| 测试夹具 | `test/helpers/` | 共享 storage 与任务环境；不同领域保留各自的时钟/数据夹具 |
+| 脚本分层 | `scripts/` | 稳定运维入口保留根层，build/ 与 diagnostics/ 分离 |
 
 ### 2.3 必须保留的兼容面
 
@@ -132,7 +134,7 @@ src/lib/、src/http/ 加密、快照签名、Blob、HTTP 响应
 | 云端网页基础 | `web/base/`（`app.js`、`style.css`、`data.js`）+ `web/app/` 模块 + `web/pages/strength.html` | `source/` 只保留算法与媒体；`public/` 只生成；`local/` 独立 |
 | 云端网页增量 | `web/` | `public/` 只生成 |
 | 历史存储 | `src/history/cloud-history.mjs` + v2 迁移/回退测试 | 只允许移动文件，不允许改格式 |
-| 旧接口行为 | `src/http/legacy.mjs` + 黄金测试 | 只翻译，不复制 v1 业务规则 |
+| 旧接口行为 | `src/api/legacy.mjs` + 现有兼容测试 | 只翻译，不复制 v1 业务规则 |
 
 Phase 3 已完成来源拆分：基础 UI 移到 `web/base/`，增量逻辑拆到 `web/app/`，页面模板归 `web/pages/`；`sync-local.mjs` 只同步算法、数据和提示词。图表由 `source/chart.js` 与 `local/chart.js` 各自维护。
 
@@ -140,20 +142,12 @@ Phase 3 已完成来源拆分：基础 UI 移到 `web/base/`，增量逻辑拆�
 
 每个阶段独立可回滚。阶段内先加测试，再改行为；测试与行为改动不放在同一个提交。重构期间不直接推 `main`，避免触发服务器自动发布。
 
-### Phase 0：基线与护栏（不改生产代码）
+### Phase 0：基线与护栏（已完成）
 
-- 以当前 `a1580f7` 为基线，实测并记录：`npm test`、`npm run build`、`npm run server:build`、`npm run web:package`、`npm run check`。
-- 记录 `public/static/*` 文件清单、启动预算、渲染 SVG 摘要、Bot capture 摘要。
-- 为 v1 与旧 `/api/*` 每个路由建立固定夹具的黄金响应测试。
-- 为历史分析的 `slim` / 完整视图、响应缓存命中/未命中、revision 冲突建立黄金测试。
-- 为历史存储 v2 建立合成数据夹具：legacy → v2 迁移、并发 push、容量拒绝、失败回滚、`history-storage-rollback.mjs` dry-run/恢复/再升级。
-- 为旧任务状态（`policyVersion` 1/2、`active:*`、`awaiting-cache`、旧 `dedupe:*`）建立恢复夹具。
-- 为赛事刷新窗口、补查队列和提醒调度建立固定时钟测试。
-- 为图表建立 SVG 黄金测试，覆盖 Bot 固定十场、历史窗口、统计范围切换。
-- 建立 `test/architecture.test.mjs`，先固定当前依赖图，随阶段收紧。
-- 建立 `test/helpers/`：统一 fake storage、env、clock、fixture 构造。
-
-验收：现有测试全绿；黄金夹具来自当前实现；不修改任何生产源码。历史 v2 迁移、回退、旧任务结算和 Bot 十场已有测试覆盖，Phase 0 先盘点缺口，不重复重建全部护栏。
+- 基线 `450dd5a`：构建、321 项工作区测试和 4 项原生检查通过；逐项覆盖盘点见 [覆盖矩阵](code-simplification-coverage.md)。
+- 新增依赖方向图检查、多账号历史回退失败/恢复矩阵、任务策略兼容矩阵及 5v5/6v6 SVG golden，共新增 28 项测试。
+- `test/helpers/tasks.mjs` 共享任务环境、额度账本、请求、完成等待和上游夹具；赛事/提醒继续使用已有注入时钟，任务矩阵使用 Node mock Date，避免包装不同 fixture 世界。
+- 网页生成清单和哈希已对比；Bot capture 已重新生成并验证两分支执行。验收范围与结果见交接。
 
 ### Phase 0.5：同步止损（已完成）
 
@@ -161,9 +155,9 @@ Phase 3 已完成来源拆分：基础 UI 移到 `web/base/`，增量逻辑拆�
 - 只同步算法、数据和提示词；网页基底和图表不再参与同步。
 - 写入前先预检；存在缺失、未提交改动或未知目标时中止，不部分写入。
 - 图表不再同步：`source/chart.js` 为云端权威源，`local/chart.js` 独立维护；构建补丁已随 Phase 3 移除，不再需要漂移测试。
-- 验收由 `test/sync-local.test.mjs` 覆盖写入边界，`test/source-layout.test.mjs` 覆盖来源归属。
+- 验收由 `test/release/sync-local.test.mjs` 覆盖写入边界，`test/architecture/source-layout.test.mjs` 覆盖来源归属。
 
-### Phase 1：结构与入口（工作树已完成）
+### Phase 1：结构与入口（已完成）
 
 前置条件：Phase 0.5 已让同步默认不覆盖云端差异。
 
@@ -173,26 +167,12 @@ Phase 3 已完成来源拆分：基础 UI 移到 `web/base/`，增量逻辑拆�
 - `src/security.mjs` 改为兼容 barrel，实现拆到 `src/lib/crypto.mjs`、`secrets.mjs`、`snapshots.mjs`、`blobs.mjs` 和 `src/http/response.mjs`；所有既有导入路径和 `Fault` 身份保持不变。
 - `src/api/v1.mjs` 改为有序路由描述符，历史分析分支移到 `src/api/history.mjs`，`analysisResponseCache` 仍在 `v1.mjs` 再导出。
 - 旧 `/api/*` 整块移到 `src/api/legacy.mjs`，`worker.mjs` 只做分派。
-- `tasks.handle()` 与 `auth.handle()` 改为路由映射加小处理器；任务创建、额度、去重与兼容策略未合并，留待 Phase 2。
-- 验证：303 项测试、四个原生运行时检查、`npm run build`、`npm run server:build` 通过。
+- `tasks.handle()` 与 `auth.handle()` 改为路由映射加小处理器；任务机械创建与策略判定已在 Phase 2 收敛，参数翻译和不同结算语义仍独立。
+- 历史验证记录：Phase 1 完成时通过 303 项测试、四个原生运行时检查、`npm run build`、`npm run server:build`；这是阶段记录，不代表当前 HEAD 的重新验证。
 
-以下为原计划清单，保留作为范围记录：
+Phase 1 的目录分层、模块拆分和入口收敛已完成，具体现状见上方“完成情况”和 `docs/unified-backend.md`。`server/analysis-encoding.mjs` 保留在宿主适配层；`src/shared/` 由构建生成。
 
-- 按 3.1 建立 `http/`、`actors/`、`history/`、`events/`、`query/`、`adapters/`、`lib/` 目录，先移动文件并更新 import。
-- 拆分 `security.mjs` 为 `lib/crypto`、`lib/snapshots`、`lib/blobs`、`http/response`、`http/errors`；保留短期 barrel。
-- `src/api/v1.mjs` 从 if 链改为路由表；把历史分析分支整体移入 `src/history/handler.mjs`，HTTP 层只做鉴权、参数和响应。
-- 把 `worker.mjs` 的旧 `/api/*` 块移入 `src/http/legacy.mjs`，文件头写明“行为冻结，只做翻译”。
-- `src/tasks.mjs` 的 `handle()` 改为 `handlers` 映射；`src/auth.mjs` 同样处理。只移动代码，不改条件。
-- `src/application/history-cache.mjs` 归入 `src/history/cache.mjs`（实际按领域放置，而不是 `lib/`）；`history-response.mjs` 归入 `src/history/response.mjs`，缓存键、预热和容量语义不变。
-- `server/analysis-encoding.mjs` 仍留在 `server/`；压缩协商目前只有一处调用，未再移动。
-- `web/` 的三个懒加载器已合并为 `web/lazy-loader.js`（Phase 2）。
-- `src/shared` 的全局读取已集中在 `services/runtime.mjs` 和 `api/chart.mjs` 的图表构造处；没有其他模块直接读 `globalThis.QS*`。
-- **来源拆分已在 Phase 3 完成**：`web/base/`、`web/app/`、`web/pages/` 已接管网页；`source/` 只保留算法与媒体。本阶段不再搬运这些文件。
-- 后续路径读取调整落在 `scripts/build-web.mjs`；`scripts/build.mjs` 保持薄入口。
-
-验收：黄金响应逐字节一致；完整测试、构建、打包通过；依赖方向测试通过；`sync-local` 不再触碰网页文件。
-
-### Phase 2：去重与收敛（部分完成）
+### Phase 2：去重与收敛（已完成）
 
 已完成：
 
@@ -200,26 +180,18 @@ Phase 3 已完成来源拆分：基础 UI 移到 `web/base/`，增量逻辑拆�
 - 四个原生运行时检查合并为 `scripts/runtime-check-suites.mjs`，`npm test` 只调用一个入口。
 - 后端测试的内存存储合并为 `test/helpers/storage.mjs`；`cloud-history` 因容量断言保留局部子类。
 
-仍待完成（保留策略，不改变行为）：
+本轮完成：
 
-- 统一任务创建与额度结算入口，合并 `createUnified` 与旧 `/query` 分支。
-- 按域整理测试目录、诊断脚本和发布脚本；不改变 `npm test` 的发现规则。
+- `createUnified` 与 legacy handler 共用 `createJob` / `persistCreation`；`src/actors/task-policy.mjs` 集中表达失败退款、缓存命中退款和自动恢复。保留 policyVersion 1/2 的所有差异。
+- Node 测试按领域归档；`npm test` 递归发现全部 test 子目录及根目录测试，保留 tests/ 的独立包集成测试；`server:test`、`plugin:test` 已更新引用。
+- 构建 helpers 进入 `scripts/build/`，六个诊断/预览脚本进入 `scripts/diagnostics/`。运维、CI 和 package 使用的根目录入口保留，避免增加转发包装层；见 `scripts/README.md`。
+- v1 与旧接口已共用赛事 application；账号路径通过既有 legacy alias 翻译，未发现需要新增 application 的重复规则。历史 HTTP 组合继续留在 api 层，响应/评分缓存留在 history 层。
+- 对局投影归 `src/services/match-view.mjs`，消除 history/actors 对 api 的反向依赖，`src/api/match.mjs` 保留兼容导出。
+- `deploy/split-release.mjs` 确有导出/测试契约，已保留并说明其与当前发布入口的区别。
 
-以下为原计划清单：
+验收：兼容矩阵及完整 Node/workerd 测试通过，package 命令保持可用。
 
-- 统一任务创建：把 `createUnified` 与旧 `/query` 分支收敛为一个策略驱动的 `createJob`，显式参数为 `api`、`legacy`、`policyVersion`。
-- 统一账号/赛事路由翻译：v1 与旧 `/api/*` 共享同一 application 函数；语义不同的地方集中记录在一张对照表。
-- 统一额度结算、退款、过期清理的入口；保留旧任务记录字段。
-- 历史分析：把 revision 冲突、catalog 查询、缓存键、预热策略集中到 `history/`，`api/v1.mjs` 不再直接持有 `analysisResponseCache`。
-- 赛事：把 `events*.mjs` 归入 `events/`，`EventCenter` 只保留生命周期和存储边界；刷新间隔继续使用 `events-freshness.mjs`。
-- 合并运行时检查入口为 `scripts/runtime-check-suites.mjs`（已完成）。
-- 合并测试夹具为 `test/helpers/storage.mjs`（已完成）；按域整理测试目录仍待定，不改变测试发现规则。
-- 诊断脚本归类到 `scripts/diagnostics/`；发布脚本归类到 `scripts/release/`；只在确认无引用后删除。
-- `deploy/split-release.mjs` 标记为历史工具；在 `tests/build-boundaries.test.mjs` 迁移完成前不删除。
-
-验收：黄金测试全绿；历史 v2 迁移/回退夹具全绿；任务/额度/历史兼容夹具全绿；脚本入口数量下降且 `package.json` 契约不变。
-
-### Phase 3：移除构建期源码手术（工作树已完成）
+### Phase 3：移除构建期源码手术（已提交）
 
 Phase 3 已在当前工作树单独完成，不再依赖 Phase 1/2 的目录收敛。
 
@@ -231,11 +203,11 @@ Phase 3 已在当前工作树单独完成，不再依赖 Phase 1/2 的目录收�
 验收状态：
 
 - `scripts/build.mjs` 不再对 `app.js` / `chart.js` 做 `indexOf` 或整段 `replace`；`test/source-layout.test.mjs` 锁定入口与来源。
-- 功能清单、页面 DOM id/class、脚本顺序和懒加载边界保持不变；启动预算与 Bot capture 仍需在合入前复核。
+- 历史验收记录：功能清单、页面 DOM id/class、脚本顺序和懒加载边界通过当时对比；启动预算与 Bot capture 应以当前 HEAD 的构建验收为准。
 - `local/` 独立启动仍可用；`sync-local` 不再覆盖网页 UI 或图表。
-- 本阶段改动仅存在于工作树，未提交、未推送、未部署，也未做生产验收。
+- 本阶段已提交并推送至 `main`；提交 `450dd5a` 的 Nginx 改动已在线应用。生产部署 revision 与网页资源校验已在本轮前的发布验收中完成；当前交接不代表重新执行了线上探测。
 
-### Phase 4：可读性与长期护栏（部分完成）
+### Phase 4：可读性与长期护栏（已完成）
 
 已完成：
 
@@ -243,14 +215,14 @@ Phase 3 已在当前工作树单独完成，不再依赖 Phase 1/2 的目录收�
 - 在 `scripts/build-web.mjs`、`web/app/` 模块和 `source/chart.js` 的边界处保留必要说明；没有为每个函数补注释。
 - `scripts/build-web.mjs` 构建前清理 `public/assets`、`public/static`、`public/media`、`public/tools`，避免历史哈希文件累积；`test/source-layout.test.mjs` 锁定来源与构建入口。
 
-暂缓：
+本轮完成：
 
-- 对作者维护的云端源码统一格式（2 空格、单语句一行、printWidth 100）；排除 `src/shared/`、`public/` 和生成物。全量格式化应单独分支、单独提交，避免掩盖逻辑改动。
-- `source/`、`local/` 是否格式化单独决定；它们与上游算法/本机版同步，格式化会增加同步冲突。
-- 增加 `.git-blame-ignore-revs`，避免格式化提交污染 blame。
-- 格式检查和启动预算固化；现有 `npm test`、`test/source-layout.test.mjs`、打包与 dry-run 先作为门禁。
+- 作者维护的云端 JS/MJS 与测试使用 Prettier 3.9.10，2 空格、100 列；排除生成物、source/local、提示词和其他人的 upstream 工作。CSS/HTML/Python 保持现状，见覆盖矩阵的明确范围。
+- 格式化独立提交 `63286ba`，写入 `.git-blame-ignore-revs`；`format` / `format:check` 已提供，CI 执行格式检查。
+- 启动预算复用 media 测试，由 CI 与发布前完整 npm test 执行；来源、打包和 dry-run 继续复用已有检查，不新增同义门禁。
+- 修正两处依赖固定空格的测试抽取/断言；抽取页职责文案直接维护在组件中，移除构建时对该源码表达式的替换。
 
-验收：完整测试、构建、打包、dry-run 通过；文档与实际目录一致；无部署动作。本次已通过 303 项测试、四个原生运行时检查、`npm run check`、`npm run server:build` 和 `npm run web:package`。
+验收：完整测试、构建、两类独立包及 dry-run 的当前结果见 [交接](code-simplification-handoff.md)。
 
 ## 5. 验收指标
 
@@ -259,16 +231,16 @@ Phase 3 已在当前工作树单独完成，不再依赖 Phase 1/2 的目录收�
 | 构建期对 `app.js` / `chart.js` 的源码手术 | 0（Phase 3 已移除） | 0 |
 | 云端网页基础 UI 来源 | `web/base/` + `web/app/` + `web/pages/` | 保持 |
 | `sync-local` 复制的网页或图表文件 | 0；只同步算法、数据和提示词 | 保持 |
-| 旧接口与 v1 的路由实现 | 两套并行 if 链 | 1 个 v1 路由表 + 1 个冻结兼容层 |
-| `tasks.handle()` 分支 | 13 个内部路径集中在一个函数 | 每路径一个 handler |
-| `auth.handle()` 分支 | 约 19 个路径集中在一个函数 | 每路径一个 handler |
-| 安全模块职责 | 8 类混在 1 个文件 | 5 个单一职责模块 |
-| HTTP 层历史策略 | `api/v1.mjs` 内约 22 行缓存/revision/投影 | 0，移入 `history/` |
-| 赛事模块 | 8 个文件平铺根目录 | `events/` 一个领域目录 |
+| 旧接口与 v1 的路由实现 | `src/api/v1.mjs` 有序路由表 + `src/api/legacy.mjs` 兼容适配 | 保持两层边界；共享 application 仅按具体语义评估 |
+| `tasks.handle()` 分支 | 路由映射与小 handler | 保持 |
+| `auth.handle()` 分支 | 路由映射与小 handler | 保持 |
+| 安全模块职责 | `src/security.mjs` 为兼容 barrel | 实现分布于 `src/lib/`、`src/http/`、`src/services/` |
+| HTTP 层历史策略 | `api/history.mjs` 组合处理，响应缓存位于 `history/response.mjs` | 路由层不直接实现历史缓存策略 |
+| 赛事模块 | `src/events/` 领域目录 | 保持 |
 | 懒加载器 | 1 个通用 loader | 保持 |
 | 运行时检查入口 | 1 个 runner + 4 个 suite | 保持 |
 | 测试夹具 | 1 套 helpers（storage 共享，cloud-history 保留局部子类） | 保持 |
-| 脚本数量 | 46 | 不增加；按构建/发布/诊断分层 |
+| 脚本组织 | 原有脚本按 build/diagnostics 分层 | 稳定 package/运维入口不变 |
 | 功能回归 | 以 Phase 0 实测为基线 | 全部通过并新增黄金测试 |
 | 历史存储 v2 | 迁移、回退、revision 语义 | 逐字节保持；仅允许移动文件 |
 
@@ -323,14 +295,11 @@ Phase 3 已在当前工作树单独完成，不再依赖 Phase 1/2 的目录收�
 
 1. `source/` 的定位（已定）：基础 UI 在 `web/base/`，增量模块在 `web/app/`，页面模板在 `web/pages/`；`source/` 只保留算法、数据、提示词、图表和媒体；`local/` 保持独立。
 2. 图表统一（已定）：`source/chart.js` 扩展可选参数，让浏览器和后端共用一份渲染器；API/Bot 默认输出不变。
-3. 格式化范围：默认只格式化作者维护的云端源码，不动 `source/` 与 `local/`；若希望全仓库统一，再单独安排同步策略。
+3. 格式化范围（已定）：作者维护的云端 JS/MJS 与 Node 测试；不动 `source/`、`local/`、生成物、提示词或本轮已有 upstream 工作。CSS/HTML/Python 不在此门禁内。
 4. 旧 `/api/*` 的退役时间：本计划只冻结和隔离，不退役；退役需要先确认所有客户端已迁移。
 
-## 10. 交付物
+## 10. 文档入口
 
-- 本方案：`docs/code-simplification-plan.md`
-- Phase 3 工作树实现：`scripts/build.mjs`、`scripts/build-web.mjs`、`web/base/`、`web/app/`、`web/pages/strength.html`、`source/chart.js`
-- Phase 4 部分实现：来源矩阵与目录职责文档、模块边界说明、生成目录清理；全量格式化与 `.git-blame-ignore-revs` 暂缓
-- Phase 0 基线报告：测试、构建、产物清单、预算、黄金夹具
-- 每阶段的重构提交与验收记录
-- 最终架构说明：来源矩阵、目录职责、依赖规则、历史 v2 与发布边界
+- 专项目标、约束和阶段完成情况：本文。
+- 当前仓库事实、未完成工作、建议执行顺序与风险边界：[代码精简交接](code-simplification-handoff.md)。
+- 后端分层和运行/发布边界：[统一后端说明](unified-backend.md)、`AGENTS.md`、`STANDALONE.md`。

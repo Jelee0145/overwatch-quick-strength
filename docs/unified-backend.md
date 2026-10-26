@@ -67,7 +67,7 @@
 
 `source/` 是云端算法、数据、提示词、图表和媒体权威源，网页基础定义归 `web/base/`，云端增量模块在 `web/app/`，页面模板在 `web/pages/`；`src/shared/` 为生成文件，不要手工改生成文件或隐式执行 `sync-local`。`scripts/build.mjs` 只做入口编排，网页由 `scripts/build-web.mjs` 组装；`source/chart.js` 同时供浏览器与后端使用，不做构建期替换。同步脚本默认只预检，只同步算法、数据和提示词，写入必须显式 `--apply --only=<file>`。旧本机工具及 stdio Bot 作为独立旧模式保留，统一线上入口使用 API Bot。运行仍为一个 Node 24 实例和一个 SQLite 文件，尚未引入多实例锁或分布式队列。
 
-后端默认仅服务 API、renderer 媒体只供内部出图。组合开发预览可设 `OWQS_SERVE_WEB=1`，网页根目录可设 `OWQS_WEB_ROOT`，renderer 可设 `OWQS_RENDERER_ROOT`。仓库内 `scripts/preview-unified.mjs` 使用内存数据库和合成数据，经桌面预览启动，不读取真实配置。
+后端默认仅服务 API、renderer 媒体只供内部出图。组合开发预览可设 `OWQS_SERVE_WEB=1`，网页根目录可设 `OWQS_WEB_ROOT`，renderer 可设 `OWQS_RENDERER_ROOT`。仓库内 `scripts/diagnostics/preview-unified.mjs` 使用内存数据库和合成数据，经桌面预览启动，不读取真实配置。
 
 Nginx 模板将 `/api/*` 转发 Node、网页指向 `/opt/owqs/web-current/public`；保护页面使用内部会话校验并保留登录跳转，管理员登录 HTML 公共、操作 API 单独授权。保持原 origin、Host、Cookie、SW 根路径、gzip 和安全头。必须在目标服务器上通过 nginx 配置验证，再按单独授权发布。
 

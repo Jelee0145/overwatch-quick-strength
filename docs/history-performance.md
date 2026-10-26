@@ -24,7 +24,7 @@
 
 ## 可复现测量
 
-`node --expose-gc scripts/history-performance-benchmark.mjs` 使用确定性合成账号，与 `ea1b059` 的 slim 投影规则比较。测试中名字、英雄、段位重复较多，gzip 比真实数据更容易压缩；不能用它推断真实账号的压缩率。每次测量不访问私有文件或生产接口。
+`node --expose-gc scripts/diagnostics/history-performance-benchmark.mjs` 使用确定性合成账号，与 `ea1b059` 的 slim 投影规则比较。测试中名字、英雄、段位重复较多，gzip 比真实数据更容易压缩；不能用它推断真实账号的压缩率。每次测量不访问私有文件或生产接口。
 
 | 合成账号 | 原 slim JSON | 当前 slim JSON | 当前 gzip | 当前 brotli | 冷计算 | 缓存后不同窗口/统计 P95 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -35,7 +35,7 @@
 
 ## 浏览器验收
 
-可选脚本：`node scripts/history-browser-check.mjs --output <绝对目录>`。需要已有 Playwright 模块与 Chrome，可用 `OWQS_PLAYWRIGHT_MODULE` 指定模块路径、`OWQS_BROWSER_CHANNEL` 指定已有浏览器渠道；不会自动安装浏览器或连接生产环境。当前环境没有 Browser plugin，使用已有 Playwright + Chrome。
+可选脚本：`node scripts/diagnostics/history-browser-check.mjs --output <绝对目录>`。需要已有 Playwright 模块与 Chrome，可用 `OWQS_PLAYWRIGHT_MODULE` 指定模块路径、`OWQS_BROWSER_CHANNEL` 指定已有浏览器渠道；不会自动安装浏览器或连接生产环境。当前环境没有 Browser plugin，使用已有 Playwright + Chrome。
 
 流程：本机内存 SQLite 注册并授权合成账号 → 500 场签名历史同步 → 首次图表 → 桌面评分详情 / 手机数据与评分详情 → 手机放大 → 连续翻窗 → 切换统计范围 → 打开历史并完成同步。
 
