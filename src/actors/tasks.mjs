@@ -698,11 +698,6 @@ export class UserTasks {
             };
             job.message = await runQuery(data, this.env, {
               checkpoint,
-              accountMatches:
-                job.apiOptions?.syncHistory === false
-                  ? undefined
-                  : async (ownerName) =>
-                      (await this.priorFromHistory(job.user, ownerName))?.matches || [],
               shouldStop: async () => !!(await this.storage.get('job:' + job.id))?.cancel
             });
             // Reaching this point means the upstream accepted the query at the current pacing.
