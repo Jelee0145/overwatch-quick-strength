@@ -5,8 +5,7 @@
 // button never wastes a click. Existing jobs still poll and finish, and saved history, charts,
 // exports and AI review are untouched.
 let querySuspended = false;
-const SUSPENDED_NOTICE =
-  '上游数据接口故障，昵称查询已暂停；历史记录与已保存结果仍可正常查看。';
+const SUSPENDED_NOTICE = '上游数据接口故障，昵称查询已暂停；历史记录与已保存结果仍可正常查看。';
 async function request(path, body) {
   return Cloud.api(path, body);
 }

@@ -35,7 +35,7 @@ test('a detail exposes one customerToken per participant, on both sides', () => 
   assert.equal(rows.length, 3);
 });
 
-test('the caller\'s own token is separated from other players', () => {
+test("the caller's own token is separated from other players", () => {
   const rows = [
     { name: 'Me#100', side: 'T', token: 'own' },
     { name: 'Other#200', side: 'E', token: 'other' }
@@ -50,33 +50,53 @@ test('the caller\'s own token is separated from other players', () => {
 
 test('profile and list responses are unwrapped like the production adapter', async () => {
   const seen = [];
-  const card = await get(credential, '/customer/queryCard', { token: 'ct' }, {
-    fetcher: async (url, init) => {
-      seen.push({ url: String(url), init });
-      return reply({ code: 0, data: { name: 'Other#200', customerToken: 'ct2' } });
+  const card = await get(
+    credential,
+    '/customer/queryCard',
+    { token: 'ct' },
+    {
+      fetcher: async (url, init) => {
+        seen.push({ url: String(url), init });
+        return reply({ code: 0, data: { name: 'Other#200', customerToken: 'ct2' } });
+      }
     }
-  });
+  );
   assert.equal(card.verdict, 'ok');
   assert.equal(card.value.name, 'Other#200');
   assert.equal(seen[0].init.method, 'GET');
   // Tokens stay in the query string and headers, never in the credential's printed summary.
   assert.ok(!JSON.stringify(card).includes(credential.DASHEN_TOKEN));
   // A nested data wrapper is unwrapped too, matching the adapter's three-level walk.
-  const nested = await get(credential, '/queryCard', {}, {
-    fetcher: async () => reply({ code: 0, data: { data: { name: 'Deep#300' } } })
-  });
+  const nested = await get(
+    credential,
+    '/queryCard',
+    {},
+    {
+      fetcher: async () => reply({ code: 0, data: { data: { name: 'Deep#300' } } })
+    }
+  );
   assert.equal(nested.value.name, 'Deep#300');
 });
 
 test('empty and rejected responses stay distinguishable for other players', async () => {
-  const empty = await get(credential, '/customer/queryCard', { token: 'ct' }, {
-    fetcher: async () => reply({ code: 0, success: true })
-  });
+  const empty = await get(
+    credential,
+    '/customer/queryCard',
+    { token: 'ct' },
+    {
+      fetcher: async () => reply({ code: 0, success: true })
+    }
+  );
   assert.equal(empty.verdict, 'empty-success');
   assert.equal(empty.ok, false);
-  const rejected = await get(credential, '/customer/queryMatchList', { token: 'bad' }, {
-    fetcher: async () => reply({ code: 401, errMsg: 'Token Invalid' }, 401)
-  });
+  const rejected = await get(
+    credential,
+    '/customer/queryMatchList',
+    { token: 'bad' },
+    {
+      fetcher: async () => reply({ code: 401, errMsg: 'Token Invalid' }, 401)
+    }
+  );
   assert.equal(rejected.verdict, 'credential-rejected');
 });
 

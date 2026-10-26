@@ -1,11 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import {
-  UserTasks,
-  QUERY_SUSPENDED_MESSAGE,
-  querySuspended
-} from '../../src/actors/tasks.mjs';
+import { UserTasks, QUERY_SUSPENDED_MESSAGE, querySuspended } from '../../src/actors/tasks.mjs';
 import { setup, request, start } from '../helpers/tasks.mjs';
 
 const root = new URL('../../', import.meta.url);

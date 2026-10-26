@@ -34,24 +34,39 @@ test('an authorised but empty payload is classified separately from a rejection'
   });
   assert.equal(empty.verdict, 'empty-success');
   assert.equal(empty.ok, false);
-  const rejected = await request(credential, '/queryCard', {}, {
-    fetcher: async () => reply({ code: 401, errMsg: 'Token Invalid' }, 401)
-  });
+  const rejected = await request(
+    credential,
+    '/queryCard',
+    {},
+    {
+      fetcher: async () => reply({ code: 401, errMsg: 'Token Invalid' }, 401)
+    }
+  );
   assert.equal(rejected.verdict, 'credential-rejected');
-  const limited = await request(credential, '/queryCard', {}, {
-    fetcher: async () => reply({ code: 429 }, 429)
-  });
+  const limited = await request(
+    credential,
+    '/queryCard',
+    {},
+    {
+      fetcher: async () => reply({ code: 429 }, 429)
+    }
+  );
   assert.equal(limited.verdict, 'rate-limited');
 });
 
 test('a data payload is unwrapped and reported as usable', async () => {
   const seen = [];
-  const result = await request(credential, '/queryCard', { roleId: 12345 }, {
-    fetcher: async (url, init) => {
-      seen.push({ url: String(url), init });
-      return reply({ code: 0, data: { name: 'Probe#123', customerToken: 'ct-value' } });
+  const result = await request(
+    credential,
+    '/queryCard',
+    { roleId: 12345 },
+    {
+      fetcher: async (url, init) => {
+        seen.push({ url: String(url), init });
+        return reply({ code: 0, data: { name: 'Probe#123', customerToken: 'ct-value' } });
+      }
     }
-  });
+  );
   assert.equal(result.verdict, 'ok');
   assert.equal(result.ok, true);
   assert.equal(result.value.customerToken, 'ct-value');
@@ -78,11 +93,16 @@ test('a body-carrying request is a POST with JSON content type', async () => {
 });
 
 test('transport failure is reported without throwing', async () => {
-  const result = await request(credential, '/queryCard', {}, {
-    fetcher: async () => {
-      throw Object.assign(new Error('down'), { name: 'TimeoutError' });
+  const result = await request(
+    credential,
+    '/queryCard',
+    {},
+    {
+      fetcher: async () => {
+        throw Object.assign(new Error('down'), { name: 'TimeoutError' });
+      }
     }
-  });
+  );
   assert.equal(result.verdict, 'network-error');
   assert.equal(result.ok, false);
   assert.equal(result.status, 0);
@@ -106,7 +126,9 @@ test('the verdict names the observed incident: search empty while the card path 
 
 test('credential loading accepts both config and credential field names', () => {
   const file = new URL('./credential-fixture.json', import.meta.url);
-  assert.throws(() => loadCredential(new URL('./missing.json', import.meta.url)), { code: 'ENOENT' });
+  assert.throws(() => loadCredential(new URL('./missing.json', import.meta.url)), {
+    code: 'ENOENT'
+  });
   // A directory is rejected before any read.
   assert.throws(() => loadCredential(new URL('.', import.meta.url)), /普通文件/);
   return file;
