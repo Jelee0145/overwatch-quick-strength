@@ -1,6 +1,6 @@
 import {analysisService,dataService} from '../services/runtime.mjs';
 import {Fault,canonical,digest} from '../security.mjs';
-import {projectApiMatch} from '../api/match.mjs';
+import {projectApiMatch} from '../services/match-view.mjs';
 import {compactWebMatch} from './view.mjs';
 
 import * as historyModel from '../services/history-geometry.mjs';
