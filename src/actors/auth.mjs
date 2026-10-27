@@ -325,6 +325,17 @@ export class AuthDirectory {
       return {
         users: [...(await this.storage.list({ prefix: 'user:' }))].map(([, u]) => this.view(u))
       };
+    if (i.path === '/admin/query-control') {
+      const control = this.env.QUERY_CONTROL;
+      if (!control) {
+        if (i.mutation) throw new Fault('当前后端不支持查询热开关', 503);
+        return { supported: false, suspended: querySuspended(this.env) };
+      }
+      if (!i.mutation) return control.snapshot();
+      const result = await control.setManual(b.mode);
+      await this.audit('query-control:' + b.mode, null);
+      return result;
+    }
     const u = await this.storage.get('user:' + String(b.id));
     if (!u) throw new Fault('玩家不存在', 404);
     if (i.path === '/admin/access' || i.path === '/admin/quota') {

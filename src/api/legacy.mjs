@@ -20,13 +20,17 @@ export async function legacyApi(request, env, url, path) {
     '/api/admin/session': '/admin/session',
     '/api/admin/logout': '/admin/logout',
     '/api/admin/users': '/admin/users',
+    '/api/admin/query-control': '/admin/query-control',
     '/api/admin/access': '/admin/access',
     '/api/admin/quota': '/admin/quota',
     '/api/admin/reset': '/admin/reset'
   };
   if (publicRoutes[path] || authRoutes[path]) {
     const internal = publicRoutes[path] || authRoutes[path];
-    if (['/session', '/admin/session', '/admin/users'].includes(internal) ? mutation : !mutation)
+    if (
+      internal !== '/admin/query-control' &&
+      (['/session', '/admin/session', '/admin/users'].includes(internal) ? mutation : !mutation)
+    )
       throw new Fault('请求方法错误', 405);
     const value = await authCall(env, internal, i.body, i),
       headers = {};

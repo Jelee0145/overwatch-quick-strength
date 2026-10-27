@@ -23,6 +23,7 @@ generate();
     const session = await Cloud.boot();
     // Query availability comes from the server, so reopening it needs no redeploy.
     if (session?.capabilities) setSuspended(!session.capabilities.queries);
+    startQueryAvailabilityRefresh();
     const latest = await Cloud.latest();
     if (latest.historyTag) await openHistory(latest.historyTag);
     else if (latest.result) {

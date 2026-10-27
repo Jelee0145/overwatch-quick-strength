@@ -296,6 +296,44 @@ paths:
         '200': {description: Legacy admin response}
   /admin/users:
     get: *adminRead
+  /admin/query-control:
+    get:
+      summary: Read Node query switch and redacted daily probe status
+      security: [{adminSession: []}]
+      responses:
+        '200':
+          description: Runtime control status; supported=false on other runtimes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  supported: {type: boolean}
+                  suspended: {type: boolean}
+                  forced: {type: boolean}
+                  manual: {type: string, enum: [auto, paused]}
+                  autoSuspended: {type: boolean}
+                  verified: {type: boolean}
+                  lastCheckedAt: {type: integer, nullable: true, description: Unix milliseconds}
+                  nextCheckAt: {type: integer, description: Unix milliseconds}
+                  verdict: {type: string, description: Redacted probe outcome}
+    post:
+      summary: Manually pause queries or restore automatic control (Node only)
+      security: [{adminSession: []}]
+      parameters:
+        - {in: header, name: X-CSRF-Token, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode: {type: string, enum: [auto, paused]}
+      responses:
+        '200': {description: Updated runtime control status; force-pause still takes priority}
+        '503': {description: Runtime does not support query hot switching}
   /admin/logout:
     post: &adminWrite
       summary: Admin cookie-only alias with unchanged legacy body and CSRF requirements

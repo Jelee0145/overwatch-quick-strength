@@ -5,6 +5,7 @@ import { SqliteDatabase } from './storage.mjs';
 import { createScheduler, pacedFetch } from './limiter.mjs';
 import { EventReminders } from './event-reminders.mjs';
 import { createPushSender } from './web-push.mjs';
+import { QueryControl } from './query-control.mjs';
 
 /**
  * `ratePerSecond` is the shared upstream start rate for every user; `upstreamRates` may override
@@ -47,8 +48,10 @@ export function createRuntime(
     send,
     publicKey: config.WEB_PUSH_PUBLIC_KEY || ''
   });
+  env.QUERY_CONTROL = new QueryControl(database.store('query-control'), env);
   const instance = (ns) => {
     if (ns === 'reminders') return env.REMINDERS;
+    if (ns === 'query-control') return env.QUERY_CONTROL;
     if (!instances.has(ns)) {
       const Class = ns === 'auth' ? AuthDirectory : ns === 'events' ? EventCenter : UserTasks;
       instances.set(ns, new Class({ storage: database.store(ns) }, env));
@@ -57,17 +60,27 @@ export function createRuntime(
   };
   env.AUTH = {
     idFromName: () => 'auth',
-    get: () => ({ fetch: (input, init) => instance('auth').fetch(new Request(input, init)) })
+    get: () => ({
+      fetch: async (input, init) => {
+        await ready;
+        return instance('auth').fetch(new Request(input, init));
+      }
+    })
   };
   env.TASKS = {
     idFromName: (id) => 'tasks:' + id,
-    get: (ns) => ({ fetch: (input, init) => instance(ns).fetch(new Request(input, init)) })
+    get: (ns) => ({
+      fetch: async (input, init) => {
+        await ready;
+        return instance(ns).fetch(new Request(input, init));
+      }
+    })
   };
   env.EVENTS = {
     idFromName: () => 'events',
     get: () => ({ fetch: (input, init) => instance('events').fetch(new Request(input, init)) })
   };
-  const ready = env.REMINDERS.recover();
+  const ready = Promise.all([env.REMINDERS.recover(), env.QUERY_CONTROL.recover()]);
   let closed = false;
   async function tick() {
     await ready;

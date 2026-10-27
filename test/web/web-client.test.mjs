@@ -212,6 +212,8 @@ test('completed query with archive warning shows its job view even when local pe
   const context = {
     activeJob: 'fixture-job',
     pollTimer: null,
+    document: { addEventListener() {} },
+    window: { addEventListener() {} },
     clearTimeout() {},
     $: (id) => elements[id],
     status: (value) => messages.push(value),

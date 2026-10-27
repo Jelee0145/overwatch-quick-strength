@@ -59,6 +59,7 @@ export function createHttpServer(runtime, { origin, allowLoopback = false } = {}
         headers,
         ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {})
       });
+      await runtime.ready;
       const response = await worker.fetch(request, runtime.env);
       if (
         response.status === 200 &&

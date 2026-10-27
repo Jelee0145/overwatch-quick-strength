@@ -109,8 +109,58 @@ function paint() {
   el('resetTitle').textContent = '密码重置申请 · ' + users.filter((u) => u.resetRequestedAt).length;
 }
 async function load() {
-  users = (await call('users')).users;
+  const [list, control] = await Promise.all([
+    call('users'),
+    call('query-control').catch((error) => {
+      // Web and backend ship independently; older backends still support player management.
+      if (error.status === 404) return { supported: false };
+      throw error;
+    })
+  ]);
+  users = list.users;
   paint();
+  paintQueryControl(control);
+}
+function paintQueryControl(control) {
+  el('queryControl').hidden = !control.supported;
+  if (!control.supported) return;
+  el('queryState').textContent = control.suspended ? '查询已暂停' : '查询已开放';
+  el('queryMode').textContent =
+    (control.manual === 'paused'
+      ? '手动暂停中，自动检测不会解除暂停。'
+      : '自动控制中，每天北京时间 08:00 检测。') +
+    (control.forced ? ' 服务器配置强制暂停；解除需修改 QUERY_SUSPENDED 并重启。' : '');
+  const verdicts = {
+    unchecked: '尚未检测',
+    checking: '正在检测；若服务中断，当天不重复检测',
+    healthy: '昵称搜索正常',
+    empty: '上游返回空数据',
+    'empty-unverified': '返回空数据；探测账号尚未核验，保持原状态',
+    'probe-not-configured': '探测账号未配置或格式不正确',
+    'credential-missing': '查询凭证未配置',
+    'credential-error': '查询凭证不可用',
+    'network-error': '网络连接失败或超时',
+    'rate-limited': '上游限流',
+    'upstream-error': '上游错误或返回格式异常',
+    'invalid-format': '返回数据不符合预期',
+    'different-player': '返回玩家与探测账号不匹配'
+  };
+  const time = (value) =>
+    value
+      ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
+      : '尚无记录';
+  el('queryCheck').textContent =
+    '最近检测：' +
+    time(control.lastCheckedAt) +
+    ' · ' +
+    (verdicts[control.verdict] || '检测状态未知') +
+    '。下次检测：' +
+    time(control.nextCheckAt) +
+    '（北京时间）';
+  el('queryActions').replaceChildren(
+    button('手动暂停', () => call('query-control', { mode: 'paused' })),
+    button('恢复自动控制', () => call('query-control', { mode: 'auto' }))
+  );
 }
 async function boot() {
   try {
