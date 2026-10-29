@@ -296,7 +296,28 @@ test('pending backfill uses only its retry timer, pauses hidden and resumes the 
   assert.equal(app.calls.at(-1).method, 'GET');
 });
 
-test('automatic polling does not overlap a slow response or override manual cooldown feedback', async () => {
+test('automatic entry hides deferred refresh feedback while manual refresh shows it', async () => {
+  const deferred = snapshot({
+    refreshError: '请求间隔未到，正在显示缓存。',
+    refreshDeferred: true,
+    retryAfter: 25
+  });
+  const app = harness(() => deferred);
+  await flush();
+  assert.deepEqual(
+    app.calls.map((call) => call.method),
+    ['GET', 'POST']
+  );
+  assert.equal(app.get('eventsNotice').hidden, true);
+  assert.match(app.get('eventsList').textContent, /Alpha/);
+
+  await app.clickRefresh();
+  assert.match(app.get('eventsNotice').textContent, /请稍后刷新/);
+  assert.match(app.get('eventsNotice').textContent, /25 秒后重试/);
+  assert.equal(app.get('eventsNotice').hidden, false);
+});
+
+test('automatic polling does not overlap a slow response or show cooldown feedback', async () => {
   let release,
     slow = false;
   const app = harness(() =>
@@ -320,9 +341,7 @@ test('automatic polling does not overlap a slow response or override manual cool
     })
   );
   await flush();
-  assert.match(app.get('eventsNotice').textContent, /请稍后刷新/);
-  assert.match(app.get('eventsNotice').textContent, /25 秒后重试/);
-  assert.equal(app.get('eventsNotice').hidden, false);
+  assert.equal(app.get('eventsNotice').hidden, true);
   assert.equal(app.get('eventsRefresh').textContent, '刷新赛程');
   slow = false;
   await app.advance(60000);

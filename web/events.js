@@ -355,7 +355,7 @@
         Math.max(1, Math.min(300, Number(seconds) || 5)) * 1000
       );
   }
-  async function refresh(sync = true) {
+  async function refresh(sync = true, manual = false) {
     const id = ++requestId;
     clearTimeout(queryTimer);
     queryTimer = null;
@@ -393,7 +393,7 @@
         '全部赛区'
       );
       notice(
-        next.refreshError
+        next.refreshError && (!next.refreshDeferred || next.updating || manual)
           ? (next.updating
               ? '更新中…'
               : next.refreshDeferred
@@ -477,7 +477,7 @@
         render();
       })
   );
-  $('eventsRefresh').onclick = () => refresh();
+  $('eventsRefresh').onclick = () => refresh(true, true);
   // Update scheduled-time labels even when the reminder API is unavailable.
   // This never creates a notice or claims that an unverified match is live.
   let statusTimer;
