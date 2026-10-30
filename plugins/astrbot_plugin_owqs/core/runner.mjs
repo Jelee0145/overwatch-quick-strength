@@ -2,10 +2,10 @@ import {readFile} from 'node:fs/promises';
 import {createHmac} from 'node:crypto';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {createMatchService,createChartService,ServiceError} from '../../../src/services/index.mjs';
-import {analysisService,dataService} from '../../../src/services/runtime.mjs';
-import {upstream} from '../../../src/adapters/dashen.mjs';
-import {canonical,digest,token} from '../../../src/security.mjs';
+import {createMatchService,createChartService,ServiceError} from '../../../backend/src/services/index.mjs';
+import {analysisService,dataService} from '../../../backend/src/services/runtime.mjs';
+import {upstream} from '../../../backend/src/adapters/dashen.mjs';
+import {canonical,digest,token} from '../../../backend/src/security.mjs';
 
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const analysisOptions={side:'all',strategy:'legacy',estimate:true};

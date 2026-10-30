@@ -11,11 +11,13 @@ export async function buildToolkit({
   rewriteCopy,
   cleanDecorativeEnglish
 }) {
-  const manifest = JSON.parse(await readFile(path.join(base, 'web/draw/heroes.json'), 'utf8')),
+  const manifest = JSON.parse(
+      await readFile(path.join(base, 'frontend/web/draw/heroes.json'), 'utf8')
+    ),
     heroes = [];
   await mkdir(path.join(base, 'public/media/heroes'), { recursive: true });
   for (const hero of manifest.heroes) {
-    const directory = path.resolve(base, 'web/draw/portraits'),
+    const directory = path.resolve(base, 'frontend/web/draw/portraits'),
       file = path.resolve(directory, hero.file);
     if (path.dirname(file) !== directory || !/^[a-z0-9-]+$/.test(hero.id) || !hero.transparent)
       throw Error('Invalid transparent hero portrait: ' + hero.id);
@@ -27,8 +29,8 @@ export async function buildToolkit({
     await writeFile(path.join(base, 'public', portrait.slice(1)), bytes);
     heroes.push({ id: hero.id, name: hero.name, role: hero.role, portrait });
   }
-  // Home covers are generated art; scripts/prepare-covers.py crops and encodes the committed WebP in web/covers.
-  const coverSource = path.resolve(base, 'web/covers'),
+  // Home covers are generated art; scripts/prepare-covers.py crops and encodes the committed WebP in frontend/web/covers.
+  const coverSource = path.resolve(base, 'frontend/web/covers'),
     coverTarget = path.resolve(base, 'public/media/covers');
   const coverManifest = JSON.parse(await readFile(path.join(coverSource, 'manifest.json'), 'utf8'));
   const covers = {};
@@ -59,32 +61,32 @@ export async function buildToolkit({
   for (const name of await readdir(coverTarget))
     if (name.endsWith('.webp') && !liveCovers.has(name)) await rm(path.join(coverTarget, name));
   const css = await staticFile(
-    (await readFile(path.join(base, 'web/cloud.css'), 'utf8')) +
+    (await readFile(path.join(base, 'frontend/web/cloud.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'web/toolkit.css'), 'utf8')) +
+      (await readFile(path.join(base, 'frontend/web/toolkit.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'web/mobile-shell.css'), 'utf8')) +
+      (await readFile(path.join(base, 'frontend/web/mobile-shell.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'web/event-reminders.css'), 'utf8')),
+      (await readFile(path.join(base, 'frontend/web/event-reminders.css'), 'utf8')),
     'css',
     'toolkit'
   );
   const common = [
     'window.QS_RELEASE_NOTES=' + JSON.stringify(releaseNotes) + ';',
-    await readFile(path.join(base, 'web/http-client.js'), 'utf8'),
-    await readFile(path.join(base, 'web/cloud-cache.js'), 'utf8'),
-    await readFile(path.join(base, 'web/toolkit-session.js'), 'utf8'),
-    await readFile(path.join(base, 'web/api-key.js'), 'utf8'),
-    await readFile(path.join(base, 'web/changelog.js'), 'utf8')
+    await readFile(path.join(base, 'frontend/web/http-client.js'), 'utf8'),
+    await readFile(path.join(base, 'frontend/web/cloud-cache.js'), 'utf8'),
+    await readFile(path.join(base, 'frontend/web/toolkit-session.js'), 'utf8'),
+    await readFile(path.join(base, 'frontend/web/api-key.js'), 'utf8'),
+    await readFile(path.join(base, 'frontend/web/changelog.js'), 'utf8')
   ].join('\n');
   // Reminders stay out of the page bundles; the events page needs the engine before its own script.
   const reminderEngine = await staticFile(
-    await readFile(path.join(base, 'web/event-reminders.js'), 'utf8'),
+    await readFile(path.join(base, 'frontend/web/event-reminders.js'), 'utf8'),
     'js',
     'event-reminders'
   );
   const lazyLoader = await staticFile(
-    (await readFile(path.join(base, 'web/lazy-loader.js'), 'utf8')).replace(
+    (await readFile(path.join(base, 'frontend/web/lazy-loader.js'), 'utf8')).replace(
       '__OWQS_LAZY__',
       JSON.stringify({ reminders: reminderEngine })
     ),
@@ -99,7 +101,7 @@ export async function buildToolkit({
     )
     .join('');
   for (const page of ['toolkit', 'draw', 'events']) {
-    let html = brandPage(await readFile(path.join(base, 'web', page + '.html'), 'utf8'))
+    let html = brandPage(await readFile(path.join(base, 'frontend/web', page + '.html'), 'utf8'))
       .replaceAll('{{SITE_MARK}}', logo)
       .replaceAll('{{OW_MARK}}', owMark)
       .replace('{{HERO_FAN}}', fan)
@@ -109,8 +111,8 @@ export async function buildToolkit({
       .replace('{{EVENTS_COVER}}', covers.events)
       .replace(
         '{{CHANGELOG}}',
-        (await readFile(path.join(base, 'web/changelog.html'), 'utf8')) +
-          (await readFile(path.join(base, 'web/api-key.html'), 'utf8'))
+        (await readFile(path.join(base, 'frontend/web/changelog.html'), 'utf8')) +
+          (await readFile(path.join(base, 'frontend/web/api-key.html'), 'utf8'))
       );
     html = html.replace(
       'width=device-width,initial-scale=1',
@@ -123,8 +125,8 @@ export async function buildToolkit({
             'window.HERO_DRAW_DATA=' +
               JSON.stringify({ updatedAt: manifest.updatedAt, heroes }) +
               ';',
-            await readFile(path.join(base, 'web/draw-engine.js'), 'utf8'),
-            await readFile(path.join(base, 'web/draw.js'), 'utf8')
+            await readFile(path.join(base, 'frontend/web/draw-engine.js'), 'utf8'),
+            await readFile(path.join(base, 'frontend/web/draw.js'), 'utf8')
           ].join('\n')
         : page === 'events'
           ? null
@@ -133,7 +135,7 @@ export async function buildToolkit({
       page !== 'draw'
         ? '<link rel="stylesheet" href="' +
           (await staticFile(
-            await readFile(path.join(base, 'web/events.css'), 'utf8'),
+            await readFile(path.join(base, 'frontend/web/events.css'), 'utf8'),
             'css',
             'events'
           )) +
@@ -146,9 +148,9 @@ export async function buildToolkit({
       const after = await staticFile(
         rewriteCopy(
           [
-            await readFile(path.join(base, 'web/events-model.js'), 'utf8'),
-            await readFile(path.join(base, 'web/events.js'), 'utf8'),
-            await readFile(path.join(base, 'web/mobile-shell.js'), 'utf8')
+            await readFile(path.join(base, 'frontend/web/events-model.js'), 'utf8'),
+            await readFile(path.join(base, 'frontend/web/events.js'), 'utf8'),
+            await readFile(path.join(base, 'frontend/web/mobile-shell.js'), 'utf8')
           ].join('\n')
         ),
         'js',
@@ -157,7 +159,9 @@ export async function buildToolkit({
       scripts = `<script defer src="${before}"></script><script defer src="${reminderEngine}"></script><script defer src="${after}"></script>`;
     } else {
       const script = await staticFile(
-        rewriteCopy(code + '\n' + (await readFile(path.join(base, 'web/mobile-shell.js'), 'utf8'))),
+        rewriteCopy(
+          code + '\n' + (await readFile(path.join(base, 'frontend/web/mobile-shell.js'), 'utf8'))
+        ),
         'js',
         page
       );

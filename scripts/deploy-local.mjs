@@ -39,11 +39,11 @@ run('npm', ['run', 'web:build']);
 // would otherwise break the restart and leave Nginx answering 502.
 run('bash', [
   '-c',
-  'find public dist/backend-assets src server -type d -exec chmod 755 {} +; find public dist/backend-assets src server -type f -exec chmod 644 {} +'
+  'find public dist/backend-assets backend/src backend/server -type d -exec chmod 755 {} +; find public dist/backend-assets backend/src backend/server -type f -exec chmod 644 {} +'
 ]);
 // Restarting into a tree the service cannot read takes the site down until someone
 // notices, so prove it loads while the previous process is still serving.
-const probe = path.join(root, 'src/worker.mjs');
+const probe = path.join(root, 'backend/src/worker.mjs');
 if (process.platform === 'linux' && process.getuid?.() === 0) {
   try {
     execFileSync(

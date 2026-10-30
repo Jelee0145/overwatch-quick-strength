@@ -8,7 +8,7 @@ Type=simple
 User=owqs
 Group=owqs
 WorkingDirectory=/opt/owqs/current
-ExecStart=/usr/local/bin/node server/main.mjs
+ExecStart=/usr/local/bin/node backend/server/main.mjs
 Environment=NODE_ENV=production
 Environment=OWQS_DATA=/var/lib/owqs
 Environment=OWQS_CONFIG=/etc/owqs/config.json

@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createScheduler, MAX_RATE_PER_SECOND, priorityOf } from '../../src/services/scheduler.mjs';
+import {
+  createScheduler,
+  MAX_RATE_PER_SECOND,
+  priorityOf
+} from '../../backend/src/services/scheduler.mjs';
 
 // A driven clock keeps queue assertions independent of machine load. Like a real timer, the
 // sleep yields first, so pending start callbacks observe the clock before it advances.

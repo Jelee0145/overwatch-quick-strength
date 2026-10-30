@@ -17,7 +17,9 @@ export async function buildAssetPreload({ base, media, staticFile }) {
       [...html.matchAll(/(?:src|href)="(\/static\/[^"?]+)"/g)].map((m) => m[1])
     )
   );
-  const heroes = JSON.parse(await readFile(path.join(base, 'web/draw/heroes.json'), 'utf8'));
+  const heroes = JSON.parse(
+    await readFile(path.join(base, 'frontend/web/draw/heroes.json'), 'utf8')
+  );
   for (const url of [
     media.avatar,
     ...Object.values(media.ranks),
@@ -39,7 +41,7 @@ export async function buildAssetPreload({ base, media, staticFile }) {
     plan = '/static/asset-plan.' + version + '.json';
   await writeFile(path.join(base, 'public', plan.slice(1)), JSON.stringify({ version, assets }));
   const script = await staticFile(
-    (await readFile(path.join(base, 'web/asset-preload.js'), 'utf8')).replace(
+    (await readFile(path.join(base, 'frontend/web/asset-preload.js'), 'utf8')).replace(
       '__ASSET_PLAN_URL__',
       plan
     ),

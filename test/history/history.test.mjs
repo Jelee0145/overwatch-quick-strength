@@ -1,12 +1,15 @@
-import { createDataService } from '../../src/services/data.mjs';
-import * as historyGeometry from '../../src/services/history-geometry.mjs';
+import { createDataService } from '../../backend/src/services/data.mjs';
+import * as historyGeometry from '../../backend/src/services/history-geometry.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { signSnapshot, verifySnapshot } from '../../src/security.mjs';
-const source = await readFile(new URL('../../web/history-model.js', import.meta.url), 'utf8'),
+import { signSnapshot, verifySnapshot } from '../../backend/src/security.mjs';
+const source = await readFile(
+    new URL('../../frontend/web/history-model.js', import.meta.url),
+    'utf8'
+  ),
   context = vm.createContext({ OWQS_SERVICES: { data: createDataService(), historyGeometry } });
 vm.runInContext(source, context);
 const H = context.QS_HISTORY_MODEL;
@@ -272,7 +275,7 @@ test('IndexedDB archive migration, restart, user/season isolation and quota fail
     QS_HISTORY_MODEL: H
   });
   vm.runInContext(
-    await readFile(new URL('../../web/cloud-history.js', import.meta.url), 'utf8'),
+    await readFile(new URL('../../frontend/web/cloud-history.js', import.meta.url), 'utf8'),
     c
   );
   const archive = c.window.CloudHistory,

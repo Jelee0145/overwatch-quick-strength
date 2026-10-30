@@ -4,7 +4,7 @@
     uv pip install --python .venv/Scripts/python.exe pillow
     .venv/Scripts/python.exe scripts/prepare-covers.py
 
-Sources and the committed WebP derivatives live in web/covers; the toolkit build verifies
+Sources and the committed WebP derivatives live in frontend/web/covers; the toolkit build verifies
 and copies the derivatives into /media/covers/.
 """
 import hashlib
@@ -14,7 +14,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 BASE = Path(__file__).resolve().parent.parent
-SOURCE = BASE / 'web' / 'covers'
+SOURCE = BASE / 'frontend' / 'web' / 'covers'
 EDGE = 900
 QUALITY = 82
 # The card art box is 285px tall and roughly 330-390px wide; 4:3 keeps headroom for cropping.
@@ -48,7 +48,7 @@ for cover in sorted(SOURCE.glob('*-cover.png')):
         stale.unlink()
     target = SOURCE / f'{name}.{digest[:16]}.webp'
     target.write_bytes(data)
-    manifest[name] = {'source': f'web/covers/{cover.name}', 'sha256': hashlib.sha256(cover.read_bytes()).hexdigest(), 'image': f'/media/covers/{target.name}'}
+    manifest[name] = {'source': f'frontend/web/covers/{cover.name}', 'sha256': hashlib.sha256(cover.read_bytes()).hexdigest(), 'image': f'/media/covers/{target.name}'}
     print(f'{name}: {len(data) // 1024} KB -> {target.relative_to(BASE)}')
 
 (SOURCE / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')

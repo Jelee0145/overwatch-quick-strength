@@ -18,16 +18,16 @@ test('base UI and page templates have explicit owners outside source/', async ()
   for (const file of ['index.html', 'app.js', 'style.css', 'data.js'])
     assert.equal(await info(path.join('source', file)), null, `source/${file} must stay removed`);
   for (const file of ['app.js', 'style.css', 'data.js']) {
-    const target = await info(path.join('web/base', file));
-    assert.ok(target?.isFile(), `web/base/${file} must exist`);
-    assert.ok(target.size > 0, `web/base/${file} must be non-empty`);
+    const target = await info(path.join('frontend/web/base', file));
+    assert.ok(target?.isFile(), `frontend/web/base/${file} must exist`);
+    assert.ok(target.size > 0, `frontend/web/base/${file} must be non-empty`);
   }
-  const page = await info('web/pages/strength.html');
-  assert.ok(page?.isFile(), 'web/pages/strength.html must exist');
-  assert.ok(page.size > 0, 'web/pages/strength.html must be non-empty');
+  const page = await info('frontend/web/pages/strength.html');
+  assert.ok(page?.isFile(), 'frontend/web/pages/strength.html must exist');
+  assert.ok(page.size > 0, 'frontend/web/pages/strength.html must be non-empty');
   for (const file of ['timeline.js', 'export.js', 'query.js', 'boot.js']) {
-    const module = await info(path.join('web/app', file));
-    assert.ok(module?.isFile(), `web/app/${file} must exist`);
+    const module = await info(path.join('frontend/web/app', file));
+    assert.ok(module?.isFile(), `frontend/web/app/${file} must exist`);
   }
   assert.ok(
     (await info('source/chart.js'))?.isFile(),
@@ -47,10 +47,10 @@ test('web build reads the explicit app/page owners instead of source/', async ()
     );
   assert.ok(
     build.includes("path.join(pages,'strength.html')"),
-    'build-web must read the strength page from web/pages'
+    'build-web must read the strength page from frontend/web/pages'
   );
   for (const name of ['timeline.js', 'export.js', 'query.js', 'boot.js'])
-    assert.ok(build.includes(`'${name}'`), `build-web must include web/app/${name}`);
+    assert.ok(build.includes(`'${name}'`), `build-web must include frontend/web/app/${name}`);
   for (const stale of [
     "path.join(source,'app.js')",
     "path.join(source,'style.css')",

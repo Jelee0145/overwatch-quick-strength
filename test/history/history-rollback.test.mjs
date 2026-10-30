@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CloudHistory } from '../../src/history/cloud-history.mjs';
-import { signSnapshot, getBlob, putBlob } from '../../src/security.mjs';
+import { CloudHistory } from '../../backend/src/history/cloud-history.mjs';
+import { signSnapshot, getBlob, putBlob } from '../../backend/src/security.mjs';
 import { restoreLegacyHistory } from '../../scripts/history-storage-rollback.mjs';
 import { MemoryStorage } from '../helpers/storage.mjs';
 
@@ -37,7 +37,7 @@ for (const failure of ['missing', 'tampered', 'write'])
       id = Object.keys(second.batchMeta)[0],
       batch = keys[1] + ':batch:' + id;
     if (failure === 'missing') {
-      const { deleteBlob } = await import('../../src/security.mjs');
+      const { deleteBlob } = await import('../../backend/src/security.mjs');
       await deleteBlob(storage, batch);
     } else if (failure === 'tampered') {
       const envelope = await getBlob(storage, batch);

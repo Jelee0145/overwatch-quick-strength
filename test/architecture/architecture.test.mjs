@@ -16,7 +16,9 @@ async function modules(directory) {
 }
 
 test('domain modules do not depend on transport routes; services stay platform-neutral', async () => {
-  const entries = (await modules('src')).filter((file) => !file.startsWith('src/shared/'));
+  const entries = (await modules('backend/src')).filter(
+    (file) => !file.startsWith('backend/src/shared/')
+  );
   const result = await build({
     absWorkingDir: root,
     entryPoints: entries,
@@ -30,13 +32,13 @@ test('domain modules do not depend on transport routes; services stay platform-n
   for (const [file, info] of Object.entries(result.metafile.inputs)) {
     for (const dependency of info.imports) {
       const target = dependency.path;
-      if (/^src\/(history|query|actors|adapters)\//.test(file))
-        assert.ok(!target.startsWith('src/api/'), `${file} -> ${target}`);
-      if (file.startsWith('src/services/'))
-        assert.match(target, /^src\/(services|shared)\//, `${file} -> ${target}`);
+      if (/^backend\/src\/(history|query|actors|adapters)\//.test(file))
+        assert.ok(!target.startsWith('backend/src/api/'), `${file} -> ${target}`);
+      if (file.startsWith('backend/src/services/'))
+        assert.match(target, /^backend\/src\/(services|shared)\//, `${file} -> ${target}`);
       assert.ok(!dependency.path.startsWith('node:'), `${file} must run in Workers`);
     }
-    if (file.startsWith('src/services/')) {
+    if (file.startsWith('backend/src/services/')) {
       const source = await readFile(path.join(root, file), 'utf8');
       assert.doesNotMatch(
         source,
@@ -50,7 +52,7 @@ test('domain modules do not depend on transport routes; services stay platform-n
 test('browser service graph cannot acquire backend hosts, state owners or Node builtins', async () => {
   const result = await build({
     absWorkingDir: root,
-    entryPoints: ['web/services.js'],
+    entryPoints: ['frontend/web/services.js'],
     bundle: true,
     write: false,
     platform: 'browser',
@@ -60,7 +62,7 @@ test('browser service graph cannot acquire backend hosts, state owners or Node b
   for (const file of Object.keys(result.metafile.inputs))
     assert.doesNotMatch(
       file,
-      /^(?:server\/|src\/(?:actors|api|history|events|query|adapters|lib|http)\/)/,
+      /^(?:backend\/server\/|backend\/src\/(?:actors|api|history|events|query|adapters|lib|http)\/)/,
       file
     );
 });

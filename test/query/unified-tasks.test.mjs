@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UserTasks, adaptPacing } from '../../src/actors/tasks.mjs';
-import { getBlob, putBlob, mac } from '../../src/security.mjs';
-import { mintQueryIndex, verifyQueryIndex } from '../../src/query/cache-records.mjs';
-import { normalizeQueryOptions, legacyQueryOptions } from '../../src/query/options.mjs';
+import { UserTasks, adaptPacing } from '../../backend/src/actors/tasks.mjs';
+import { getBlob, putBlob, mac } from '../../backend/src/security.mjs';
+import { mintQueryIndex, verifyQueryIndex } from '../../backend/src/query/cache-records.mjs';
+import { normalizeQueryOptions, legacyQueryOptions } from '../../backend/src/query/options.mjs';
 import { setup, request, start, speed, finish, fixture } from '../helpers/tasks.mjs';
 
 test('shared normalization preserves defaults and rejects conflicting query aliases', () => {

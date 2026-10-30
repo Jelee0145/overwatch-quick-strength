@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { collectNotes } from '../../scripts/build/release-notes.mjs';
-const source = await readFile(new URL('../../web/changelog.js', import.meta.url), 'utf8'),
+const source = await readFile(new URL('../../frontend/web/changelog.js', import.meta.url), 'utf8'),
   tick = () => new Promise((resolve) => setImmediate(resolve));
 test('feature and fix commits update changelog version; maintenance does not; Chinese release descriptions take priority', () => {
   const initial = [{ id: 'old', date: '2026-10-14', title: '历史', items: ['旧记录'] }],

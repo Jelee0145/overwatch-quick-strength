@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AuthDirectory } from '../../src/actors/auth.mjs';
-import { UserTasks } from '../../src/actors/tasks.mjs';
-import worker from '../../src/worker.mjs';
-import { passwordHash, putBlob, getBlob } from '../../src/security.mjs';
+import { AuthDirectory } from '../../backend/src/actors/auth.mjs';
+import { UserTasks } from '../../backend/src/actors/tasks.mjs';
+import worker from '../../backend/src/worker.mjs';
+import { passwordHash, putBlob, getBlob } from '../../backend/src/security.mjs';
 import { service } from '../query-fixture.mjs';
 import { MemoryStorage } from '../helpers/storage.mjs';
 async function setup() {
@@ -804,7 +804,7 @@ test('account validates Keys without charging; history opt-out leaves no synchro
 });
 
 test('dedicated free-tier provisioning isolates personal quota and forces history opt-out', async () => {
-  const { provisionFree } = await import('../../server/provision-free.mjs');
+  const { provisionFree } = await import('../../backend/server/provision-free.mjs');
   const ctx = await setup(),
     personal = await approve(ctx),
     personalKey = await createKey(ctx, personal);
@@ -834,7 +834,7 @@ test('dedicated free-tier provisioning isolates personal quota and forces histor
     'standard'
   );
   const conflicting = await setup();
-  const { digest } = await import('../../src/security.mjs');
+  const { digest } = await import('../../backend/src/security.mjs');
   await conflicting.storage.put('user:' + (await digest('bot-free@owqs.invalid')), {
     tier: 'standard'
   });

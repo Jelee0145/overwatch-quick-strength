@@ -3,19 +3,19 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { analysisFixture, archiveFixture } from '../services-fixture.mjs';
-import { analysisService, dataService } from '../../src/services/runtime.mjs';
+import { analysisService, dataService } from '../../backend/src/services/runtime.mjs';
 import {
   analyzeArchive,
   selectArchiveMatch,
   selectArchiveEnvelope,
   normalizeHistoryAnalysisOptions,
   createHistoryAnalysisService
-} from '../../src/history/analysis.mjs';
-import { renderAnalysisChart, renderApiChart } from '../../src/api/chart.mjs';
-import { selectApiMatch, projectApiMatch } from '../../src/api/match.mjs';
-import { digest } from '../../src/security.mjs';
-import { normalizeQueryOptions } from '../../src/query/options.mjs';
-import { webAnalysisView } from '../../src/history/view.mjs';
+} from '../../backend/src/history/analysis.mjs';
+import { renderAnalysisChart, renderApiChart } from '../../backend/src/api/chart.mjs';
+import { selectApiMatch, projectApiMatch } from '../../backend/src/api/match.mjs';
+import { digest } from '../../backend/src/security.mjs';
+import { normalizeQueryOptions } from '../../backend/src/query/options.mjs';
+import { webAnalysisView } from '../../backend/src/history/view.mjs';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const assets = {

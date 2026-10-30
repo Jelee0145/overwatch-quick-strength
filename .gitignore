@@ -5,9 +5,9 @@ node_modules/
 .private/
 .npm-cache/
 public/
-src/shared/
-src/prompt.mjs
-src/release.mjs
+backend/src/shared/
+backend/src/prompt.mjs
+backend/src/release.mjs
 local/.private/
 local/__pycache__/
 local/*.json

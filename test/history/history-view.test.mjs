@@ -2,11 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
-import { createDataService } from '../../src/services/data.mjs';
-import * as historyGeometry from '../../src/services/history-geometry.mjs';
-import { webAnalysisView, requireSlimFlag } from '../../src/history/view.mjs';
+import { createDataService } from '../../backend/src/services/data.mjs';
+import * as historyGeometry from '../../backend/src/services/history-geometry.mjs';
+import { webAnalysisView, requireSlimFlag } from '../../backend/src/history/view.mjs';
 
-const source = await readFile(new URL('../../web/history-model.js', import.meta.url), 'utf8');
+const source = await readFile(
+  new URL('../../frontend/web/history-model.js', import.meta.url),
+  'utf8'
+);
 const context = vm.createContext({ OWQS_SERVICES: { data: createDataService(), historyGeometry } });
 vm.runInContext(source, context);
 const H = context.QS_HISTORY_MODEL;

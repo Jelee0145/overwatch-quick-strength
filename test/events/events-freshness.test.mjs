@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { eventRefreshInterval, nextEventRefresh } from '../../src/events/freshness.mjs';
-import { EventCenter } from '../../src/events/center.mjs';
+import { eventRefreshInterval, nextEventRefresh } from '../../backend/src/events/freshness.mjs';
+import { EventCenter } from '../../backend/src/events/center.mjs';
 import { page, card, response } from '../events-fixture.mjs';
 const MINUTE = 60000,
   HOUR = 60 * MINUTE,

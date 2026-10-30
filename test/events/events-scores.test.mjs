@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseEventBatch } from '../../src/events/parser.mjs';
-import { eventApi, trackedEventApi } from '../../src/events/source.mjs';
+import { parseEventBatch } from '../../backend/src/events/parser.mjs';
+import { eventApi, trackedEventApi } from '../../backend/src/events/source.mjs';
 import { card, page } from '../events-fixture.mjs';
 
 const modern = (options = {}) =>

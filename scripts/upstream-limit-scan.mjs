@@ -15,8 +15,8 @@
 import {writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {upstream} from '../src/adapters/dashen.mjs';
-import {ServiceError} from '../src/services/errors.mjs';
+import {upstream} from '../backend/src/adapters/dashen.mjs';
+import {ServiceError} from '../backend/src/services/errors.mjs';
 import {UsageError,loadConfig,maskedTag,describe,inFlightTable,createProbe} from './upstream-scan-shared.mjs';
 
 // Re-exported so existing imports and tests keep one entry point per phase.

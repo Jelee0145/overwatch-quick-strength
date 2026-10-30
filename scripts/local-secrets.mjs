@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { passwordHash } from '../src/security.mjs';
+import { passwordHash } from '../backend/src/security.mjs';
 const pepper = 'local-test-pepper-only';
 const hash = await passwordHash('local-admin-123', pepper);
 await writeFile(

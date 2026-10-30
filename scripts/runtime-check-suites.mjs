@@ -4,7 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const resolveDir = path.resolve(import.meta.dirname, '../src');
+const resolveDir = path.resolve(import.meta.dirname, '../backend/src');
 
 async function compile(entry) {
   const compiled = await build({
@@ -112,7 +112,7 @@ import {renderApiChart} from './api/chart.mjs';
 import {selectApiMatch} from './api/match.mjs';
 import {analysisService} from './services/runtime.mjs';
 import {digest,canonical} from './security.mjs';
-import {analysisFixture,archiveFixture} from '../test/services-fixture.mjs';
+import {analysisFixture,archiveFixture} from '../../test/services-fixture.mjs';
 export default {async fetch(){
  const data={battletag:'Test#123',queriedAt:'2026-10-17T00:00:00Z',matches:[],recentHistory:[]};
  for(let i=0;i<12;i++)data.matches.push({mid:'m'+i,t:100+i,mapGuid:'map',duration:600,hasGameData:true,resourceDataChecked:true,players:Array.from({length:10},(_,j)=>({name:j?'P'+j+'#100':'Test#123',side:j<5?'T':'E',hero:'207165582859042818',stats:{kill:20,assist:8,death:4,heroDamage:10000,cure:0,resistDamage:0,finalHit:10,soloKill:2,targetCompetingTime:20,healingTaken:3000,damageTaken:8000},res:{rows:[{r:'dps',n:'白金',d:3}],rankQueriedAt:'2026-10-17T00:00:00Z'}}))});

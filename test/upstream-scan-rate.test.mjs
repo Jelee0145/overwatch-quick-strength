@@ -1,6 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {parseArgs,ladder,peakInWindow,USAGE} from '../scripts/upstream-scan-rate.mjs';
-import {ServiceError as Fault} from '../src/services/errors.mjs';
+import {ServiceError as Fault} from '../backend/src/services/errors.mjs';
 
 const settings={DASHEN_TOKEN:'t',DASHEN_ROLE_ID:'r',DASHEN_DTS:'2026',DASHEN_SERVER:'1'};
 const immediate=async()=>{};

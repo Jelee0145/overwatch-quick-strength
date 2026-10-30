@@ -3,7 +3,7 @@
 import { chmod, chown, lstat, open, readFile, realpath, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { createPushSender, generatePushKeys } from '../server/web-push.mjs';
+import { createPushSender, generatePushKeys } from '../backend/server/web-push.mjs';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 const FIELDS = ['WEB_PUSH_PUBLIC_KEY', 'WEB_PUSH_PRIVATE_KEY', 'WEB_PUSH_SUBJECT'];

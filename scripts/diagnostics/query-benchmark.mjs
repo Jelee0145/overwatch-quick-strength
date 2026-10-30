@@ -1,4 +1,4 @@
-import { createQuery, queryStep, accountRecords } from '../../src/query/query.mjs';
+import { createQuery, queryStep, accountRecords } from '../../backend/src/query/query.mjs';
 import { service } from '../../test/query-fixture.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';

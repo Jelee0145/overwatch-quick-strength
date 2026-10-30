@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "quick-strength-friends",
-  "main": "src/worker.mjs",
+  "main": "backend/src/worker.mjs",
   "compatibility_date": "2026-10-12",
   "workers_dev": true,
   "preview_urls": false,

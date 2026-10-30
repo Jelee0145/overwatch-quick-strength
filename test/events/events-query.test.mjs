@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EventCenter } from '../../src/events/center.mjs';
-import { eventApi, eventQuery } from '../../src/events/source.mjs';
-import { parseEvents } from '../../src/events/parser.mjs';
-import worker from '../../src/worker.mjs';
+import { EventCenter } from '../../backend/src/events/center.mjs';
+import { eventApi, eventQuery } from '../../backend/src/events/source.mjs';
+import { parseEvents } from '../../backend/src/events/parser.mjs';
+import worker from '../../backend/src/worker.mjs';
 import { card, page, response } from '../events-fixture.mjs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createRuntime } from '../../server/runtime.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
 
 import { MemoryStorage as Storage } from '../helpers/storage.mjs';
 const stamp = (date) => String(Date.parse(date) / 1000);

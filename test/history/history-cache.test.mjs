@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createResponseCache } from '../../src/history/cache.mjs';
+import { createResponseCache } from '../../backend/src/history/cache.mjs';
 
 test('response cache keeps the newest bodies within its byte budget', () => {
   const cache = createResponseCache({ bytes: 10, entries: 4 });

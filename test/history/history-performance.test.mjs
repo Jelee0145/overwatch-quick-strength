@@ -1,15 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gunzipSync, brotliDecompressSync } from 'node:zlib';
-import { createAnalysisEncoder, negotiateEncoding } from '../../server/analysis-encoding.mjs';
+import {
+  createAnalysisEncoder,
+  negotiateEncoding
+} from '../../backend/server/analysis-encoding.mjs';
 import {
   analyzeArchive,
   analyzeCachedArchive,
   historyComputationCache,
   selectArchiveMatch
-} from '../../src/history/analysis.mjs';
-import { createResponseCache } from '../../src/history/cache.mjs';
-import { webAnalysisView } from '../../src/history/view.mjs';
+} from '../../backend/src/history/analysis.mjs';
+import { createResponseCache } from '../../backend/src/history/cache.mjs';
+import { webAnalysisView } from '../../backend/src/history/view.mjs';
 import { archiveFixture } from '../services-fixture.mjs';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
@@ -164,7 +167,7 @@ test('desktop/mobile share in-flight analysis and detail; twenty windows retain 
       }
     });
   vm.runInContext(
-    await readFile(new URL('../../web/server-analysis.js', import.meta.url), 'utf8'),
+    await readFile(new URL('../../frontend/web/server-analysis.js', import.meta.url), 'utf8'),
     context
   );
   const client = window.OWQS_SERVER_ANALYSIS,

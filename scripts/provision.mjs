@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { spawn, execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { passwordHash, token } from '../src/security.mjs';
+import { passwordHash, token } from '../backend/src/security.mjs';
 const base = path.resolve(import.meta.dirname, '..'),
   privateDir = path.join(base, '.private');
 await mkdir(privateDir, { recursive: true });

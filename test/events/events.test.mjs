@@ -4,13 +4,13 @@ import vm from 'node:vm';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { EventCenter, EVENTS_API, nextEventSync } from '../../src/events/center.mjs';
-import { nextEventRefresh } from '../../src/events/freshness.mjs';
-import { parseEvents, liquipediaLink, liquipediaLogo } from '../../src/events/parser.mjs';
-import worker from '../../src/worker.mjs';
-import { createRuntime } from '../../server/runtime.mjs';
+import { EventCenter, EVENTS_API, nextEventSync } from '../../backend/src/events/center.mjs';
+import { nextEventRefresh } from '../../backend/src/events/freshness.mjs';
+import { parseEvents, liquipediaLink, liquipediaLogo } from '../../backend/src/events/parser.mjs';
+import worker from '../../backend/src/worker.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
 import { card, page, response } from '../events-fixture.mjs';
-import { filterEvents } from '../../src/events/filter.mjs';
+import { filterEvents } from '../../backend/src/events/filter.mjs';
 
 import { MemoryStorage as Storage } from '../helpers/storage.mjs';
 function setup(fetcher = async () => response(page())) {
@@ -63,7 +63,7 @@ test('source filters OWCS before its row cap; Saturday WBG survives date and tea
   assert.equal(filterEvents(data, params).total, 1);
   const context = { window: {}, Intl };
   vm.runInNewContext(
-    await readFile(new URL('../../web/events-model.js', import.meta.url), 'utf8'),
+    await readFile(new URL('../../frontend/web/events-model.js', import.meta.url), 'utf8'),
     context
   );
   assert.equal(
@@ -170,7 +170,7 @@ test('events team badges use the light variant and reject off-site or non-image 
 test('events model filters without requests, sorts results, and uses Beijing midnight in every host timezone', async () => {
   const context = { window: {}, Intl };
   vm.runInNewContext(
-    await readFile(new URL('../../web/events-model.js', import.meta.url), 'utf8'),
+    await readFile(new URL('../../frontend/web/events-model.js', import.meta.url), 'utf8'),
     context
   );
   const model = context.window.EventsModel;
@@ -526,8 +526,8 @@ test('failed manual refresh retains data with an explicit notice and five-minute
 });
 
 test('events UI has a manual action, refreshes once on entry and explains pending results', async () => {
-  const html = await readFile(new URL('../../web/events.html', import.meta.url), 'utf8'),
-    script = await readFile(new URL('../../web/events.js', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../../frontend/web/events.html', import.meta.url), 'utf8'),
+    script = await readFile(new URL('../../frontend/web/events.js', import.meta.url), 'utf8');
   assert.ok(html.includes('eventsRefresh'));
   assert.match(script, /await refresh\(false\)/);
   assert.match(script, /setInterval\(updateTimeStatus,\s*15000\)/);
@@ -537,7 +537,7 @@ test('events UI has a manual action, refreshes once on entry and explains pendin
 });
 
 test('events local status interval updates due labels without API polling and resumes after BFCache restore', async () => {
-  const script = await readFile(new URL('../../web/events.js', import.meta.url), 'utf8');
+  const script = await readFile(new URL('../../frontend/web/events.js', import.meta.url), 'utf8');
   let now = Date.parse('2026-10-24T05:59:50Z'),
     networkCalls = 0,
     sequence = 0;

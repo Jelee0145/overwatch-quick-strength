@@ -18,7 +18,7 @@ export async function buildApiCapture({ base, html, app, css }) {
   const script =
     (await readFile(path.join(base, 'source/core.js'), 'utf8')) +
     '\n' +
-    (await readFile(path.join(base, 'web/base/data.js'), 'utf8')) +
+    (await readFile(path.join(base, 'frontend/web/base/data.js'), 'utf8')) +
     `\nconst $=id=>document.getElementById(id);const timeline={};const raw=INPUT.raw;const model={matches:[INPUT.match],options:INPUT.options};function showPerformance(){}\n` +
     app.slice(start, end) +
     `

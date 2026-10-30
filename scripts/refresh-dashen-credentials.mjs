@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, lstat, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { upstream } from '../src/adapters/dashen.mjs';
+import { upstream } from '../backend/src/adapters/dashen.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const privateRoot = path.join(root, '.private');

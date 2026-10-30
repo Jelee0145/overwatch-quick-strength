@@ -1,9 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CloudHistory, HISTORY_LIMITS } from '../../src/history/cloud-history.mjs';
-import { signSnapshot, verifySnapshot, digest, getBlob, putBlob } from '../../src/security.mjs';
-import { UserTasks } from '../../src/actors/tasks.mjs';
-import worker from '../../src/worker.mjs';
+import { CloudHistory, HISTORY_LIMITS } from '../../backend/src/history/cloud-history.mjs';
+import {
+  signSnapshot,
+  verifySnapshot,
+  digest,
+  getBlob,
+  putBlob
+} from '../../backend/src/security.mjs';
+import { UserTasks } from '../../backend/src/actors/tasks.mjs';
+import worker from '../../backend/src/worker.mjs';
 import { service } from '../query-fixture.mjs';
 import { restoreLegacyHistory } from '../../scripts/history-storage-rollback.mjs';
 import { MemoryStorage } from '../helpers/storage.mjs';

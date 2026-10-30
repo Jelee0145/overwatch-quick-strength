@@ -91,11 +91,15 @@ export async function archiveStage(base, stage, filename) {
 export async function stageBackend({ base = root } = {}) {
   const stage = await resetStage(base, 'server-stage');
   // Only executable source trees and the renderer manifest allowlist enter the backend archive.
+  // The archive keeps its server/ and src/ layout even though the checkout nests them under backend/.
   for (const name of ['server', 'src'])
-    await copyTree(path.join(base, name), path.join(stage, name), (file) =>
+    await copyTree(path.join(base, 'backend', name), path.join(stage, name), (file) =>
       /\.(mjs|js|json)$/.test(file)
     );
-  await copyFile(path.join(base, 'access-policy.json'), path.join(stage, 'access-policy.json'));
+  await copyFile(
+    path.join(base, 'backend', 'access-policy.json'),
+    path.join(stage, 'access-policy.json')
+  );
   const media = JSON.parse(await readFile(path.join(base, 'source/media/manifest.json'), 'utf8'));
   for (const url of rendererMediaPaths(media)) {
     const source = path.join(base, 'dist/backend-assets', url.slice(1));

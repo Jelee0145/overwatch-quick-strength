@@ -59,7 +59,7 @@ test('timeline preview clips only moving content, keeps axes outside moving laye
   const c = vm.createContext({});
   c.window = c;
   vm.runInContext(await read('source/core.js'), c);
-  vm.runInContext(await read('web/base/data.js'), c);
+  vm.runInContext(await read('frontend/web/base/data.js'), c);
   vm.runInContext(await read('source/chart.js'), c);
   const data = c.QS.normalize({
       battletag: 'Geometry#100',

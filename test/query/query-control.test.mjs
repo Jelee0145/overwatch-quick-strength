@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { QueryControl, queryCheckSchedule } from '../../server/query-control.mjs';
-import { SqliteDatabase } from '../../server/storage.mjs';
+import { QueryControl, queryCheckSchedule } from '../../backend/server/query-control.mjs';
+import { SqliteDatabase } from '../../backend/server/storage.mjs';
 import { MemoryStorage } from '../helpers/storage.mjs';
-import { Fault } from '../../src/security.mjs';
-import { querySuspended } from '../../src/query/suspension.mjs';
+import { Fault } from '../../backend/src/security.mjs';
+import { querySuspended } from '../../backend/src/query/suspension.mjs';
 
 const DAY = 86400000,
   date = Date.parse('2100-10-27T00:00:00Z'),

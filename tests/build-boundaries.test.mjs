@@ -17,7 +17,7 @@ import os from 'node:os';
 import { stageBackend } from '../scripts/package-server.mjs';
 import { stageWeb } from '../scripts/package-web.mjs';
 import { rendererMediaPaths } from '../scripts/build-backend.mjs';
-import { staticAssets } from '../server/assets.mjs';
+import { staticAssets } from '../backend/server/assets.mjs';
 import {
   validateRelease,
   switchRelease,
@@ -99,14 +99,14 @@ async function fixture() {
   for (const url of rendererMediaPaths(media))
     await put(base, 'dist/backend-assets' + url, 'renderer ' + url);
   for (const name of [
-    'server/main.mjs',
-    'src/worker.mjs',
-    'src/shared/events-html.mjs',
-    'src/shared/chart.mjs',
-    'src/prompt.mjs'
+    'backend/server/main.mjs',
+    'backend/src/worker.mjs',
+    'backend/src/shared/events-html.mjs',
+    'backend/src/shared/chart.mjs',
+    'backend/src/prompt.mjs'
   ])
     await put(base, name, 'export {};');
-  await put(base, 'access-policy.json', '{}');
+  await put(base, 'backend/access-policy.json', '{}');
   for (const name of [
     'index.html',
     'login.html',
@@ -158,11 +158,11 @@ test('backend stage has renderer media and generated modules without website or 
 test('web stage only contains public outputs, leaves backend outputs intact and detects tampering', async () => {
   const { base } = await fixture();
   try {
-    const before = await readFile(path.join(base, 'src/prompt.mjs'), 'utf8');
+    const before = await readFile(path.join(base, 'backend/src/prompt.mjs'), 'utf8');
     const { stage, manifest } = await stageWeb({ base });
     assert.equal(manifest.kind, 'web');
     assert.deepEqual((await readdir(stage)).sort(), ['artifact-manifest.json', 'public']);
-    assert.equal(await readFile(path.join(base, 'src/prompt.mjs'), 'utf8'), before);
+    assert.equal(await readFile(path.join(base, 'backend/src/prompt.mjs'), 'utf8'), before);
     assert.equal((await validateRelease(stage, 'web')).kind, 'web');
     await put(stage, 'public/index.html', 'tampered');
     await assert.rejects(validateRelease(stage, 'web'), /checksum/);

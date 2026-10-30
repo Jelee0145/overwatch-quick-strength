@@ -1,12 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createQuery, runQuery, ingestCache, accountRecords } from '../../src/query/query.mjs';
+import {
+  createQuery,
+  runQuery,
+  ingestCache,
+  accountRecords
+} from '../../backend/src/query/query.mjs';
 import {
   cacheEntries,
   mintCacheRecords,
   verifyCacheRecord,
   cleanManifest
-} from '../../src/query/cache-records.mjs';
+} from '../../backend/src/query/cache-records.mjs';
 import { service } from '../query-fixture.mjs';
 const env = { CACHE_SIGNING_KEY: 'test-only', DASHEN_SERVER: '1', DASHEN_DTS: '2026' };
 const manifest = (records) =>

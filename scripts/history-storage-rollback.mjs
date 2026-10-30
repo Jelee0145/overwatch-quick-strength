@@ -1,7 +1,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { digest, getBlob, putBlob, deleteBlob } from '../src/security.mjs';
+import { digest, getBlob, putBlob, deleteBlob } from '../backend/src/security.mjs';
 
 // Run with the service stopped, before checking out code predating batch storage.
 // The transaction verifies every batch hash before replacing any account or catalog.
@@ -42,7 +42,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     throw Error('Pass --database <existing SQLite file>; stop owqs.service first');
   const target = realpathSync(filename),
     apply = process.argv.includes('--apply');
-  const { SqliteDatabase } = await import('../server/storage.mjs'),
+  const { SqliteDatabase } = await import('../backend/server/storage.mjs'),
     database = new SqliteDatabase(target);
   try {
     const rows = database.db

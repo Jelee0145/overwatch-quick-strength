@@ -1,9 +1,9 @@
 // Synthetic, memory-only preview. Never reads private configuration or calls a real provider.
 import path from 'node:path';
-import { createRuntime } from '../server/runtime.mjs';
-import { createHttpServer } from '../server/http.mjs';
-import { staticAssets } from '../server/assets.mjs';
-import { passwordHash } from '../src/security.mjs';
+import { createRuntime } from '../backend/server/runtime.mjs';
+import { createHttpServer } from '../backend/server/http.mjs';
+import { staticAssets } from '../backend/server/assets.mjs';
+import { passwordHash } from '../backend/src/security.mjs';
 
 const origin = 'http://127.0.0.1:8792';
 const config = {

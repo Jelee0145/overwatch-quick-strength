@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { UserTasks } from '../../src/actors/tasks.mjs';
-import { putBlob, getBlob } from '../../src/security.mjs';
+import { UserTasks } from '../../backend/src/actors/tasks.mjs';
+import { putBlob, getBlob } from '../../backend/src/security.mjs';
 import { setup, request, start } from '../helpers/tasks.mjs';
 
 const policies = [

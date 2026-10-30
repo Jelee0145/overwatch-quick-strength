@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
-const code = await readFile(new URL('../../web/draw.js', import.meta.url), 'utf8');
-const engine = await readFile(new URL('../../web/draw-engine.js', import.meta.url), 'utf8');
+const code = await readFile(new URL('../../frontend/web/draw.js', import.meta.url), 'utf8');
+const engine = await readFile(
+  new URL('../../frontend/web/draw-engine.js', import.meta.url),
+  'utf8'
+);
 const heroes = JSON.parse(
-  await readFile(new URL('../../web/draw/heroes.json', import.meta.url), 'utf8')
+  await readFile(new URL('../../frontend/web/draw/heroes.json', import.meta.url), 'utf8')
 ).heroes.map((h) => ({ ...h, portrait: '/fixture/' + h.id + '.png' }));
 const settle = async () => {
   for (let i = 0; i < 50; i++) await Promise.resolve();

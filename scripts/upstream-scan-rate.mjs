@@ -15,8 +15,8 @@
 import {writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {upstream} from '../src/adapters/dashen.mjs';
-import {ServiceError} from '../src/services/errors.mjs';
+import {upstream} from '../backend/src/adapters/dashen.mjs';
+import {ServiceError} from '../backend/src/services/errors.mjs';
 import {UsageError,loadConfig,maskedTag,describe,requireAbsolute,createProbe,locate} from './upstream-scan-shared.mjs';
 
 export const USAGE=`Usage: node scripts/upstream-scan-rate.mjs --battletag=<名称#编号> [options]

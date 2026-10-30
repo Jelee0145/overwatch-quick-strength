@@ -1,11 +1,11 @@
 // Loopback preview with synthetic accounts, signed fixture history and mock upstream only.
 import path from 'node:path';
-import { createRuntime } from '../../server/runtime.mjs';
-import { createHttpServer } from '../../server/http.mjs';
-import { staticAssets } from '../../server/assets.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
+import { createHttpServer } from '../../backend/server/http.mjs';
+import { staticAssets } from '../../backend/server/assets.mjs';
 import { analysisFixture } from '../../test/services-fixture.mjs';
 import { service } from '../../test/query-fixture.mjs';
-import { signSnapshot } from '../../src/security.mjs';
+import { signSnapshot } from '../../backend/src/security.mjs';
 const port = 8791,
   origin = 'http://127.0.0.1:' + port;
 const config = {

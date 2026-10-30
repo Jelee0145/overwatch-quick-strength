@@ -6,8 +6,8 @@ import {
   analyzeArchive,
   analyzeCachedArchive,
   historyComputationCache
-} from '../../src/history/analysis.mjs';
-import { webAnalysisView } from '../../src/history/view.mjs';
+} from '../../backend/src/history/analysis.mjs';
+import { webAnalysisView } from '../../backend/src/history/view.mjs';
 
 export function performanceArchive(count) {
   const fixture = analysisFixture(),

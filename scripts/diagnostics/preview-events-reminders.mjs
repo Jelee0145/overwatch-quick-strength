@@ -5,11 +5,11 @@
 import http from 'node:http';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { staticAssets } from '../../server/assets.mjs';
-import { generatePushKeys } from '../../server/web-push.mjs';
-import { broadcastsFor } from '../../src/events/broadcasts.mjs';
-import { matchIdentity } from '../../server/event-reminders.mjs';
-import { filterEvents } from '../../src/events/filter.mjs';
+import { staticAssets } from '../../backend/server/assets.mjs';
+import { generatePushKeys } from '../../backend/server/web-push.mjs';
+import { broadcastsFor } from '../../backend/src/events/broadcasts.mjs';
+import { matchIdentity } from '../../backend/server/event-reminders.mjs';
+import { filterEvents } from '../../backend/src/events/filter.mjs';
 
 const root = path.resolve(import.meta.dirname, '../..');
 const port = Number(process.env.PORT) || 8790;

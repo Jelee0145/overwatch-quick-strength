@@ -24,7 +24,7 @@ export const CATALOG = Object.freeze([
 export const USAGE = `Usage: node scripts/sync-local.mjs [--apply --only=<file>]
 
 本机(local/) -> 云端(source/) 同步护栏。默认只预检，不写入任何文件。
-只同步算法、数据与提示词；网页文件归 web/base/，图表以 source/chart.js 为准。
+只同步算法、数据与提示词；网页文件归 frontend/web/base/，图表以 source/chart.js 为准。
 
   (无参数)               列出每个文件状态（same/changed/missing/dirty）
   --apply --only=<file>  只写入指定的单个文件

@@ -4,10 +4,10 @@ import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { createRuntime } from '../../server/runtime.mjs';
-import { createHttpServer } from '../../server/http.mjs';
-import { staticAssets } from '../../server/assets.mjs';
-import { signSnapshot } from '../../src/security.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
+import { createHttpServer } from '../../backend/server/http.mjs';
+import { staticAssets } from '../../backend/server/assets.mjs';
+import { signSnapshot } from '../../backend/src/security.mjs';
 import { performanceArchive } from './history-performance-benchmark.mjs';
 
 const require = createRequire(import.meta.url),

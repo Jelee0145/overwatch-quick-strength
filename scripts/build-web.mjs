@@ -15,8 +15,8 @@ export async function buildWeb({ base, capture = false } = {}) {
   process.umask(0o022);
   base = path.resolve(base);
   const source = path.join(base, 'source'),
-    webBase = path.join(base, 'web/base'),
-    pages = path.join(base, 'web/pages');
+    webBase = path.join(base, 'frontend/web/base'),
+    pages = path.join(base, 'frontend/web/pages');
   const outputDirectory = path.resolve(base, 'public');
   if (path.dirname(outputDirectory) !== base) throw Error('Unexpected build output directory');
   for (const name of [
@@ -43,7 +43,9 @@ export async function buildWeb({ base, capture = false } = {}) {
   }
   await mkdir(path.join(base, 'public/static'), { recursive: true });
 
-  const noteConfig = JSON.parse(await readFile(path.join(base, 'web/release-notes.json'), 'utf8'));
+  const noteConfig = JSON.parse(
+    await readFile(path.join(base, 'frontend/web/release-notes.json'), 'utf8')
+  );
   const releaseNotes = gitNotes(noteConfig.baseline, noteConfig.entries);
   await writeFile(path.join(base, 'public/release-notes.json'), JSON.stringify(releaseNotes));
 
@@ -53,7 +55,7 @@ export async function buildWeb({ base, capture = false } = {}) {
       recursive: true
     });
 
-  const logo = (await readFile(path.join(base, 'web/fox.svg'), 'utf8')).trim();
+  const logo = (await readFile(path.join(base, 'frontend/web/fox.svg'), 'utf8')).trim();
   if (!logo) throw Error('Missing website logo');
   const favicon = logo
     .replace(' class="mark"', '')
@@ -87,15 +89,15 @@ export async function buildWeb({ base, capture = false } = {}) {
       );
   const withInstall = (page) => page.replace('</head>', installHead + '</head>');
 
-  const httpClient = await readFile(path.join(base, 'web/http-client.js'), 'utf8');
+  const httpClient = await readFile(path.join(base, 'frontend/web/http-client.js'), 'utf8');
   await writeFile(
     path.join(base, 'public/app-icon.svg'),
-    await readFile(path.join(base, 'web/app-icon.svg'))
+    await readFile(path.join(base, 'frontend/web/app-icon.svg'))
   );
   await writeFile(
     path.join(base, 'public/install.js'),
     (
-      await transform(await readFile(path.join(base, 'web/install.js'), 'utf8'), {
+      await transform(await readFile(path.join(base, 'frontend/web/install.js'), 'utf8'), {
         loader: 'js',
         minify: true,
         target: 'es2022'
@@ -104,7 +106,7 @@ export async function buildWeb({ base, capture = false } = {}) {
   );
   await writeFile(
     path.join(base, 'public/event-reminders-sw.js'),
-    await readFile(path.join(base, 'web/event-reminders-sw.js'))
+    await readFile(path.join(base, 'frontend/web/event-reminders-sw.js'))
   );
   await writeFile(
     path.join(base, 'public/manifest.json'),
@@ -129,7 +131,7 @@ export async function buildWeb({ base, capture = false } = {}) {
     await Promise.all([
       readFile(path.join(webBase, 'app.js'), 'utf8'),
       ...['timeline.js', 'export.js', 'query.js', 'boot.js'].map((name) =>
-        readFile(path.join(base, 'web/app', name), 'utf8')
+        readFile(path.join(base, 'frontend/web/app', name), 'utf8')
       )
     ])
   ).join('\n');
@@ -151,16 +153,16 @@ export async function buildWeb({ base, capture = false } = {}) {
   }
 
   const reminderEngine = await staticFile(
-    await readFile(path.join(base, 'web/event-reminders.js'), 'utf8'),
+    await readFile(path.join(base, 'frontend/web/event-reminders.js'), 'utf8'),
     'js',
     'event-reminders'
   );
   const extras = await staticFile(
     rewriteCopy(
       [
-        await readFile(path.join(base, 'web/api-key.js'), 'utf8'),
-        await readFile(path.join(base, 'web/cloud-review.js'), 'utf8'),
-        await readFile(path.join(base, 'web/changelog.js'), 'utf8')
+        await readFile(path.join(base, 'frontend/web/api-key.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/cloud-review.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/changelog.js'), 'utf8')
       ].join('\n')
     ),
     'js',
@@ -169,15 +171,15 @@ export async function buildWeb({ base, capture = false } = {}) {
   const mobile = await staticFile(
     rewriteCopy(
       [
-        await readFile(path.join(base, 'web/mobile-shell.js'), 'utf8'),
-        await readFile(path.join(base, 'web/mobile.js'), 'utf8')
+        await readFile(path.join(base, 'frontend/web/mobile-shell.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/mobile.js'), 'utf8')
       ].join('\n')
     ),
     'js',
     'app-mobile'
   );
   const lazyLoader = await staticFile(
-    (await readFile(path.join(base, 'web/lazy-loader.js'), 'utf8')).replace(
+    (await readFile(path.join(base, 'frontend/web/lazy-loader.js'), 'utf8')).replace(
       '__OWQS_LAZY__',
       JSON.stringify({ extras, mobile, reminders: reminderEngine })
     ),
@@ -187,13 +189,13 @@ export async function buildWeb({ base, capture = false } = {}) {
   const css = await staticFile(
     (await readFile(path.join(webBase, 'style.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'web/cloud.css'), 'utf8')) +
+      (await readFile(path.join(base, 'frontend/web/cloud.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'web/mobile-shell.css'), 'utf8')) +
+      (await readFile(path.join(base, 'frontend/web/mobile-shell.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'web/mobile.css'), 'utf8')) +
+      (await readFile(path.join(base, 'frontend/web/mobile.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'web/event-reminders.css'), 'utf8')),
+      (await readFile(path.join(base, 'frontend/web/event-reminders.css'), 'utf8')),
     'css',
     'app'
   );
@@ -203,7 +205,7 @@ export async function buildWeb({ base, capture = false } = {}) {
     sharedSources.map((name) => readFile(path.join(source, name), 'utf8'))
   );
   const services = await build({
-    entryPoints: [path.join(base, 'web/services.js')],
+    entryPoints: [path.join(base, 'frontend/web/services.js')],
     bundle: true,
     format: 'iife',
     platform: 'browser',
@@ -223,12 +225,12 @@ export async function buildWeb({ base, capture = false } = {}) {
         ...runtime,
         smallArt,
         chart,
-        await readFile(path.join(base, 'web/media-loader.js'), 'utf8'),
-        await readFile(path.join(base, 'web/history-model.js'), 'utf8'),
-        await readFile(path.join(base, 'web/cloud-history.js'), 'utf8'),
-        await readFile(path.join(base, 'web/cloud-cache.js'), 'utf8'),
-        await readFile(path.join(base, 'web/cloud-client.js'), 'utf8'),
-        await readFile(path.join(base, 'web/server-analysis.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/media-loader.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/history-model.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/cloud-history.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/cloud-cache.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/cloud-client.js'), 'utf8'),
+        await readFile(path.join(base, 'frontend/web/server-analysis.js'), 'utf8'),
         app
       ].join('\n')
     ),
@@ -237,8 +239,10 @@ export async function buildWeb({ base, capture = false } = {}) {
   );
 
   let html = await readFile(path.join(pages, 'strength.html'), 'utf8');
-  const changelog = rewriteCopy(await readFile(path.join(base, 'web/changelog.html'), 'utf8'));
-  const apiKey = rewriteCopy(await readFile(path.join(base, 'web/api-key.html'), 'utf8'));
+  const changelog = rewriteCopy(
+    await readFile(path.join(base, 'frontend/web/changelog.html'), 'utf8')
+  );
+  const apiKey = rewriteCopy(await readFile(path.join(base, 'frontend/web/api-key.html'), 'utf8'));
   const headAssets = `<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"><link rel="manifest" href="/manifest.json"><link rel="preload" as="script" href="${mobile}" media="(max-width:760px), (max-height:500px) and (pointer:coarse)"><link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${lazyLoader}"></script><script defer src="/install.js"></script>`;
   html = html
     .replaceAll('{{SITE_MARK}}', logo)
@@ -260,11 +264,11 @@ export async function buildWeb({ base, capture = false } = {}) {
   });
   for (const page of ['login', 'admin']) {
     let content = withInstall(
-      brandPage(await readFile(path.join(base, 'web', page + '.html'), 'utf8'))
+      brandPage(await readFile(path.join(base, 'frontend/web', page + '.html'), 'utf8'))
     );
     const js = await staticFile(
       rewriteCopy(
-        httpClient + '\n' + (await readFile(path.join(base, 'web', page + '.js'), 'utf8'))
+        httpClient + '\n' + (await readFile(path.join(base, 'frontend/web', page + '.js'), 'utf8'))
       ),
       'js',
       page

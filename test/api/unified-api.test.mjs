@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../../src/worker.mjs';
-import { analysisResponseCache } from '../../src/api/v1.mjs';
-import { createRuntime } from '../../server/runtime.mjs';
-import { signSnapshot, putBlob } from '../../src/security.mjs';
+import worker from '../../backend/src/worker.mjs';
+import { analysisResponseCache } from '../../backend/src/api/v1.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
+import { signSnapshot, putBlob } from '../../backend/src/security.mjs';
 import { analysisFixture } from '../services-fixture.mjs';
-import { warmHistoryAnalysis } from '../../src/history/response.mjs';
-import { createHttpServer } from '../../server/http.mjs';
+import { warmHistoryAnalysis } from '../../backend/src/history/response.mjs';
+import { createHttpServer } from '../../backend/server/http.mjs';
 import http from 'node:http';
 import { gunzipSync, brotliDecompressSync } from 'node:zlib';
 

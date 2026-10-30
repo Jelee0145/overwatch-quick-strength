@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
-import worker from '../../src/worker.mjs';
+import worker from '../../backend/src/worker.mjs';
 
-const script = await readFile(new URL('../../web/events.js', import.meta.url), 'utf8');
-const model = await readFile(new URL('../../web/events-model.js', import.meta.url), 'utf8');
+const script = await readFile(new URL('../../frontend/web/events.js', import.meta.url), 'utf8');
+const model = await readFile(
+  new URL('../../frontend/web/events-model.js', import.meta.url),
+  'utf8'
+);
 const flush = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve();
 };

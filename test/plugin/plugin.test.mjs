@@ -5,8 +5,8 @@ import { readFile, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { createChartService, ServiceError } from '../../src/services/index.mjs';
-import { analysisService } from '../../src/services/runtime.mjs';
+import { createChartService, ServiceError } from '../../backend/src/services/index.mjs';
+import { analysisService } from '../../backend/src/services/runtime.mjs';
 import { analysisFixture } from '../services-fixture.mjs';
 import { service as fixture } from '../query-fixture.mjs';
 import {
@@ -42,7 +42,7 @@ test('injected chart service preserves the legacy SVG exactly and does not leak 
   const c = vm.createContext({});
   c.window = c;
   vm.runInContext(await readFile(path.join(root, 'source/core.js'), 'utf8'), c);
-  vm.runInContext(await readFile(path.join(root, 'web/base/data.js'), 'utf8'), c);
+  vm.runInContext(await readFile(path.join(root, 'frontend/web/base/data.js'), 'utf8'), c);
   vm.runInContext(await readFile(path.join(root, 'local/chart.js'), 'utf8'), c);
   const raw = analysisFixture(),
     model = analysisService.analyzeBatch(raw);

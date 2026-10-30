@@ -1,6 +1,6 @@
 # 战绩服务模块
 
-`src/services/index.mjs` 导出 `createMatchService`、`createDataService`、`createAnalysisService` 和 `ServiceError`。模块使用 ESM；数据整理和分析计算没有网络、DOM、存储或 Cloudflare 依赖。它们返回新的数据，不修改输入。获取服务会更新传入的查询状态，但会复制初始快照、恢复数据及传入缓存。
+`backend/src/services/index.mjs` 导出 `createMatchService`、`createDataService`、`createAnalysisService` 和 `ServiceError`。模块使用 ESM；数据整理和分析计算没有网络、DOM、存储或 Cloudflare 依赖。它们返回新的数据，不修改输入。获取服务会更新传入的查询状态，但会复制初始快照、恢复数据及传入缓存。
 
 图表服务 `createChartService({core, maps, avatar, rankArt}).render(model, {art, showArt, title})` 同样从统一入口导出，返回 SVG 字符串。`core` 提供 `esc/rank/bands/roles`，其余参数显式提供素材与地图信息，不访问 DOM 或请求网络。`source/chart.js` 是浏览器与后端共用的唯一图表权威源，同时保留网页四参数 `renderChart` 入口。默认调用保持 API/Bot 原有输出；可选 `windowOffset`、`windowSize`、`columnOffset`、`plotScale`、`histogram` 和按需加载的地图素材供网页时间轴使用，构建不再替换图表源码。`scripts/sync-local.mjs` 只同步算法、数据和提示词，`chart.js` 不在同步范围。
 
@@ -11,7 +11,7 @@
 先执行 `npm run build`。Worker 和仓库内的 Node 脚本可直接使用运行时适配器；不需要启动网站，也不会请求大神或 AI：
 
 ```js
-import {analysisService, dataService} from './src/services/runtime.mjs';
+import {analysisService, dataService} from './backend/src/services/runtime.mjs';
 
 const snapshot = {battletag: 'Example#100', matches: []};
 const normalized = dataService.normalize(snapshot);
@@ -25,7 +25,7 @@ const botResult = analysisService.analyzeResult(snapshot, {
 
 `analyzeBatch` 接收单次快照，最多 50 场；返回完整算法模型，包括 `matches`、`summary`、`confidence`、`personalPrediction`。`analyzeResult` 保持 Bot 响应结构，展示最近 10 场，统计范围支持 `all/5/10/20`。默认 `side=all`、`strategy=legacy`、`estimate=true`。
 
-网页通过统一 `/api/v1` 获取服务端分析结果。`web/services.js` 仅暴露 `OWQS_SERVICES.data` 和 `OWQS_SERVICES.historyGeometry`，保留数据规范化与展示几何辅助，不暴露浏览器评分服务。`runtime.mjs` 是 Worker/Node 适配器，不应打入浏览器。算法、数据、提示词、图表和媒体正文来自 `source/`；网页基础定义在 `web/base/`，云端增量模块在 `web/app/`，页面模板在 `web/pages/`；`src/shared/` 是构建产物，不要手改或自动同步 `local/`。多端契约与独立构建见 [统一后端说明](docs/unified-backend.md)。
+网页通过统一 `/api/v1` 获取服务端分析结果。`frontend/web/services.js` 仅暴露 `OWQS_SERVICES.data` 和 `OWQS_SERVICES.historyGeometry`，保留数据规范化与展示几何辅助，不暴露浏览器评分服务。`runtime.mjs` 是 Worker/Node 适配器，不应打入浏览器。算法、数据、提示词、图表和媒体正文来自 `source/`；网页基础定义在 `frontend/web/base/`，云端增量模块在 `frontend/web/app/`，页面模板在 `frontend/web/pages/`；`backend/src/shared/` 是构建产物，不要手改或自动同步 `local/`。多端契约与独立构建见 [统一后端说明](docs/unified-backend.md)。
 
 其他运行环境可以从统一入口导入工厂，将 `core`、`performance`、`heroes`、`benchmarks` 显式传入 `createAnalysisService`。`createDataService({normalizeSnapshot: core.normalize})` 绑定分析清洗规则；仅使用上游转换或历史索引时可省略转换器。
 
@@ -52,10 +52,10 @@ const statistics = analysisService.summarize(history.raw, selected, options, {
 
 ## 战绩获取与平台边界
 
-现有 `src/query/query.mjs` 和 `src/query/engine.mjs` 保留原导出和调用签名。统一后端负责鉴权、额度、缓存验签、存储、告警调度和最终归档；腾讯云通过 Node/SQLite 运行时承载，Cloudflare 保留 Worker/Durable Objects 适配，两者不是自动同步的数据副本。
+现有 `backend/src/query/query.mjs` 和 `backend/src/query/engine.mjs` 保留原导出和调用签名。统一后端负责鉴权、额度、缓存验签、存储、告警调度和最终归档；腾讯云通过 Node/SQLite 运行时承载，Cloudflare 保留 Worker/Durable Objects 适配，两者不是自动同步的数据副本。
 
 ```js
-import {createMatchService} from './src/services/index.mjs';
+import {createMatchService} from './backend/src/services/index.mjs';
 
 const matches = createMatchService({
   provider,           // async (context, path, params, body) => 解包后的大神响应

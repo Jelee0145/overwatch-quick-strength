@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { canonical, signSnapshot, verifySnapshot } from '../../src/security.mjs';
-import { mintCacheRecords, verifyCacheRecord } from '../../src/query/cache-records.mjs';
+import { canonical, signSnapshot, verifySnapshot } from '../../backend/src/security.mjs';
+import { mintCacheRecords, verifyCacheRecord } from '../../backend/src/query/cache-records.mjs';
 test('missing provider identities survive JSON transport for snapshots and individual cache records', async () => {
   const env = { CACHE_SIGNING_KEY: 'transport-test-only', DASHEN_SERVER: '1', DASHEN_DTS: '2026' },
     player = {

@@ -1,14 +1,20 @@
-import { createDataService } from '../../src/services/data.mjs';
-import * as historyGeometry from '../../src/services/history-geometry.mjs';
+import { createDataService } from '../../backend/src/services/data.mjs';
+import * as historyGeometry from '../../backend/src/services/history-geometry.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { signSnapshot, verifySnapshot } from '../../src/security.mjs';
+import { signSnapshot, verifySnapshot } from '../../backend/src/security.mjs';
 
-const modelSource = await readFile(new URL('../../web/history-model.js', import.meta.url), 'utf8');
-const clientSource = await readFile(new URL('../../web/cloud-history.js', import.meta.url), 'utf8');
+const modelSource = await readFile(
+  new URL('../../frontend/web/history-model.js', import.meta.url),
+  'utf8'
+);
+const clientSource = await readFile(
+  new URL('../../frontend/web/cloud-history.js', import.meta.url),
+  'utf8'
+);
 const tag = 'Main#100';
 const session = { user: { id: 'u' }, scope: { server: '1', dts: '2026' } };
 const signingKey = 'history-sync-client-fixture-key';

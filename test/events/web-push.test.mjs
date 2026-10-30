@@ -5,7 +5,7 @@ import {
   createPushSender,
   generatePushKeys,
   validateSubscription
-} from '../../server/web-push.mjs';
+} from '../../backend/server/web-push.mjs';
 
 const { subtle } = webcrypto;
 const endpoint = 'https://fcm.googleapis.com/fcm/send/test-only-token';

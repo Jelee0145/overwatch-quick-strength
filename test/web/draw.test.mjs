@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 const window = {};
-vm.runInNewContext(await readFile(new URL('../../web/draw-engine.js', import.meta.url), 'utf8'), {
-  window
-});
+vm.runInNewContext(
+  await readFile(new URL('../../frontend/web/draw-engine.js', import.meta.url), 'utf8'),
+  {
+    window
+  }
+);
 const engine = window.HeroDrawEngine,
   catalog = JSON.parse(
-    await readFile(new URL('../../web/draw/heroes.json', import.meta.url), 'utf8')
+    await readFile(new URL('../../frontend/web/draw/heroes.json', import.meta.url), 'utf8')
   ).heroes;
 test('draw uses only the selected role and every pool member is reachable', () => {
   for (const role of ['all', '重装', '输出', '支援']) {

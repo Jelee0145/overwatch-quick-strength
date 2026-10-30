@@ -4,7 +4,7 @@
 
 历史分析的网页精简投影、窗口缓存、批次同步与存储回退见 [历史性能验收](docs/history-performance.md)。本机合成数据结果与生产验收分开记录；完整 API 视图仍为默认。
 
-完整项目位于 `D:\project\owqs`；本机工具位于 `local/`，云端项目不修改它。`source` 保存算法、数据、提示词、图表和媒体的独立源码快照，可在 GitHub／Cloudflare 上独立构建；仅替换认证、缓存及 API。云端网页由 `web/` 组成：基础 UI 定义在 `web/base/`，时间轴、导出、查询和启动模块在 `web/app/`，页面模板为 `web/pages/strength.html`；`scripts/build.mjs` 只做入口编排，`scripts/build-web.mjs` 负责网页组装。`source/chart.js` 是浏览器与后端共用的图表权威源，不从本机同步。本机算法更新后，先运行 `node scripts/sync-local.mjs` 预检；确需写入时用 `--apply --only=<file>` 逐文件同步算法、数据和提示词。
+完整项目位于 `D:\project\owqs`；本机工具位于 `local/`，云端项目不修改它。仓库按端分为 `frontend/` 与 `backend/`：网页源码在 `frontend/web/`，基础 UI 定义在 `frontend/web/base/`，时间轴、导出、查询和启动模块在 `frontend/web/app/`，页面模板为 `frontend/web/pages/strength.html`；后端运行时在 `backend/src/`，Node 宿主入口为 `backend/server/main.mjs`。`source` 保存两端共用的算法、数据、提示词、图表和媒体源码快照，可在 GitHub／Cloudflare 上独立构建。`scripts/build.mjs` 只做入口编排，`scripts/build-web.mjs` 负责网页组装，构建产物仍输出到根目录 `public/`。`source/chart.js` 是浏览器与后端共用的图表权威源，不从本机同步。本机算法更新后，先运行 `node scripts/sync-local.mjs` 预检；确需写入时用 `--apply --only=<file>` 逐文件同步算法、数据和提示词。
 
 ## 使用与管理
 
@@ -120,16 +120,16 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 
 登录后自动显示当前版本更新日志，点击“我知道了”后按登录用户在此浏览器保存已读状态。刷新不再自动弹出，右上角“更新日志”可随时重看；每次功能或修复提交自动生成新的日志版本并重新提示未读用户。清理站点数据或换浏览器会再次显示。
 
-更新日志由 `scripts/build/release-notes.mjs` 从 baseline 后的 `feat:`／`feature:`／`fix:` 提交自动生成；正文使用 `Changelog: 中文用户可读说明`，支持多行。旧版本记录保存在 `web/release-notes.json`。日志内容变化才更新已读版本；维护提交不重复提示。当前页面每5分钟及回到标签页时检查更新，读取状态仍按账号与浏览器隔离。
+更新日志由 `scripts/build/release-notes.mjs` 从 baseline 后的 `feat:`／`feature:`／`fix:` 提交自动生成；正文使用 `Changelog: 中文用户可读说明`，支持多行。旧版本记录保存在 `frontend/web/release-notes.json`。日志内容变化才更新已读版本；维护提交不重复提示。当前页面每5分钟及回到标签页时检查更新，读取状态仍按账号与浏览器隔离。
 
 ## 英雄抽取与头像维护
 
 三种形式共用等概率英雄池，支持全部／重装／输出／支援筛选；抽取期间锁定形式和职责切换。抽取记录按登录账号保存到现有浏览器 IndexedDB，最多保留 50 次，换设备或清理站点数据不会恢复。轮盘与老虎机减速揭晓，抽卡翻牌揭晓；系统要求减少动画时使用简短展示。
 
-`web/draw/heroes.json` 保存英雄名单、职责、头像来源和 SHA-256；`web/draw/portraits/` 保存透明 PNG 原件。当前覆盖 54 位英雄：复用 49 张旧透明头像，补齐血律、D.Mon、死怨、西拉，毛加旧不透明头像已换为官方透明版本。构建将头像复制为带内容哈希的站内资源，页面不依赖外站图片请求。
+`frontend/web/draw/heroes.json` 保存英雄名单、职责、头像来源和 SHA-256；`frontend/web/draw/portraits/` 保存透明 PNG 原件。当前覆盖 54 位英雄：复用 49 张旧透明头像，补齐血律、D.Mon、死怨、西拉，毛加旧不透明头像已换为官方透明版本。构建将头像复制为带内容哈希的站内资源，页面不依赖外站图片请求。
 
 手动维护命令为 `python -X utf8 scripts/update-draw-heroes.py`（需要 Pillow）。它核对暴雪官方英雄目录，仅下载缺少或不透明的头像，不覆盖有效透明图片；遇到尚未配置中文名的新英雄会停止，避免静默遗漏。该脚本不属于构建或发布步骤。
 
 ## 品牌与界面文案
 
-云端统一使用“狸狸天眼查”和 `web/fox.svg` 像素狐狸。`scripts/build/ui-copy.mjs` 在构建末尾统一转换界面文案，保持元素 ID、接口字段和数据计算不变；原本机界面与 AI 提示词不参与转换。修改文案时同时检查手机摘要、动态按钮及导出名称，执行界面与算法回归。
+云端统一使用“狸狸天眼查”和 `frontend/web/fox.svg` 像素狐狸。`scripts/build/ui-copy.mjs` 在构建末尾统一转换界面文案，保持元素 ID、接口字段和数据计算不变；原本机界面与 AI 提示词不参与转换。修改文案时同时检查手机摘要、动态按钮及导出名称，执行界面与算法回归。

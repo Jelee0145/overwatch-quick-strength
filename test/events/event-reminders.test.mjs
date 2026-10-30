@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EventReminders, matchIdentity } from '../../server/event-reminders.mjs';
-import { SqliteDatabase } from '../../server/storage.mjs';
-import { EventCenter } from '../../src/events/center.mjs';
+import { EventReminders, matchIdentity } from '../../backend/server/event-reminders.mjs';
+import { SqliteDatabase } from '../../backend/server/storage.mjs';
+import { EventCenter } from '../../backend/src/events/center.mjs';
 import { MemoryStorage } from '../helpers/storage.mjs';
 import { page, card, response } from '../events-fixture.mjs';
 import { generateKeyPairSync } from 'node:crypto';

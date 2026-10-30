@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { upstream } from '../../src/adapters/dashen.mjs';
-import { createScheduler } from '../../src/services/scheduler.mjs';
+import { upstream } from '../../backend/src/adapters/dashen.mjs';
+import { createScheduler } from '../../backend/src/services/scheduler.mjs';
 
 const settings = {
   DASHEN_TOKEN: 'fixture-token',

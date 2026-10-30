@@ -8,8 +8,8 @@ import {
   restoreQuery,
   upgradeQuery,
   accountRecords
-} from '../../src/query/query.mjs';
-import { Fault } from '../../src/security.mjs';
+} from '../../backend/src/query/query.mjs';
+import { Fault } from '../../backend/src/security.mjs';
 import { service } from '../query-fixture.mjs';
 async function finish(s, mock) {
   for (let n = 0; s.phase !== 'done' && n < 100; n++)

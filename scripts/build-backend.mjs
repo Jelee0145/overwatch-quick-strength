@@ -29,7 +29,7 @@ export function rendererMediaPaths(media) {
 export async function buildBackend({ base = path.resolve(import.meta.dirname, '..') } = {}) {
   base = path.resolve(base);
   const source = path.join(base, 'source'),
-    out = path.join(base, 'src');
+    out = path.join(base, 'backend/src');
   await mkdir(path.join(out, 'shared'), { recursive: true });
   let revision = 'local';
   try {

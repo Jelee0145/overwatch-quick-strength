@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRuntime } from '../../server/runtime.mjs';
-import { createHttpServer } from '../../server/http.mjs';
-import { passwordHash } from '../../src/security.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
+import { createHttpServer } from '../../backend/server/http.mjs';
+import { passwordHash } from '../../backend/src/security.mjs';
 
 test('admin hot switch and daily probes reach sessions and Bot admission through HTTP', async () => {
   const origin = 'https://owqs.test',

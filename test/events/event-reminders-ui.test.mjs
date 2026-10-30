@@ -5,8 +5,14 @@ import vm from 'node:vm';
 
 // A non-default port exercises the same-origin rule, which must be checked before the external HTTPS rule.
 const ORIGIN = 'https://site.test:8443';
-const FRONTEND = fs.readFileSync(new URL('../../web/event-reminders.js', import.meta.url), 'utf8');
-const WORKER = fs.readFileSync(new URL('../../web/event-reminders-sw.js', import.meta.url), 'utf8');
+const FRONTEND = fs.readFileSync(
+  new URL('../../frontend/web/event-reminders.js', import.meta.url),
+  'utf8'
+);
+const WORKER = fs.readFileSync(
+  new URL('../../frontend/web/event-reminders-sw.js', import.meta.url),
+  'utf8'
+);
 
 function createStorage() {
   const values = new Map();
@@ -249,7 +255,7 @@ function createPage(options = {}) {
     clearInterval: clock.clearInterval
   };
   vm.createContext(sandbox);
-  vm.runInContext(FRONTEND, sandbox, { filename: 'web/event-reminders.js' });
+  vm.runInContext(FRONTEND, sandbox, { filename: 'frontend/web/event-reminders.js' });
   page.reminders = sandbox.window.EventReminders;
   page.dispatchWindow = (type, properties = {}) => window.dispatchEvent({ type, ...properties });
   return page;
@@ -297,7 +303,7 @@ function createServiceWorker() {
   };
   const sandbox = { self, URL };
   vm.createContext(sandbox);
-  vm.runInContext(WORKER, sandbox, { filename: 'web/event-reminders-sw.js' });
+  vm.runInContext(WORKER, sandbox, { filename: 'frontend/web/event-reminders-sw.js' });
 
   async function dispatch(type, event) {
     const waits = [];
@@ -521,7 +527,7 @@ test('a delayed retained notice is labeled as a catch-up reminder', async () => 
 });
 
 test('reservation status distinguishes generated notices from push acceptance and unverified due times', () => {
-  const events = fs.readFileSync(new URL('../../web/events.js', import.meta.url), 'utf8');
+  const events = fs.readFileSync(new URL('../../frontend/web/events.js', import.meta.url), 'utf8');
   const statusFunction = events.match(
     /function reservationStatus\b[\s\S]*?(?=\s*function renderReminders\b)/
   )?.[0];

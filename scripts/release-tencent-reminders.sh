@@ -14,7 +14,7 @@ cp "$archive" ./owqs-server.tar.gz
 cp "$archive.sha256" ./owqs-server.tar.gz.sha256
 sha256sum -c owqs-server.tar.gz.sha256
 tar -xzf owqs-server.tar.gz
-node --input-type=module -e 'await import("./src/worker.mjs"); await import("./server/runtime.mjs"); console.log("Release imports verified")'
+node --input-type=module -e 'await import("./backend/src/worker.mjs"); await import("./backend/server/runtime.mjs"); console.log("Release imports verified")'
 backup="/var/lib/owqs/backups/pre-$revision"
 mkdir -p -m 700 "$backup"
 cp -p /etc/owqs/config.json "$backup/config.json"

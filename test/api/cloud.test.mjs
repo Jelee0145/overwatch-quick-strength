@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AuthDirectory } from '../../src/actors/auth.mjs';
-import { UserTasks } from '../../src/actors/tasks.mjs';
-import worker from '../../src/worker.mjs';
+import { AuthDirectory } from '../../backend/src/actors/auth.mjs';
+import { UserTasks } from '../../backend/src/actors/tasks.mjs';
+import worker from '../../backend/src/worker.mjs';
 import {
   passwordHash,
   mac,
@@ -12,12 +12,12 @@ import {
   getBlob,
   deleteBlob,
   day
-} from '../../src/security.mjs';
-import { createQuery, queryStep } from '../../src/query/query.mjs';
-import { prepareReview, callReview } from '../../src/adapters/review.mjs';
-import { heroes } from '../../src/shared/data.mjs';
+} from '../../backend/src/security.mjs';
+import { createQuery, queryStep } from '../../backend/src/query/query.mjs';
+import { prepareReview, callReview } from '../../backend/src/adapters/review.mjs';
+import { heroes } from '../../backend/src/shared/data.mjs';
 import { service } from '../query-fixture.mjs';
-import { mintCacheRecords, cacheEntries } from '../../src/query/cache-records.mjs';
+import { mintCacheRecords, cacheEntries } from '../../backend/src/query/cache-records.mjs';
 import { MemoryStorage } from '../helpers/storage.mjs';
 export { MemoryStorage };
 const hero = Object.keys(heroes)[0],

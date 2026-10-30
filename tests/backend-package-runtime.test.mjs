@@ -13,16 +13,21 @@ test('isolated backend package boots, authenticates, completes a query and rende
   let runtime, server;
   try {
     // Build a fresh package using actual generated backend outputs, never the checkout runtime.
-    for (const name of ['server', 'src', 'dist/backend-assets'])
-      await cp(path.join(root, name), path.join(directory, name), { recursive: true });
+    for (const name of ['server', 'src'])
+      await cp(path.join(root, 'backend', name), path.join(directory, 'backend', name), {
+        recursive: true
+      });
+    await cp(path.join(root, 'dist/backend-assets'), path.join(directory, 'dist/backend-assets'), {
+      recursive: true
+    });
     await mkdir(path.join(directory, 'source/media'), { recursive: true });
     await copyFile(
       path.join(root, 'source/media/manifest.json'),
       path.join(directory, 'source/media/manifest.json')
     );
     await copyFile(
-      path.join(root, 'access-policy.json'),
-      path.join(directory, 'access-policy.json')
+      path.join(root, 'backend/access-policy.json'),
+      path.join(directory, 'backend/access-policy.json')
     );
     const { stage } = await stageBackend({ base: directory });
     assert.deepEqual((await readdir(stage)).sort(), [

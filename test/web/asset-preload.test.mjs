@@ -2,7 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 import vm from 'node:vm';
-const source = await readFile(new URL('../../web/asset-preload.js', import.meta.url), 'utf8');
+const source = await readFile(
+  new URL('../../frontend/web/asset-preload.js', import.meta.url),
+  'utf8'
+);
 const asset = '/media/maps/01234567890123456789.webp',
   version = '0123456789abcdef';
 function harness({

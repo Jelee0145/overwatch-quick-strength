@@ -4,12 +4,16 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import { build } from 'esbuild';
-import { createMatchService, createDataService, ServiceError } from '../../src/services/index.mjs';
-import { analysisService, dataService } from '../../src/services/runtime.mjs';
-import { analyzeResult } from '../../src/api/analysis.mjs';
-import { prepareReview, MODEL } from '../../src/adapters/review.mjs';
-import { prompt, version } from '../../src/prompt.mjs';
-import { digest, canonical } from '../../src/security.mjs';
+import {
+  createMatchService,
+  createDataService,
+  ServiceError
+} from '../../backend/src/services/index.mjs';
+import { analysisService, dataService } from '../../backend/src/services/runtime.mjs';
+import { analyzeResult } from '../../backend/src/api/analysis.mjs';
+import { prepareReview, MODEL } from '../../backend/src/adapters/review.mjs';
+import { prompt, version } from '../../backend/src/prompt.mjs';
+import { digest, canonical } from '../../backend/src/security.mjs';
 import { service } from '../query-fixture.mjs';
 import { analysisFixture, archiveFixture } from '../services-fixture.mjs';
 
@@ -65,7 +69,7 @@ test('review baseline accepts both LF and CRLF checkouts while fingerprints bind
   for (const runtimePrompt of [lf, lf.replaceAll('\n', '\r\n')]) {
     const compiled = await build({
       entryPoints: [
-        new URL('../../src/adapters/review.mjs', import.meta.url).pathname.replace(
+        new URL('../../backend/src/adapters/review.mjs', import.meta.url).pathname.replace(
           /^\/([A-Z]:)/,
           '$1'
         )
@@ -293,7 +297,10 @@ test('acquisition is injectable, checkpoints survive JSON transport and original
 test('browser service bundle preserves display normalization without importing scoring or chart services', async () => {
   const compiled = await build({
     entryPoints: [
-      new URL('../../web/services.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')
+      new URL('../../frontend/web/services.js', import.meta.url).pathname.replace(
+        /^\/([A-Z]:)/,
+        '$1'
+      )
     ],
     bundle: true,
     format: 'iife',
@@ -318,7 +325,7 @@ test('browser service bundle preserves display normalization without importing s
     )
   );
   for (const name of ['app/timeline.js', 'server-analysis.js']) {
-    const source = await readFile(new URL('../../web/' + name, import.meta.url), 'utf8');
+    const source = await readFile(new URL('../../frontend/web/' + name, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /\.analyzeBatch\s*\(|\.analyzeHistory\s*\(|\.summarize\s*\(/);
   }
 });

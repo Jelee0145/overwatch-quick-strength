@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-const source = async (name) => readFile(new URL('../../web/' + name, import.meta.url), 'utf8');
+const source = async (name) =>
+  readFile(new URL('../../frontend/web/' + name, import.meta.url), 'utf8');
 const httpSource = await source('http-client.js'),
   analysisSource = await source('server-analysis.js');
 function httpRuntime(fetch) {

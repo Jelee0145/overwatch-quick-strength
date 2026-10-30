@@ -4,18 +4,18 @@ import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { SqliteDatabase } from '../../server/storage.mjs';
-import { createRuntime } from '../../server/runtime.mjs';
-import { createHttpServer } from '../../server/http.mjs';
-import { staticAssets } from '../../server/assets.mjs';
-import { createScheduler, pacedFetch } from '../../server/limiter.mjs';
-import { putBlob, getBlob, passwordHash } from '../../src/security.mjs';
-import { createMatchService } from '../../src/services/matches.mjs';
-import { analysisService } from '../../src/services/runtime.mjs';
-import { canonical, digest, token } from '../../src/security.mjs';
+import { SqliteDatabase } from '../../backend/server/storage.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
+import { createHttpServer } from '../../backend/server/http.mjs';
+import { staticAssets } from '../../backend/server/assets.mjs';
+import { createScheduler, pacedFetch } from '../../backend/server/limiter.mjs';
+import { putBlob, getBlob, passwordHash } from '../../backend/src/security.mjs';
+import { createMatchService } from '../../backend/src/services/matches.mjs';
+import { analysisService } from '../../backend/src/services/runtime.mjs';
+import { canonical, digest, token } from '../../backend/src/security.mjs';
 import { service } from '../query-fixture.mjs';
-import { importMigration } from '../../server/migration.mjs';
-import { signSnapshot } from '../../src/security.mjs';
+import { importMigration } from '../../backend/server/migration.mjs';
+import { signSnapshot } from '../../backend/src/security.mjs';
 import { migrationBridge } from '../../scripts/migration-bridge.mjs';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -453,7 +453,7 @@ test('migration CLI preserves a large UTF-8 payload across stdin chunks and pers
     };
     const filename = path.join(dir, 'state.sqlite3'),
       configPath = path.join(dir, 'config.json');
-    const child = spawnSync(process.execPath, [path.resolve('server/import.mjs')], {
+    const child = spawnSync(process.execPath, [path.resolve('backend/server/import.mjs')], {
       input: Buffer.from(JSON.stringify(input)),
       encoding: 'utf8',
       env: { ...process.env, OWQS_DATABASE: filename, OWQS_CONFIG: configPath },

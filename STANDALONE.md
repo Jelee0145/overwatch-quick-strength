@@ -10,7 +10,7 @@
 
 仓库目录 `/opt/owqs-work` 就是线上应用，不再保留版本副本：
 
-- `owqs.service` 的 `WorkingDirectory=/opt/owqs-work`，直接运行 `server/main.mjs`，出图资源读 `dist/backend-assets`。
+- `owqs.service` 的 `WorkingDirectory=/opt/owqs-work`，运行 `backend/server/main.mjs`，出图资源读 `dist/backend-assets`。仓库根目录的 `server/main.mjs` 是旧 unit 的兼容入口；把已安装 unit 的 `ExecStart` 改为新路径并 `systemctl daemon-reload` 后可以删除。
 - Nginx 网页根目录为 `/opt/owqs-work/public`；`.git`、`.private`、`.dev.vars` 不在网页目录内，且 Nginx 拒绝点开头的路径。
 - 发布：确认工作区干净后运行 `node scripts/deploy-local.mjs`。它执行 `backend:build`、`web:build`，重启服务，核对线上健康版本与登录页字节一致，并打 `deploy/<日期>` 标签。
 - 回滚：`git checkout deploy/<日期>` 后重跑同一命令；数据库不回滚，兼容迁移仍是独立前提。
@@ -50,7 +50,7 @@
 
 ## 查询热开关与每日校验
 
-Node 与 Cloudflare 共用 `src/query/control.mjs` 的控制规则。Node 通过 SQLite 的 `query-control` 命名空间、Cloudflare 通过 AuthDirectory Durable Object 存储中的 `query-control:` 独立前缀保存手动模式、自动暂停状态和每日检测记录。Cloudflare 的每日探测与原有账号清理共用 alarm，始终取较早的截止时间。查询准入、登录会话及账户能力字段使用同一持久化状态；切换立即生效，重启后保留。已创建的任务继续执行，历史、已保存结果和 AI 不受新查询开关影响。网页前台每 60 秒及重新获得焦点时同步能力状态。
+Node 与 Cloudflare 共用 `backend/src/query/control.mjs` 的控制规则。Node 通过 SQLite 的 `query-control` 命名空间、Cloudflare 通过 AuthDirectory Durable Object 存储中的 `query-control:` 独立前缀保存手动模式、自动暂停状态和每日检测记录。Cloudflare 的每日探测与原有账号清理共用 alarm，始终取较早的截止时间。查询准入、登录会话及账户能力字段使用同一持久化状态；切换立即生效，重启后保留。已创建的任务继续执行，历史、已保存结果和 AI 不受新查询开关影响。网页前台每 60 秒及重新获得焦点时同步能力状态。
 
 Node 在服务器私有 `/etc/owqs/config.json` 配置 `"QUERY_PROBE_TAG": "daze#51307"` 后重启服务，Cloudflare 配置同名 Worker 私有变量以启用该探测账号；它不进入静态包或公开状态响应。每天北京时间 08:00 通过正式大神适配器调用一次 `/searchBnetAccount`（Node 使用同一全站调度器的低优先级通道），无用户任务、无额度消耗、无自动重试。启动错过当天检测时补检；发送前持久化当天记录，因此检测途中重启也不再发送当天探测。
 
@@ -64,7 +64,7 @@ Node 在服务器私有 `/etc/owqs/config.json` 配置 `"QUERY_PROBE_TAG": "daze
 
 **状态：2026-10-20 已发布至腾讯云 `/opt/owqs/releases/20261020-c9a7a5f`。** 该版本分离快速 5v5／6v6 查询与替补判定；网站公网健康、版本标识与 Bot 插件热重载已核验。 预约路由、官方直播入口和全站三秒悬浮提醒已上线；服务器已生成并配置 `WEB_PUSH_*`，原配置项保留。公网健康、未登录鉴权、脚本与版本更新日志已核验。真实设备的系统通知及关页送达尚未完成验收，仍受浏览器授权、系统设置和推送网络影响。
 
-比赛中心的开赛提醒由网站进程直接发送，不经过 Cloudflare。`server/runtime.mjs` 只有在 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY`、`WEB_PUSH_SUBJECT` 三项非空时才创建推送发送器；缺少任一项时提醒投递未启用，设备订阅接口返回 503；当前新代码允许独立保存账号预约，并通过 `deliveryReady` 明确没有可投递设备。配置只在启动时读取，首次启用或修改后必须重启 `owqs.service`。运行环境为 Node.js 24。
+比赛中心的开赛提醒由网站进程直接发送，不经过 Cloudflare。`backend/server/runtime.mjs` 只有在 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY`、`WEB_PUSH_SUBJECT` 三项非空时才创建推送发送器；缺少任一项时提醒投递未启用，设备订阅接口返回 503；当前新代码允许独立保存账号预约，并通过 `deliveryReady` 明确没有可投递设备。配置只在启动时读取，首次启用或修改后必须重启 `owqs.service`。运行环境为 Node.js 24。
 
 ### 配置工具
 
@@ -84,7 +84,7 @@ node scripts/setup-event-push.mjs --config /etc/owqs/config.json --subject https
 
 - `--config` 必须是绝对路径，且指向已存在的普通文件。工具不会自动读取 `/etc/owqs/config.json`；文中该路径只是生产默认位置的说明。目标为目录、其他非普通文件或符号链接时拒绝处理。
 - 三项 `WEB_PUSH_*` 已完整时沿用原密钥，不重新生成；可用 `--subject` 修正联系人。若现有密钥对或 SUBJECT 无效，工具报错且不写文件；需要重新生成时，先由管理员删除这三项再运行。
-- 生成密钥复用 `server/web-push.mjs` 的 `generatePushKeys()`；SUBJECT 与运行时使用同一套 VAPID 校验，只接受 `mailto:...` 或 `https://...` 联系人地址。
+- 生成密钥复用 `backend/server/web-push.mjs` 的 `generatePushKeys()`；SUBJECT 与运行时使用同一套 VAPID 校验，只接受 `mailto:...` 或 `https://...` 联系人地址。
 - 写入使用目标同目录的临时文件，权限 `0600`，写完 `fsync` 后 `rename` 原子替换；保留原 JSON 的其他字段。Linux 上尽量保留原文件所有者和 `0640` 以内的权限，无法保留所有者或设置权限时放弃写入；非 Linux 环境不调整所有者。
 - 工具拒绝把配置写到仓库内（包括 `public/`）。如管理员需要备份，应放在仓库和静态目录之外，使用 `0600` 权限并在完成后移除；工具本身不创建备份。
 - 工具不打印配置内容或任何密钥，成功时只报告“预约推送配置已完成”。
@@ -108,7 +108,7 @@ npm run server:build
 npm run web:package
 ```
 
-`dist/owqs-server.tar.gz` 包含 `server/`、`src/`、白名单 `backend-assets/` 出图媒体、初始化访问策略、最小 package.json 和安装包清单，不含完整 `public/`、`local/`、`.private/`、`.dev.vars`、Git 或研究数据。网页另打包为 `dist/owqs-web.tar.gz`，含 `public/` 和安装包清单，放入 `/opt/owqs/web-releases/<版本>/`。两包各有相邻 `.sha256` 文件；部署前核对校验值并校验清单，在新 release 目录解压，不覆盖数据库或配置。
+`dist/owqs-server.tar.gz` 包含 `server/`、`src/`（由仓库的 `backend/` 打包，包内布局不变）、白名单 `backend-assets/` 出图媒体、初始化访问策略、最小 package.json 和安装包清单，不含完整 `public/`、`local/`、`.private/`、`.dev.vars`、Git 或研究数据。网页另打包为 `dist/owqs-web.tar.gz`，含 `public/` 和安装包清单，放入 `/opt/owqs/web-releases/<版本>/`。两包各有相邻 `.sha256` 文件；部署前核对校验值并校验清单，在新 release 目录解压，不覆盖数据库或配置。
 
 `npm run server:start` 从 `OWQS_CONFIG` 和 `OWQS_DATA` 指定的目录启动；默认读取上述 Linux 路径。生产配置必须有 `PUBLIC_ORIGIN`、`PASSWORD_PEPPER`、`CACHE_SIGNING_KEY`、`API_KEY_ENCRYPTION_KEY`、`ADMIN_PASSWORD_HASH`；查询需要大神配置，AI 需要 `DEEPSEEK_KEY`。
 

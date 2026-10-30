@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../../src/worker.mjs';
+import worker from '../../backend/src/worker.mjs';
 
 const ORIGIN = 'https://site.test';
 const MATCHES = [

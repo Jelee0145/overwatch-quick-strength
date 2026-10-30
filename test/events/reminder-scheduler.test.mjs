@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createRuntime } from '../../server/runtime.mjs';
-import { SqliteDatabase } from '../../server/storage.mjs';
+import { createRuntime } from '../../backend/server/runtime.mjs';
+import { SqliteDatabase } from '../../backend/server/storage.mjs';
 
 const settle = () => new Promise(setImmediate);
 const matchAt = (time) => ({

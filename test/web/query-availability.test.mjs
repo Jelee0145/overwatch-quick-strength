@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
-const code = await readFile(new URL('../../web/app/query.js', import.meta.url), 'utf8');
+const code = await readFile(new URL('../../frontend/web/app/query.js', import.meta.url), 'utf8');
 function page() {
   const elements = new Map(),
     listeners = {},

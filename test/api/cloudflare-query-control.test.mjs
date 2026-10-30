@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../../src/worker.mjs';
-import { AuthDirectory } from '../../src/actors/auth.mjs';
-import { UserTasks } from '../../src/actors/tasks.mjs';
+import worker from '../../backend/src/worker.mjs';
+import { AuthDirectory } from '../../backend/src/actors/auth.mjs';
+import { UserTasks } from '../../backend/src/actors/tasks.mjs';
 import { MemoryStorage } from '../helpers/storage.mjs';
 
 // Durable Object bindings, without the Node-only env.QUERY_CONTROL injection.

@@ -1,6 +1,6 @@
-import { UserTasks } from '../../src/actors/tasks.mjs';
-import { AuthDirectory } from '../../src/actors/auth.mjs';
-import { getBlob, putBlob } from '../../src/security.mjs';
+import { UserTasks } from '../../backend/src/actors/tasks.mjs';
+import { AuthDirectory } from '../../backend/src/actors/auth.mjs';
+import { getBlob, putBlob } from '../../backend/src/security.mjs';
 import { service } from '../query-fixture.mjs';
 import { MemoryStorage } from './storage.mjs';
 export async function setup() {

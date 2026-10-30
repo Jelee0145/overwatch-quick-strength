@@ -1,9 +1,9 @@
 node_modules/
 public/
 dist/
-src/shared/
-src/prompt.mjs
-src/release.mjs
+backend/src/shared/
+backend/src/prompt.mjs
+backend/src/release.mjs
 source/
 local/
 .private/

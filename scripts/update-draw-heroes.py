@@ -17,7 +17,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-DEST = ROOT / "web" / "draw" / "portraits"
+DEST = ROOT / "frontend" / "web" / "draw" / "portraits"
 ROSTER_URL = "https://overwatch.blizzard.com/en-us/heroes/"
 NAMES = dict(zip(
     "reaper tracer mercy hanzo torbjorn reinhardt pharah winston widowmaker bastion symmetra zenyatta genji roadhog cassidy junkrat zarya soldier-76 lucio dva mei sombra doomfist ana orisa brigitte moira wrecking-ball sojourn ashe echo baptiste kiriko junker-queen sigma ramattra lifeweaver mauga illari venture hazard juno freja wuyang anran emre domina mizuki jetpack-cat vendetta sierra shion doctrine dmon".split(),

@@ -1,6 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,writeFile,symlink,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import os from 'node:os';import path from 'node:path';
 import {describe,inFlightTable,maskedTag,parseArgs,loadConfig,scan,USAGE} from '../scripts/upstream-limit-scan.mjs';
-import {ServiceError as Fault} from '../src/services/errors.mjs';
+import {ServiceError as Fault} from '../backend/src/services/errors.mjs';
 
 test('phase 0 arguments are bounded and a tag is mandatory',()=>{
  assert.throws(()=>parseArgs([]),/缺少 --battletag/);

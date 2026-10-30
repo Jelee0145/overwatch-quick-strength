@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { UserTasks, QUERY_SUSPENDED_MESSAGE, querySuspended } from '../../src/actors/tasks.mjs';
+import {
+  UserTasks,
+  QUERY_SUSPENDED_MESSAGE,
+  querySuspended
+} from '../../backend/src/actors/tasks.mjs';
 import { setup, request, start } from '../helpers/tasks.mjs';
 
 const root = new URL('../../', import.meta.url);
@@ -58,13 +62,13 @@ test('an open environment still creates real queries', async () => {
 });
 
 test('the page has no hardcoded stop, so hot control reopens it', async () => {
-  const page = await read('web/pages/strength.html');
+  const page = await read('frontend/web/pages/strength.html');
   const button = page.match(/<button[^>]*id="query"[^>]*>/)?.[0];
   // The server capability decides; a baked-in disabled attribute would keep it grey forever.
   assert.ok(!/\bdisabled\b/.test(button), 'the built page must not hardcode disabled');
   assert.match(button, /aria-describedby="querySuspended"/);
   assert.match(page, /id="querySuspended"[^>]*hidden/);
-  const client = await read('web/app/query.js');
+  const client = await read('frontend/web/app/query.js');
   // Mirrors the server flag both ways, so reopening needs no redeploy.
   assert.match(client, /let querySuspended = false/);
   assert.match(client, /if \(r\.state === 'suspended'\)/);
@@ -76,17 +80,17 @@ test('the page has no hardcoded stop, so hot control reopens it', async () => {
 });
 
 test('the session endpoint publishes the authoritative query capability', async () => {
-  const source = await read('src/actors/auth.mjs');
+  const source = await read('backend/src/actors/auth.mjs');
   assert.match(source, /capabilities: \{ queries: !this\.queryControl\.suspended, reads: true \}/);
-  const boot = await read('web/app/boot.js');
+  const boot = await read('frontend/web/app/boot.js');
   // The page applies the flag on boot, before the user can click anything.
   assert.match(boot, /setSuspended\(!session\.capabilities\.queries\)/);
-  const v1 = await read('src/api/v1.mjs');
+  const v1 = await read('backend/src/api/v1.mjs');
   assert.match(v1, /queries: !\(await resolveQuerySuspended\(env\)\)/);
 });
 
 test('the suspended button looks unavailable instead of busy', async () => {
-  const css = await read('web/cloud.css');
+  const css = await read('frontend/web/cloud.css');
   const rule = css.match(/\.primary:disabled[^}]*}/)?.[0];
   assert.ok(rule, 'a disabled primary rule must exist');
   assert.match(rule, /cursor:not-allowed/);
