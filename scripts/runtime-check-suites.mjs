@@ -205,7 +205,81 @@ export async function eventsSuite() {
   );
 }
 
+export async function queryControlSuite() {
+  const entry = `import {AuthDirectory} from './actors/auth.mjs';
+import {UserTasks} from './actors/tasks.mjs';
+import {resolveQuerySuspended} from './query/suspension.mjs';
+export {UserTasks};
+export class ControlCheck extends AuthDirectory {
+ async fetch(request){
+  const path=new URL(request.url).pathname;
+  if(path==='/fixture'){
+   await this.init();
+   await this.storage.put('rate:expired',{until:1});
+   await this.storage.put('user:synthetic',{id:'synthetic',status:'approved',version:1});
+   let calls=0,now=Date.parse('2100-10-27T00:00:00Z'),response={name:'Probe#1234',customerToken:'synthetic'};
+   this.queryControl.now=()=>now;
+   this.queryControl.call=async()=>{calls++;return response;};
+   await this.alarm();await this.alarm();
+   now+=86400000;response=null;await this.alarm();
+   const paused=this.queryControl.suspended;
+   now+=86400000;response={name:'Probe#1234',customerToken:'synthetic'};await this.alarm();
+   await this.queryControl.setManual('paused');
+   return Response.json({calls,paused,recovered:!this.queryControl.state.autoSuspended,cleaned:!(await this.storage.get('rate:expired')),persisted:(await this.storage.get('query-control:state')).manual});
+  }
+  if(path==='/auto'){await this.init();await this.queryControl.setManual('auto');return Response.json({ok:true});}
+  return super.fetch(request);
+ }
+}
+export default {async fetch(request,env){
+ const stub=env.AUTH.get(env.AUTH.idFromName('directory'));
+ const result=await (await stub.fetch('https://internal/fixture')).json();
+ const paused=await resolveQuerySuspended(env);
+ const task=env.TASKS.get(env.TASKS.idFromName('synthetic'));
+ const blocked=await (await task.fetch('https://internal/',{method:'POST',body:JSON.stringify({path:'/api-query',user:'synthetic',version:1,body:{battletag:'Probe#1234',limit:5}})})).json();
+ await stub.fetch('https://internal/auto');
+ return Response.json({...result,pausedAdmission:paused,jobState:blocked.state,open:!(await resolveQuerySuspended(env))});
+}};`;
+  const value = await runWorker(
+    entry,
+    {
+      name: 'control-runtime-check',
+      env: {
+        QUERY_SUSPENDED: { type: 'text', value: 'true' },
+        QUERY_PROBE_TAG: { type: 'text', value: 'Probe#1234' },
+        DASHEN_TOKEN: { type: 'text', value: 'synthetic' },
+        DASHEN_ROLE_ID: { type: 'text', value: 'synthetic' },
+        AUTH: {
+          type: 'durable-object',
+          worker: 'control-runtime-check',
+          exportName: 'ControlCheck'
+        },
+        TASKS: { type: 'durable-object', worker: 'control-runtime-check', exportName: 'UserTasks' }
+      },
+      exports: {
+        ControlCheck: { type: 'durable-object', storage: 'sqlite' },
+        UserTasks: { type: 'durable-object', storage: 'sqlite' }
+      }
+    },
+    async (mf) => (await mf.dispatchFetch('https://runtime/control')).json()
+  );
+  assert.deepEqual(value, {
+    calls: 3,
+    paused: true,
+    recovered: true,
+    cleaned: true,
+    persisted: 'paused',
+    pausedAdmission: true,
+    jobState: 'suspended',
+    open: true
+  });
+  console.log(
+    'Native query control passed: shared durable controller, auth alarm, task admission and ignored legacy config.'
+  );
+}
+
 const suites = {
+  queryControl: queryControlSuite,
   fetch: fetchSuite,
   history: historySuite,
   analysis: analysisSuite,

@@ -126,10 +126,9 @@ function paintQueryControl(control) {
   if (!control.supported) return;
   el('queryState').textContent = control.suspended ? '查询已暂停' : '查询已开放';
   el('queryMode').textContent =
-    (control.manual === 'paused'
+    control.manual === 'paused'
       ? '手动暂停中，自动检测不会解除暂停。'
-      : '自动控制中，每天北京时间 08:00 检测。') +
-    (control.forced ? ' 服务器配置强制暂停；解除需修改 QUERY_SUSPENDED 并重启。' : '');
+      : '自动控制中，每天北京时间 08:00 检测。';
   const verdicts = {
     unchecked: '尚未检测',
     checking: '正在检测；若服务中断，当天不重复检测',

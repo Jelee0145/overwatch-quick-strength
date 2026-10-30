@@ -1,5 +1,5 @@
 import { Fault, json, digest, verifySnapshot } from '../security.mjs';
-import { querySuspended } from '../query/suspension.mjs';
+import { resolveQuerySuspended } from '../query/suspension.mjs';
 import { authenticate, taskClient, requireMethod, jsonInput, operationKey } from './context.mjs';
 import { normalizeQueryOptions } from '../query/options.mjs';
 import { readArchive } from '../history/store.mjs';
@@ -12,7 +12,7 @@ import { analyzeResult } from './analysis.mjs';
 import { renderApiChart, compactAnalysis } from './chart.mjs';
 export const apiVersion = '1.1';
 export { analysisResponseCache } from './history.mjs';
-const capabilities = (env, auth) => ({
+const capabilities = async (env, auth) => ({
   history: auth.tier !== 'free',
   analysis: auth.tier !== 'free',
   idempotency: true,
@@ -20,8 +20,7 @@ const capabilities = (env, auth) => ({
   reservations: auth.tier !== 'free' && !!env.REMINDERS,
   webPush: auth.tier !== 'free' && !!env.REMINDERS,
   eventTracking: !!env.REMINDERS,
-  // The page mirrors this flag, so reopening queries needs only a config change.
-  queries: !querySuspended(env),
+  queries: !(await resolveQuerySuspended(env)),
   reads: true
 });
 function personal(auth) {
@@ -54,7 +53,7 @@ const routes = [
         ...(await call('/api-profile')),
         tier: auth.tier || 'standard',
         apiVersion,
-        capabilities: capabilities(env, auth)
+        capabilities: await capabilities(env, auth)
       });
     }
   },

@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "query-control-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/preview-query-control.mjs"],
+      "port": 8792
+    },
+    {
       "name": "unified-backend-preview",
       "runtimeExecutable": "node",
       "runtimeArgs": ["scripts/preview-unified.mjs"],

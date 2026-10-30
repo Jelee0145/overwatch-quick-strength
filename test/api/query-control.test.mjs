@@ -14,7 +14,8 @@ test('admin hot switch and daily probes reach sessions and Bot admission through
       DASHEN_ROLE_ID: 'private-role',
       DASHEN_SERVER: '1',
       DASHEN_DTS: '2026',
-      QUERY_PROBE_TAG: 'daze#51307'
+      QUERY_PROBE_TAG: 'daze#51307',
+      QUERY_SUSPENDED: 'true'
     };
   config.ADMIN_PASSWORD_HASH = JSON.stringify(
     await passwordHash('admin-password', config.PASSWORD_PEPPER)

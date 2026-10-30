@@ -324,11 +324,11 @@ paths:
     get: *adminRead
   /admin/query-control:
     get:
-      summary: Read Node query switch and redacted daily probe status
+      summary: Read durable query switch and redacted daily probe status
       security: [{adminSession: []}]
       responses:
         '200':
-          description: Runtime control status; supported=false on other runtimes
+          description: Shared durable control status on Node and Cloudflare
           content:
             application/json:
               schema:
@@ -336,7 +336,7 @@ paths:
                 properties:
                   supported: {type: boolean}
                   suspended: {type: boolean}
-                  forced: {type: boolean}
+                  forced: {type: boolean, enum: [false], description: Compatibility field; always false}
                   manual: {type: string, enum: [auto, paused]}
                   autoSuspended: {type: boolean}
                   verified: {type: boolean}
@@ -344,7 +344,7 @@ paths:
                   nextCheckAt: {type: integer, description: Unix milliseconds}
                   verdict: {type: string, description: Redacted probe outcome}
     post:
-      summary: Manually pause queries or restore automatic control (Node only)
+      summary: Manually pause queries or restore automatic control
       security: [{adminSession: []}]
       parameters:
         - {in: header, name: X-CSRF-Token, required: true, schema: {type: string}}
@@ -358,8 +358,7 @@ paths:
               properties:
                 mode: {type: string, enum: [auto, paused]}
       responses:
-        '200': {description: Updated runtime control status; force-pause still takes priority}
-        '503': {description: Runtime does not support query hot switching}
+        '200': {description: Updated durable control status; manual pause takes priority over probes}
   /admin/logout:
     post: &adminWrite
       summary: Admin cookie-only alias with unchanged legacy body and CSRF requirements

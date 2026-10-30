@@ -1,5 +1,14 @@
 # Agent update log
 
+## 2026-10-30 Unified durable query control
+
+- Supersedes the 2026-10-27 force-pause and Cloudflare config-only rules below: QUERY_SUSPENDED is completely ignored on both deployments. Fresh state defaults to auto/open; existing durable manual/automatic state is retained. No legacy environment flag is migrated into a pause.
+- Shared authority is src/query/control.mjs; server/query-control.mjs re-exports it. Node retains its injected controller and SQLite namespace. Cloudflare AuthDirectory initializes its controller once, stores query-control:state separately from auth data, and combines the daily probe deadline with hourly auth cleanup. Tasks/account capabilities resolve the internal read-only auth route when no controller is injected; auth sessions/admin read their own controller directly, avoiding recursive calls.
+- Hazards covered: ignored stale true flag, daily claim before network I/O, restart persistence, first healthy baseline, manual pause during probes, no quota/jobs on suspended admission, auth cleanup and probe alarm coexistence, and init must not postpone alarms. API contract and STANDALONE now describe the same rules; forced remains a compatibility false field.
+- Verified locally: npm run build, npm test (418 Node tests and five native workerd suites, including the new shared query-control DO suite), npm run check (Wrangler deploy dry-run), and git diff --check passed. First native test run exposed a missing synthetic user fixture; corrected it and reran the full suite successfully.
+- Synthetic preview: scripts/preview-query-control.mjs and launch configuration query-control-preview serve loopback port 8792 with memory-only SQLite and mock providers. No private configuration or production data is read. Browser acceptance is left to the coordinating session.
+- Delivery: local edits only; no commit, push, production config changes or deployment. User AGENTS.md changes and the existing PNG were left untouched. Backend rule changes do not create a user update reminder.
+
 ## 2026-10-27 Query hot switch and daily upstream check
 
 - confirmed-current: clean main at 2d967b5; runtime shares one env and SQLite database. QUERY_SUSPENDED is a startup-only force-pause; all query admission and capabilities already use querySuspended. Graph metadata predates the refactor, so relevant current sources were read directly.

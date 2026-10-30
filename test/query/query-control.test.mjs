@@ -110,19 +110,16 @@ test('only empty success changes verified state; uncertain errors never reopen o
   }
 });
 
-test('manual and force-pause outrank healthy probes; auto uses the latest detected state', async () => {
-  const f = await fixture();
+test('runtime hot control ignores legacy config; manual pause outranks healthy probes', async () => {
+  const f = await fixture({ config: { QUERY_SUSPENDED: 'true' } });
   await f.control.setManual('paused');
   await f.control.alarm();
   assert.equal(querySuspended(f.env), true);
   await f.control.setManual('auto');
   assert.equal(querySuspended(f.env), false);
-  f.env.QUERY_SUSPENDED = 'true';
-  assert.equal(querySuspended(f.env), true);
-  assert.equal(f.control.snapshot().forced, true);
+  assert.equal(f.control.snapshot().forced, false);
   await f.control.setManual('auto');
-  assert.equal(querySuspended(f.env), true);
-  delete f.env.QUERY_SUSPENDED;
+  assert.equal(querySuspended(f.env), false);
   await f.next(null);
   await f.control.setManual('paused');
   await f.control.setManual('auto');

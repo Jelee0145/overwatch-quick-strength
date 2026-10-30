@@ -1,5 +1,5 @@
 import policy from '../../access-policy.json' with { type: 'json' };
-import { querySuspended } from '../query/suspension.mjs';
+import { QueryControl } from '../query/control.mjs';
 import {
   Fault,
   token,
@@ -47,12 +47,34 @@ export class AuthDirectory {
     }
   }
   async init() {
+    if (!this.initializing) {
+      this.initializing = this.initialize().catch((error) => {
+        this.initializing = null;
+        throw error;
+      });
+    }
+    await this.initializing;
+  }
+  async initialize() {
     if (!(await this.storage.get('policy')))
       await this.storage.put('policy', {
         ...policy,
         approvedEmails: policy.approvedEmails.map((e) => email(e))
       });
-    if (!(await this.storage.getAlarm())) await this.storage.setAlarm(Date.now() + 3600000);
+    this.queryControl = this.env.QUERY_CONTROL;
+    if (!this.queryControl) {
+      this.queryControl = new QueryControl(
+        {
+          get: (key) => this.storage.get('query-control:' + key),
+          put: (key, value) => this.storage.put('query-control:' + key, value),
+          setAlarm: (at) => this.storage.setAlarm(Math.min(at, Date.now() + 3600000))
+        },
+        this.env
+      );
+      await this.queryControl.recover();
+    } else if (!(await this.storage.getAlarm())) {
+      await this.storage.setAlarm(Date.now() + 3600000);
+    }
   }
   async rate(key, max = 5) {
     key = 'rate:' + (await digest(key));
@@ -134,6 +156,7 @@ export class AuthDirectory {
     await this.init();
     const b = i.body || {},
       p = await this.storage.get('policy');
+    if (i.path === '/query-control') return this.queryControl.snapshot();
     const handler = ROUTES.get(i.path);
     if (handler) return this[handler](i, b, p);
     if (i.path.startsWith('/admin/')) return this.admin(i, b);
@@ -228,8 +251,7 @@ export class AuthDirectory {
       user: this.view(s.account),
       csrf: await mac({ csrf: i.userToken, admin: false }, this.env.PASSWORD_PEPPER),
       usage: usage.day === day() ? usage : { day: day(), query: 0, ai: 0 },
-      // The page greys the query button from this flag, so reopening needs only a config change.
-      capabilities: { queries: !querySuspended(this.env), reads: true }
+      capabilities: { queries: !this.queryControl.suspended, reads: true }
     };
   }
   async logout(i) {
@@ -326,11 +348,7 @@ export class AuthDirectory {
         users: [...(await this.storage.list({ prefix: 'user:' }))].map(([, u]) => this.view(u))
       };
     if (i.path === '/admin/query-control') {
-      const control = this.env.QUERY_CONTROL;
-      if (!control) {
-        if (i.mutation) throw new Fault('当前后端不支持查询热开关', 503);
-        return { supported: false, suspended: querySuspended(this.env) };
-      }
+      const control = this.queryControl;
       if (!i.mutation) return control.snapshot();
       const result = await control.setManual(b.mode);
       await this.audit('query-control:' + b.mode, null);
@@ -379,6 +397,13 @@ export class AuthDirectory {
     throw new Fault('接口不存在', 404);
   }
   async alarm() {
+    const work = this.chain.then(() => this.runAlarm());
+    this.chain = work.catch(() => {});
+    return work;
+  }
+  async runAlarm() {
+    await this.init();
+    if (!this.env.QUERY_CONTROL) await this.queryControl.alarm();
     const now = Date.now();
     for (const prefix of ['session:', 'reset:', 'rate:', 'audit:', 'quota:']) {
       const values = await this.storage.list({ prefix });
@@ -386,6 +411,10 @@ export class AuthDirectory {
         if (v.until ? v.until < now : new Date(v.at).getTime() < now - 30 * 86400000)
           await this.storage.delete(key);
     }
-    await this.storage.setAlarm(now + 3600000);
+    await this.storage.setAlarm(
+      this.env.QUERY_CONTROL
+        ? now + 3600000
+        : Math.min(now + 3600000, this.queryControl.nextCheckAt)
+    );
   }
 }

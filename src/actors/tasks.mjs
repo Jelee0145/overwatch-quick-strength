@@ -37,16 +37,9 @@ import {
   ingestCache
 } from '../query/query.mjs';
 import { prepareReview, callReview } from '../adapters/review.mjs';
-import { QUERY_SUSPENDED_MESSAGE, querySuspended } from '../query/suspension.mjs';
-export async function authCall(env, path, body = {}, rest = {}) {
-  const r = await env.AUTH.get(env.AUTH.idFromName('directory')).fetch('https://internal/', {
-    method: 'POST',
-    body: JSON.stringify({ path, body, ...rest })
-  });
-  const data = await r.json();
-  if (!r.ok) throw new Fault(data.error, r.status);
-  return data;
-}
+import { QUERY_SUSPENDED_MESSAGE, resolveQuerySuspended } from '../query/suspension.mjs';
+import { authCall } from './auth-client.mjs';
+export { authCall } from './auth-client.mjs';
 import {
   isActiveJob as active,
   refundsFailure,
@@ -229,7 +222,7 @@ export class UserTasks {
     };
   }
   async createUnified(user, version, b, api) {
-    if (querySuspended(this.env)) return this.suspendedJob(user, version, api);
+    if (await resolveQuerySuspended(this.env)) return this.suspendedJob(user, version, api);
     const options = normalizeQueryOptions(b),
       requestId = queryRequestId(b),
       scope = { server: this.env.DASHEN_SERVER, dts: this.env.DASHEN_DTS };
@@ -364,7 +357,8 @@ export class UserTasks {
   }
   async #createLegacyJob({ user, version, path, body: b }) {
     // AI review reuses saved results and keeps working; only new upstream queries stop.
-    if (path === '/query' && querySuspended(this.env)) return this.suspendedJob(user, version);
+    if (path === '/query' && (await resolveQuerySuspended(this.env)))
+      return this.suspendedJob(user, version);
     const kind = path === '/query' ? 'query' : 'ai',
       options = kind === 'query' ? legacyQueryOptions(b) : null,
       prior = b.envelope ? await verifySnapshot(b.envelope, user, this.env, b.battletag) : null;

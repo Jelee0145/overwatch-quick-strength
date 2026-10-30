@@ -7,19 +7,20 @@ import { setup, request, start } from '../helpers/tasks.mjs';
 const root = new URL('../../', import.meta.url);
 const read = (name) => readFile(new URL(name, root), 'utf8');
 
-test('the suspension is a config switch, not a hardcoded stop', () => {
+test('only runtime state controls suspension; legacy configuration is ignored', () => {
   assert.equal(querySuspended({}), false);
   assert.equal(querySuspended({ QUERY_SUSPENDED: '' }), false);
   assert.equal(querySuspended({ QUERY_SUSPENDED: 'false' }), false);
-  assert.equal(querySuspended({ QUERY_SUSPENDED: 'true' }), true);
-  assert.equal(querySuspended({ QUERY_SUSPENDED: '1' }), true);
-  assert.equal(querySuspended({ QUERY_SUSPENDED: 'TRUE' }), true);
+  assert.equal(querySuspended({ QUERY_SUSPENDED: 'true' }), false);
+  assert.equal(querySuspended({ QUERY_SUSPENDED: '1' }), false);
+  assert.equal(querySuspended({ QUERY_SUSPENDED: 'TRUE' }), false);
   assert.match(QUERY_SUSPENDED_MESSAGE, /暂停/);
   assert.match(QUERY_SUSPENDED_MESSAGE, /历史/);
 });
 
 test('a suspended server answers with a job-shaped result and reserves no quota', async () => {
   const ctx = await setup();
+  ctx.env.QUERY_CONTROL = { suspended: true };
   ctx.env.QUERY_SUSPENDED = 'true';
   const task = new UserTasks({ storage: ctx.storage }, ctx.env);
   const created = await start(task, { requestId: 'suspended' });
@@ -37,6 +38,7 @@ test('a suspended server answers with a job-shaped result and reserves no quota'
 
 test('the legacy route is suspended the same way and AI review keeps working', async () => {
   const ctx = await setup();
+  ctx.env.QUERY_CONTROL = { suspended: true };
   ctx.env.QUERY_SUSPENDED = 'true';
   const task = new UserTasks({ storage: ctx.storage }, ctx.env);
   const legacy = await request(task, '/query', { battletag: 'Main#100', limit: 5 });
@@ -55,7 +57,7 @@ test('an open environment still creates real queries', async () => {
   assert.equal((await ctx.storage.get('job:' + created.id)).state, 'running');
 });
 
-test('the page has no hardcoded stop, so a config change reopens it', async () => {
+test('the page has no hardcoded stop, so hot control reopens it', async () => {
   const page = await read('web/pages/strength.html');
   const button = page.match(/<button[^>]*id="query"[^>]*>/)?.[0];
   // The server capability decides; a baked-in disabled attribute would keep it grey forever.
@@ -75,12 +77,12 @@ test('the page has no hardcoded stop, so a config change reopens it', async () =
 
 test('the session endpoint publishes the authoritative query capability', async () => {
   const source = await read('src/actors/auth.mjs');
-  assert.match(source, /capabilities: \{ queries: !querySuspended\(this\.env\), reads: true \}/);
+  assert.match(source, /capabilities: \{ queries: !this\.queryControl\.suspended, reads: true \}/);
   const boot = await read('web/app/boot.js');
   // The page applies the flag on boot, before the user can click anything.
   assert.match(boot, /setSuspended\(!session\.capabilities\.queries\)/);
   const v1 = await read('src/api/v1.mjs');
-  assert.match(v1, /queries: !querySuspended\(env\)/);
+  assert.match(v1, /queries: !\(await resolveQuerySuspended\(env\)\)/);
 });
 
 test('the suspended button looks unavailable instead of busy', async () => {
