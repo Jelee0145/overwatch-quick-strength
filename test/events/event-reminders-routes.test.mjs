@@ -117,6 +117,33 @@ const post = (path, body = {}, headers = {}) =>
   });
 const sessionCookie = { Cookie: 'qs_session=session-token' };
 
+test('tracking route uses authenticated identity and reports disabled capability', async () => {
+  const c = setup();
+  let received;
+  c.env.REMINDERS.syncTracking = async (user, input) => {
+    received = { user, input };
+    return { serverTime: 1, retryAfter: 60, matches: [] };
+  };
+  const response = await worker.fetch(
+    post('/api/v1/events/tracking/sync', { matchIds: [] }),
+    c.env
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(received, { user: 'session-user', input: { matchIds: [] } });
+  assert.equal((await response.json()).retryAfter, 60);
+  const disabled = setup({ reminders: false });
+  assert.equal(
+    (await worker.fetch(post('/api/v1/events/tracking/sync', { matchIds: [] }), disabled.env))
+      .status,
+    503
+  );
+  const unauthorized = setup({ authorized: false });
+  assert.equal(
+    (await worker.fetch(post('/api/v1/events/tracking/sync', { matchIds: [] }), unauthorized.env))
+      .status,
+    401
+  );
+});
 test('unauthenticated event and reminder requests are rejected before any service call', async () => {
   const ctx = setup({ authorized: false });
   for (const path of ['/api/events', '/api/events/reminders']) {

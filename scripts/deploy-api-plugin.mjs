@@ -10,6 +10,7 @@ import path from 'node:path';
 const FILES = [
   'main.py',
   'api_client.py',
+  'reminders.py',
   'renderer.py',
   'documents.py',
   'website.json',

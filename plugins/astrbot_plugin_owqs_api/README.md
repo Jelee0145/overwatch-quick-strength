@@ -25,6 +25,10 @@ apt-get install -y fonts-noto-cjk
 /owqs 查询 另一个昵称#67890 10 快 6v6
 /owqs 数据 1
 /owqs 锐评 10
+/owqs 赛程 战队=AG
+/owqs 预约 1
+/owqs 提醒列表
+/owqs 取消提醒 1
 /owqs 解绑
 /owqs 取消
 ```
@@ -37,11 +41,15 @@ apt-get install -y fonts-noto-cjk
 
 ## LLM 工具
 
-- `owqs_events(from_date="", to_date="", region="", tournament="", team="", status="auto", limit=10, series="owcs")`：默认 OWCS，可用 `series="all"` 查询全部赛事。完整起止日期会通过网站接口补查历史／更远未来，含北京时间首尾日期，最多 366 天；单端日期只筛近期缓存。保留具体赛事关键词、赛区、战队名称／简称筛选，最多输出 20 场。`auto` 对过去日期查赛果，其他查赛程，也可指定 `completed`／`scheduled`／`all`。无需游戏 ID，不扣查询／AI 或本地免费次数。近期默认每小时更新；补查缓存独立，不保证实时比分。补查排队时最多短暂等待并轮询，较长退避直接提示服务器仍在补查，不声称没有比赛。
+- `owqs_events(from_date="", to_date="", region="", tournament="", team="", status="auto", limit=10, series="owcs")`：默认 OWCS，可用 `series="all"` 查询全部赛事。完整起止日期会通过网站接口补查历史／更远未来，含北京时间首尾日期，最多 366 天；单端日期只筛近期缓存。保留具体赛事关键词、赛区、战队名称／简称筛选，最多输出 20 场。`auto` 对过去日期查赛果，其他查赛程，也可指定 `completed`／`scheduled`／`all`。无需游戏 ID，不扣查询／AI 或本地免费次数。近期数据按赛事状态动态刷新；补查缓存独立，不保证实时比分。补查排队时最多短暂等待并轮询，较长退避直接提示服务器仍在补查，不声称没有比赛。
 
 历史示例：`/owqs 赛程 开始=2026-10-01 结束=2026-10-18 战队=WBG 状态=赛果`；全部赛事示例：`/owqs 赛程 范围=全部 赛事=FACEIT`。`范围`／`赛事范围` 对应 `series`，原有 `赛事` 对应具体赛事名称关键词。所有查询由网站统一访问上游、缓存和限流，不在 Bot 直接请求 Liquipedia；来源未公布的比赛无法补齐，返回不完整提示时需缩小范围。
 
 - 指令示例：`/owqs 赛程 赛区=中国 战队="All Gamers" 开始=2026-10-18 结束=2026-10-20 状态=赛果 条数=5`。所有条件可省略，状态可选赛程／赛果／全部，含空格的值用双引号包住。
+
+- `owqs_event_reminder(n)`：预约最近一次赛程中的第 n 场；`owqs_event_reminders()` 查看当前对话预约，`owqs_cancel_event_reminder(n)` 取消列表中的预约。可以说“查一下 AG 的比赛，第一场开赛提醒我”，机器人使用插件预约而非固定时间定时任务。
+
+  插件持续同步服务器赛程，当开赛时间连续稳定至少十分钟，在最新公布时间向预约所在对话发出提醒；改期后重新跟踪。接近开赛才预约或刚改期时，最多在公布时间后十分钟内补发；错过窗口后继续跟踪后续改期。赛事时间未能及时核实、对阵不明确或比赛已经结束时不会冒报。预约持久保存在 Bot 本机，插件热重载后恢复；免费用户也可预约，不扣战绩或 AI 次数。目前支持 OWCS 已知对阵且无重复歧义的比赛。主动发送依赖平台适配器支持，服务或上游不可用可能延迟或错过提醒。
 
 - `owqs_query(battletag="", limit=10, mode="fast", pool="")`：`pool` 传 `55` 只查 5v5、`66` 只查 6v6，留空为全部快速模式。立即返回“已开始查询”和预计耗时（快查询约 1—2 分钟，慢查询约 2—4 分钟），查询在后台继续；完成、失败或出图失败后主动向原会话推送结果，不占用工具调用时限。未提供昵称时仅已绑定 Key 者可以使用上一次查询 ID。参数错误、未绑定且缺少 ID、免费次数用完仍会当场返回，不显示为已开始。
 - `owqs_bind()`：提示用户在私聊中用指令绑定网站 Key，不接收或向模型返回 Key。
@@ -61,7 +69,7 @@ apt-get install -y fonts-noto-cjk
 
 ## 统一后端接口
 
-插件的绑定验证、查询、赛程和锐评共用有大小与超时限制的 HTTPS JSON 传输，锐评任务轮询由 API 客户端统一处理。网站 Cookie 登录与个人 Bearer Key 指向同一网站账号的任务、额度和签名历史，不另建 Bot 账号额度；免费服务账号仍额外受 Bot 本地发送者额度约束，查询始终发送 `syncHistory:false`，不允许个人历史分析或预约。
+插件的绑定验证、查询、赛程和锐评共用有大小与超时限制的 HTTPS JSON 传输，锐评任务轮询由 API 客户端统一处理。网站 Cookie 登录与个人 Bearer Key 指向同一网站账号的任务、额度和签名历史，不另建 Bot 账号额度；免费服务账号仍额外受 Bot 本地发送者额度约束，查询始终发送 `syncHistory:false`，不允许个人历史分析或网站账号预约；插件的本地赛事提醒可以使用免费账号的公共赛程跟踪接口。
 
 客户端还提供 `active_jobs()`、`history_analysis(battletag, options)`、`historical_match(battletag, mid, revision, options)` 和 `historical_review(battletag, mid, revision, request_id, options)`，对应 `/api/v1/jobs`、`/history/analysis`、`/matches/detail` 与 `/matches/review`。历史定位使用游戏 ID、对局 mid 和归档 revision；版本变化返回 409，需要刷新后重新确认目标。这些方法供集成使用，未新增聊天指令。现有查询图片继续使用 `render=svg&compact=1`，统计固定最近 10 场，不会切换成全部历史统计。
 
@@ -75,7 +83,7 @@ python scripts/build-api-plugin.py
 python -m unittest discover -s test/api_plugin -v
 ```
 
-输出 `dist/astrbot_plugin_owqs_api-1.4.2.zip` 及 SHA-256。只打包固定白名单源码、依赖声明和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。
+输出 `dist/astrbot_plugin_owqs_api-1.8.0.zip` 及 SHA-256。只打包固定白名单源码、依赖声明和配置 Schema，不打包真实配置、绑定或网站数据。该插件与仓库中的大神直连版 `astrbot_plugin_owqs` 独立维护；避免同时开启两个插件的同名 `/owqs` 指令。
 
 数据图和锐评图复用网页构建产物中的原始 HTML、CSS、逐场玩家渲染函数；网站构建时自动生成 website.json，插件在断网 Chromium 中截图。数据图展示网页原有的完整 13 列、强度依据和评级；锐评保留网页橙色卡片和文字排版。宽表完整出图，长锐评分页。升级需同时更新网站接口和插件。
 

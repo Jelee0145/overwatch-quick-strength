@@ -20,6 +20,10 @@ export async function listEvents(env, user, search, { refresh = false, paginate 
       }));
   return { value };
 }
+export async function syncEventTracking(env, user, input) {
+  if (!env.REMINDERS) throw new Fault('比赛追踪尚未启用', 503);
+  return env.REMINDERS.syncTracking(user, input);
+}
 export async function handleReminder(env, user, action, input = {}) {
   if (!env.REMINDERS) {
     if (action === 'list') return { enabled: false, publicKey: '', reservations: [], notices: [] };

@@ -307,7 +307,9 @@ test('date requests, manual refresh, cron and reminder tracking share recent-ref
         method: 'POST'
       })
     );
-  assert.equal((await track()).status, 503);
+  const deferredTrack = await track();
+  assert.equal(deferredTrack.status, 429);
+  assert.ok(Number(deferredTrack.headers.get('Retry-After')) >= 1);
   assert.deepEqual(calls, { recent: 0, date: 0, track: 0 });
   const manual = () =>
     ctx.center.fetch(new Request('https://events.internal/refresh', { method: 'POST' }));

@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventReminders, matchIdentity } from '../../server/event-reminders.mjs';
 import { SqliteDatabase } from '../../server/storage.mjs';
+import { EventCenter } from '../../src/events/center.mjs';
+import { MemoryStorage } from '../helpers/storage.mjs';
+import { page, card, response } from '../events-fixture.mjs';
 import { generateKeyPairSync } from 'node:crypto';
 const base = Date.parse('2026-10-20T12:00:00Z');
 function match(time = base + 60000) {
@@ -62,6 +65,211 @@ function setup() {
     fail: () => (fail = true)
   };
 }
+test('tracking requires continuous verified observations and follows schedule changes', async () => {
+  const c = setup(),
+    start = base + 10 * 60000,
+    id = matchIdentity(match(start));
+  try {
+    await c.service.decorate([match(start)]);
+    c.setMatch(match(start));
+    let result = await c.service.syncTracking('bot', { matchIds: [id] });
+    assert.equal(result.matches[0].canNotify, false);
+    for (let minute = 0; minute <= 10; minute += 2) {
+      c.setTime(base + minute * 60000);
+      await c.service.alarm();
+    }
+    result = await c.service.syncTracking('bot', { matchIds: [id] });
+    assert.equal(result.matches[0].canNotify, true);
+    assert.equal(result.matches[0].stableSince, base);
+    assert.equal(result.matches[0].scheduleRevision, 1);
+    c.setTime(start + 2 * 60000);
+    c.setMatch(match(start + 20 * 60000));
+    await c.service.alarm();
+    result = await c.service.syncTracking('bot', { matchIds: [id] });
+    assert.equal(result.matches[0].canNotify, false);
+    assert.equal(result.matches[0].scheduleRevision, 2);
+    assert.equal(result.matches[0].stableSince, start + 2 * 60000);
+  } finally {
+    await c.db.close();
+  }
+});
+test('tracking resets after observation gaps and rejects failed sources', async () => {
+  const c = setup(),
+    start = base + 10 * 60000,
+    id = matchIdentity(match(start));
+  try {
+    await c.service.decorate([match(start)]);
+    c.setMatch(match(start));
+    await c.service.syncTracking('bot', { matchIds: [id] });
+    await c.service.alarm();
+    c.setTime(base + 6 * 60000);
+    await c.service.alarm();
+    let result = await c.service.syncTracking('bot', { matchIds: [id] });
+    assert.equal(result.matches[0].stableSince, base + 6 * 60000);
+    c.fail();
+    c.setTime(start);
+    await c.service.alarm();
+    result = await c.service.syncTracking('bot', { matchIds: [id] });
+    assert.equal(result.matches[0].trackingState, 'unverified');
+    assert.equal(result.matches[0].canNotify, false);
+  } finally {
+    await c.db.close();
+  }
+});
+test('late tracking can notify only within the ten-minute window', async () => {
+  const c = setup(),
+    start = base + 2 * 60000,
+    id = matchIdentity(match(start));
+  try {
+    await c.service.decorate([match(start)]);
+    c.setMatch(match(start));
+    await c.service.syncTracking('bot', { matchIds: [id] });
+    for (let minute = 0; minute <= 10; minute += 2) {
+      c.setTime(base + minute * 60000);
+      await c.service.alarm();
+    }
+    let item = (await c.service.syncTracking('bot', { matchIds: [id] })).matches[0];
+    assert.equal(item.canNotify, true);
+    c.setTime(start + 10 * 60000 + 1);
+    await c.service.alarm();
+    item = (await c.service.syncTracking('bot', { matchIds: [id] })).matches[0];
+    assert.equal(item.canNotify, false);
+    assert.equal(item.trackingState, 'expired');
+  } finally {
+    await c.db.close();
+  }
+});
+test('three tracking sources share alarms and retain ten minutes of observations', async () => {
+  const db = new SqliteDatabase(':memory:');
+  let now = base;
+  const start = base + 12 * 60000;
+  const matches = [1, 2, 3].map((n) => ({
+    ...match(start),
+    sourceUrl: match(start).sourceUrl + '/' + n
+  }));
+  const calls = [];
+  const service = new EventReminders(
+    db.store('reminders'),
+    {
+      EVENTS: {
+        get: () => ({
+          fetch: async (url) => {
+            const source = new URL(url).searchParams.get('source');
+            calls.push({ source, now });
+            return Response.json({ matches: matches.filter((m) => m.sourceUrl === source) });
+          }
+        })
+      }
+    },
+    { now: () => now }
+  );
+  try {
+    await service.decorate(matches);
+    const ids = matches.map(matchIdentity);
+    await service.syncTracking('bot', { matchIds: ids });
+    await service.recover();
+    while ((await service.storage.getAlarm()) <= start) {
+      now = await service.storage.getAlarm();
+      await service.alarm();
+    }
+    now = start;
+    const result = await service.syncTracking('bot', { matchIds: ids });
+    assert.ok(result.matches.every((item) => item.canNotify));
+    assert.ok(
+      matches.every((m) => calls.filter((call) => call.source === m.sourceUrl).length >= 5)
+    );
+  } finally {
+    await db.close();
+  }
+});
+test('tracking rejects more sources than can be verified in time', async () => {
+  const c = setup();
+  try {
+    const matches = Array.from({ length: 10 }, (_, n) => ({
+      ...match(),
+      sourceUrl: match().sourceUrl + '/' + n
+    }));
+    await c.service.decorate(matches);
+    await assert.rejects(
+      c.service.syncTracking('bot', { matchIds: matches.map(matchIdentity) }),
+      (e) => e.status === 429
+    );
+  } finally {
+    await c.db.close();
+  }
+});
+test('real event center gate defers tracking without five-minute failure backoff', async () => {
+  const db = new SqliteDatabase(':memory:'),
+    storage = new MemoryStorage();
+  let now = base;
+  const start = base + 12 * 60000;
+  const path = 'Overwatch_Champions_Series/2026/Asia/Stage_3/Korea/Regular_Season';
+  const sourceUrl = 'https://liquipedia.net/overwatch/' + path;
+  const center = new EventCenter(
+    { storage },
+    {
+      EVENTS_CONTACT: 'https://test.example',
+      EVENTS_FETCH: async () =>
+        response(page(card({ path, timestamp: start / 1000, teams: ['Team A', 'Team B'] }), ''))
+    }
+  );
+  center.now = () => now;
+  center.recentDue = async () => false;
+  const service = new EventReminders(
+    db.store('reminders'),
+    {
+      EVENTS: { get: () => ({ fetch: (url, options) => center.fetch(new Request(url, options)) }) }
+    },
+    { now: () => now }
+  );
+  const fixture = { ...match(start), sourceUrl };
+  try {
+    await service.decorate([fixture]);
+    const id = matchIdentity(fixture);
+    await service.syncTracking('bot', { matchIds: [id] });
+    await storage.put('snapshot', { matches: [], updatedAt: now });
+    await storage.put('refreshAfter', now + 30000);
+    await service.alarm();
+    let state = await service.state();
+    assert.equal(state.sourceRetry[sourceUrl], base + 30000);
+    assert.equal(state.catalog[id].tracking, undefined);
+    now += 30000;
+    await service.alarm();
+    state = await service.state();
+    assert.equal(state.catalog[id].tracking.result, 'verified');
+    for (now = base + 150000; now <= start; now += 120000) await service.alarm();
+    now = start;
+    await service.alarm();
+    const result = await service.syncTracking('bot', { matchIds: [id] });
+    assert.equal(result.matches[0].canNotify, true);
+  } finally {
+    await db.close();
+  }
+});
+test('tracking permits batched requests, limits rate, and restores active leases', async () => {
+  const c = setup(),
+    id = matchIdentity(match());
+  try {
+    await c.service.decorate([match()]);
+    for (let i = 0; i < 60; i++) await c.service.syncTracking('bot', { matchIds: [id] });
+    await assert.rejects(
+      c.service.syncTracking('bot', { matchIds: [id] }),
+      (e) => e.status === 429 && e.retryAfter === 60
+    );
+    await assert.rejects(
+      c.service.syncTracking('other', { matchIds: ['https://example.com'] }),
+      (e) => e.status === 400
+    );
+    await c.service.storage.deleteAlarm();
+    await c.service.recover();
+    assert.equal(await c.service.storage.getAlarm(), base);
+    c.setTime(base + 2 * 60 * 60000 + 1);
+    await c.service.alarm();
+    assert.equal(await c.service.storage.getAlarm(), null);
+  } finally {
+    await c.db.close();
+  }
+});
 test('identity survives changed time, rejects unknown teams and ambiguous repeat pairings', async () => {
   const c = setup();
   try {

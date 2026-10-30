@@ -44,7 +44,7 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         event_module=types.ModuleType('astrbot.api.event')
         event_module.AstrMessageEvent=object
         event_module.MessageChain=Chain
-        event_module.filter=types.SimpleNamespace(command=lambda *a,**kw:lambda f:f,llm_tool=lambda *a,**kw:lambda f:f)
+        event_module.filter=types.SimpleNamespace(command=lambda *a,**kw:lambda f:f,llm_tool=lambda *a,**kw:lambda f:f,on_llm_request=lambda *a,**kw:lambda f:f)
         star_module=types.ModuleType('astrbot.api.star')
         class Star:
             def __init__(self,context):self.context=context
@@ -90,7 +90,24 @@ class HandlerTests(unittest.IsolatedAsyncioTestCase):
         self.plugin.manager.query.assert_not_awaited();reserve.assert_not_called()
         self.event.get_message_str=lambda:'owqs 赛程 赛区=中国 战队="All Gamers" 状态=赛果 条数=5'
         messages=[m async for m in self.plugin.owqs(self.event)]
-        self.assertEqual(messages[-1][0],'text');self.assertIn('服务器每小时同步一次',messages[-1][1]);self.plugin.manager.query.assert_not_awaited()
+        self.assertEqual(messages[-1][0],'text');self.assertIn('服务器按赛事状态动态同步',messages[-1][1]);self.plugin.manager.query.assert_not_awaited()
+
+    async def test_event_reminder_request_filters_only_builtin_cron_tools(self):
+        class ToolSet:
+            def __init__(self, tools): self.tools = tools
+        tool_module = types.ModuleType('astrbot.core.agent.tool');tool_module.ToolSet = ToolSet
+        original = ToolSet([types.SimpleNamespace(name=name) for name in ('future_task','create_future_task','owqs_event_reminder','other')])
+        request = types.SimpleNamespace(system_prompt='', func_tool=original)
+        self.event.get_message_str=lambda:'这场比赛开赛提醒我'
+        with patch.dict(sys.modules, {'astrbot.core.agent.tool':tool_module}):
+            await self.plugin.event_reminder_request(self.event,request)
+        self.assertEqual([t.name for t in request.func_tool.tools],['owqs_event_reminder','other'])
+        self.assertEqual(len(original.tools),4)
+        self.assertIn('不要创建 AstrBot 定时任务',request.system_prompt)
+        ordinary=types.SimpleNamespace(system_prompt='',func_tool=original)
+        self.event.get_message_str=lambda:'明天提醒我开会'
+        await self.plugin.event_reminder_request(self.event,ordinary)
+        self.assertIs(ordinary.func_tool,original)
 
     async def test_tool_returns_start_ack_and_pushes_image_from_background_task(self):
         text=await self.plugin.query_tool(self.event,'Name#123')

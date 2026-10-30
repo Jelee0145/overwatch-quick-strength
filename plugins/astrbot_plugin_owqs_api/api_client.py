@@ -288,7 +288,7 @@ def format_events(value):
         except (ValueError, TypeError, AttributeError): return '待定'
     scope='OWCS' if value.get('series',value.get('filters',{}).get('series','owcs'))=='owcs' else '全部赛事'
     if value.get('state')=='pending': return scope+' · 服务器正在补查所选日期的数据，稍后再查即可复用结果；尚不能判断有无比赛。'
-    lines = [scope+' 赛程与赛果 · 北京时间', ('日期补查缓存' if value.get('range') else '服务器每小时同步一次') + ' · 更新于 ' + when(value.get('updatedAt'))]
+    lines = [scope+' 赛程与赛果 · 北京时间', ('日期补查缓存' if value.get('range') else '服务器按赛事状态动态同步') + ' · 更新于 ' + when(value.get('updatedAt'))]
     if value.get('range'): lines.append(value['range']['from']+' 至 '+value['range']['to']+'（含首尾日期）')
     if value.get('truncated'): lines.append(value.get('coverage') or '结果可能不完整，请缩小日期范围。')
     if value.get('refreshError'): lines.append(clean(value['refreshError'],160))
@@ -345,6 +345,13 @@ class JsonTransport:
         except urllib.error.HTTPError as error:
             if error.code in (401, 403):
                 raise UserError(BIND_ERROR) from None
+            if route.startswith('/api/v1/events/tracking/') and error.code == 429:
+                failure = UserError('赛事跟踪繁忙，请稍后再试')
+                try:
+                    failure.retry_after = min(3600, max(1, int(error.headers.get('Retry-After', '60'))))
+                except (ValueError, TypeError, AttributeError):
+                    failure.retry_after = 60
+                raise failure from None
             if route.startswith("/api/v1/events") and error.code==429: raise UserError("赛事补查队列繁忙，请稍后再试") from None
             if route.startswith("/api/v1/events") and error.code==400: raise UserError("赛事筛选条件无效，请检查日期和赛事范围") from None
             if error.code == 429:
@@ -432,6 +439,9 @@ class ApiClient(JsonTransport):
             if waited+delay>45: return result
             await asyncio.sleep(delay);waited+=delay
         return result
+
+    async def track_events(self, match_ids):
+        return await self.request('POST', '/api/v1/events/tracking/sync', {'matchIds': match_ids})
 
     async def status(self, job):
         return await self.request("GET", "/api/v1/jobs/" + job + "?render=svg&compact=1")

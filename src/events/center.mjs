@@ -38,6 +38,10 @@ export class EventCenter {
           updatedAt: this.now()
         });
       } catch (error) {
+        if (Number.isFinite(error.retryAfter) && error.retryAfter > 0)
+          return json({ error: '赛事来源繁忙，请稍后重试' }, 429, {
+            'Retry-After': String(Math.max(1, Math.ceil(error.retryAfter)))
+          });
         return json({ error: '预约赛程暂不可核实' }, error.status || 503);
       } finally {
         await this.schedule();

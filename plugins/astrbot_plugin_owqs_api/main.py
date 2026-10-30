@@ -12,6 +12,7 @@ from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 from .api_client import ApiClient, Bindings, Query, QueryManager, UserError, format_result, owner_key, parse_query, credential_scope, valid_key, BIND_ERROR, POOLS
 from .renderer import Renderer
 from .api_client import parse_events, format_events
+from .reminders import EventReminderManager
 
 ESTIMATE = {'fast': '约 1—2 分钟', 'slow': '约 2—4 分钟'}
 MAX_DATA_RENDERS = 3
@@ -22,6 +23,9 @@ HELP = """狸狸天眼查 · 网站 API
 /owqs 数据 n
 /owqs 锐评 n
 /owqs 赛程 [开始=YYYY-MM-DD] [结束=YYYY-MM-DD] [范围=OWCS|全部] [赛区=中国] [赛事=关键词] [战队=简称] [状态=赛程|赛果|全部] [条数=10]
+/owqs 预约 n
+/owqs 提醒列表
+/owqs 取消提醒 n
 /owqs 解绑
 /owqs 取消
 /owqs 帮助
@@ -49,6 +53,10 @@ class Main(Star):
         self.data_tasks = {}
         self.data_limit = MAX_DATA_RENDERS
         self.data_slot = asyncio.Semaphore(MAX_DATA_RENDERS)
+        self.reminders = EventReminderManager(self)
+
+    async def initialize(self):
+        self.reminders.start()
 
     def route(self, owner):
         key=self.bindings.key(owner)
@@ -65,7 +73,9 @@ class Main(Star):
         client, scope, free = self.route(owner_key(event))
         if free and (await client.account()).get('tier') != 'free':
             raise UserError('免费服务配置错误，请管理员配置独立 free 层级的 free_api_key')
-        return format_events(await client.events(**filters))
+        value = await client.events(**filters)
+        self.reminders.remember(event, value)
+        return format_events(value)
 
     async def bind_key(self, event, key):
         owner=owner_key(event);self.ensure_idle(owner)
@@ -246,6 +256,12 @@ class Main(Star):
                 yield event.plain_result(HELP)
             elif action in ('赛程', '赛事'):
                 yield event.plain_result(await self.event_schedule(event, **parse_events(arguments)))
+            elif action == '预约':
+                yield event.plain_result(await self.reminders.reserve(event, arguments))
+            elif action == '提醒列表' and not arguments:
+                yield event.plain_result(self.reminders.listing(event))
+            elif action == '取消提醒':
+                yield event.plain_result(await self.reminders.cancel(event, arguments))
             elif action == "绑定":
                 yield event.plain_result(await self.bind_key(event, arguments))
             elif action == "解绑" and not arguments:
@@ -280,6 +296,22 @@ class Main(Star):
             yield event.plain_result(str(error))
         except Exception:
             yield event.plain_result("查询插件执行失败，请管理员检查网站连接与插件配置")
+
+    @filter.on_llm_request()
+    async def event_reminder_request(self, event: AstrMessageEvent, req):
+        text = event.get_message_str()
+        if not re.search(r'提醒|预约|通知', text):
+            return
+        if not (re.search(r'赛事|赛程|比赛|开赛|对阵|战队|OWCS', text, re.I) or
+                ((re.search(r'这场|那场|这几场|那几场|第[一二三四五六七八九十0-9]+场', text) or
+                  re.fullmatch(r'\s*(?:到时候|到时|记得|帮我|请)?提醒我[吧呀哦。！!\s]*', text)) and self.reminders.has_selection(event))):
+            return
+        req.system_prompt = (req.system_prompt or '') + '\n用户要求赛事提醒：必须使用 OWQS 赛事预约工具，先查询并确认比赛编号，不要创建 AstrBot 定时任务。只有预约成功才可确认。'
+        tools = getattr(req, 'func_tool', None)
+        if tools is not None and hasattr(tools, 'tools'):
+            from astrbot.core.agent.tool import ToolSet
+            blocked = {'future_task', 'create_future_task', 'delete_future_task', 'list_future_tasks'}
+            req.func_tool = ToolSet(tools=[tool for tool in tools.tools if tool.name not in blocked])
 
     @filter.llm_tool(name="owqs_query")
     async def query_tool(self, event: AstrMessageEvent, battletag: str = "", limit: int = 10, mode: str = "fast", pool: str = "") -> str:
@@ -326,7 +358,7 @@ class Main(Star):
 
     @filter.llm_tool(name="owqs_events")
     async def events_tool(self, event: AstrMessageEvent, from_date: str = '', to_date: str = '', region: str = '', tournament: str = '', team: str = '', status: str = 'auto', limit: int = 10, series: str = 'owcs') -> str:
-        """查询守望先锋赛事赛程或赛果，按用户要求筛选；与玩家战绩查询无关，不需要游戏 ID。默认查询服务器每小时同步的 OWCS 近期数据；提供完整开始和结束日期后可补查历史或更远未来，范围最多 366 天。可选择全部赛事；不扣战绩／AI 次数。补查排队时不能声称没有比赛。没有结果时如实说明，不推测未公布对阵或实时比分。
+        """查询守望先锋赛事赛程或赛果，按用户要求筛选；与玩家战绩查询无关，不需要游戏 ID。默认查询服务器动态刷新的 OWCS 近期数据；用户还要求开赛提醒时，查询之后调用 owqs_event_reminder 使用赛程编号预约，禁止使用 AstrBot 固定时间定时任务。提供完整开始和结束日期后可补查历史或更远未来，范围最多 366 天。可选择全部赛事；不扣战绩／AI 次数。补查排队时不能声称没有比赛。没有结果时如实说明，不推测未公布对阵或实时比分。
 
         Args:
             from_date(string): 开始日期 YYYY-MM-DD，按北京时间，留空不限；相对日期需先换算。
@@ -344,6 +376,37 @@ class Main(Star):
             return str(error)
         except Exception:
             return '服务器赛程读取失败，请稍后再试'
+
+    @filter.llm_tool(name="owqs_event_reminder")
+    async def event_reminder_tool(self, event: AstrMessageEvent, n: int) -> str:
+        """用户明确要求赛事开赛提醒时调用，选择当前对话最近一次 owqs_events 返回的比赛编号。必须使用此工具预约，不要创建 AstrBot 固定时间定时任务；只有工具返回已预约才能告诉用户预约成功。比赛时间会自动同步改期。
+
+        Args:
+            n(number): 最近一次赛程结果中用户指定的比赛编号；无法确定时先询问用户。
+        """
+        try:
+            return await self.reminders.reserve(event, n)
+        except UserError as error:
+            return str(error)
+        except Exception:
+            return '赛事提醒预约失败，请稍后再试'
+
+    @filter.llm_tool(name="owqs_event_reminders")
+    async def event_reminders_tool(self, event: AstrMessageEvent) -> str:
+        """用户要求查看当前对话自己的赛事提醒预约时调用。"""
+        return self.reminders.listing(event)
+
+    @filter.llm_tool(name="owqs_cancel_event_reminder")
+    async def cancel_event_reminder_tool(self, event: AstrMessageEvent, n: int) -> str:
+        """用户要求取消赛事提醒时调用；先用 owqs_event_reminders 查看编号。
+
+        Args:
+            n(number): 当前对话赛事提醒列表中的编号。
+        """
+        try:
+            return await self.reminders.cancel(event, n)
+        except UserError as error:
+            return str(error)
 
     @filter.llm_tool(name="owqs_match_data")
     async def match_data_tool(self,event: AstrMessageEvent,n:int)->str:
@@ -381,8 +444,11 @@ class Main(Star):
             return str(error)
 
     async def terminate(self):
-        for task in list(self.background):
+        await self.reminders.close()
+        tasks = list(self.background)
+        for task in tasks:
             task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         await self.manager.close()
         await self.renderer.close()
         self.bindings.close()

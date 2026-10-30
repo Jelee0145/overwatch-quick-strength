@@ -674,10 +674,12 @@ node scripts/wrangler.mjs secret put API_KEY_ENCRYPTION_KEY
 /api/v1/events?series=all&tournament=FACEIT
 ```
 
-不填完整日期且默认 OWCS 时直接读取每小时同步的近期缓存，近期赛程和赛果各最多 50 场。完整日期或其他赛事范围使用独立共享查询缓存，不覆盖近期快照。过去日期结果缓存 24 小时，其余查询缓存 1 小时；页面手动刷新可请求更新，仍遵守全局请求间隔。
+不填完整日期且默认 OWCS 时直接读取近期缓存，服务器根据赛事状态按 1、5 或 15 分钟动态同步；近期赛程和赛果各最多 50 场。完整日期或其他赛事范围使用独立共享查询缓存，不覆盖近期快照。过去日期结果缓存 24 小时，其余查询按赛事状态刷新；页面手动刷新可请求更新，仍遵守全局请求间隔。
 
 补查只由服务器访问 Liquipedia，所有补查和近期刷新共用至少 30 秒间隔，10 秒网络超时、至少 5 分钟失败退避及上游 `Retry-After`。排队／分段查询返回 **202**：`{state:"pending",retryAfter:30,series:"owcs",range:{from:"2026-10-01",to:"2026-10-18"},message:"…"}`，同时设置 Retry-After；按该间隔重新 GET 同一地址，不能把 pending 当作空结果。后台通过持久化告警继续补查，重启和无人访问时也会恢复。最多保留 8 个查询缓存／排队项；容量占满且均进行中时返回 429。
 
 日期段每类请求最多 200 场，达到上限会继续按日期拆分；单日达到上限或累计约 4000 场时停止并返回 `truncated:true`、`coverage` 提示用户缩小范围，不把截断结果称作完整数据。未知时间不能归入日期段；未来只包含来源已公布的赛程。
+
+`POST /api/v1/events/tracking/sync` 接受 `{matchIds:[reminderId,...]}`（最多 50 场），返回 `serverTime`、建议的 `retryAfter` 秒数和 `matches` 中每场的 `trackingState`、`match`、`scheduleRevision`、`stableSince`、`verifiedAt`、`leaseExpiresAt`、`canNotify`。免费及个人 Key 均可跟踪已知的 OWCS 公共赛程；聊天预约和投递会话保留在 Bot 本地。跟踪不改变网站预约。服务端通过共享来源核实最新开赛时间，稳定至少十分钟、数据新鲜且到达公布时间才返回可提醒；改期重置稳定窗口。来源缺失、歧义或核实失败时不得推测可提醒；Node 未启用跟踪时返回 503。
 
 200 响应包括 `matches`、`total`、`filters`、`updatedAt`、`stale`、`source`、`coverage`，Bot 另有 `limit`；补查响应还包括 `series`、`range`、`truncated`。`updating:true` 表示旧结果仍可用但后台在更新，客户端可按 `retryAfter` 继续轮询。补查失败保留最多 7 天内的旧查询缓存并提示；近期缓存保留 48 小时。无匹配返回空列表；没有可用数据且多次补查失败返回 503。个人和 free 层级 Key 都支持，不读写战绩历史或游戏 ID。

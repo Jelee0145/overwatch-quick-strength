@@ -33,7 +33,7 @@
 
 `/api/v1/events`、`/events/refresh` 和 `/events/reminders/*` 共用同一赛事来源、限流与账号预约。预约不再强制要求先订阅浏览器设备；响应中的 `deliveryReady/deviceCount` 表示是否存在可投递设备。没有设备时可保存预约，但不会收到系统通知。
 
-现有投递渠道仍为 Web Push。Bot 读取/管理预约不代表支持主动发送聊天提醒；App 和小程序登录、推送渠道在其正式接入时实现。Cloudflare 没有 Node REMINDERS 绑定，必须检查 capabilities，不能将它当作腾讯云数据副本或透明回退服务。
+网页预约继续使用 Web Push。API Bot 另以本地 SQLite 保存用户及对话预约，通过公共赛事跟踪接口同步服务端赛程，在公布时间稳定十分钟后按最新开赛时间发回原对话；Bot 提醒不写入网站账号预约，免费 Key 可使用。服务端与网页复用赛事来源跟踪和限流；上游更新、网络中断或平台主动消息能力可能影响送达。App 和小程序登录、推送渠道在其正式接入时实现。Cloudflare 没有 Node REMINDERS 绑定，必须检查 capabilities，不能将它当作腾讯云数据副本或透明回退服务。
 
 ## 来源与职责
 

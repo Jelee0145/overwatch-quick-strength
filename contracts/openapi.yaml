@@ -7,7 +7,8 @@ info:
     Cookie POST requires same-origin Origin, application/json and X-CSRF-Token.
     Supplying both credentials requires the same user. Never follow redirects with a Bearer key.
     Free service keys may query with syncHistory=false and use temporary job data/reviews/events;
-    personal history, historical analysis/matches and reminders are forbidden (403).
+    personal history, historical analysis/matches and website reminders are forbidden (403);
+    public event tracking for Bot-local reminders is available to free and personal keys.
     Query and AI requestId reuse returns the existing retained operation without charging again;
     query parameter changes under the same requestId, conflicting header/body IDs, and stale
     archive revisions return 409. Retention is finite (query jobs approximately one hour),
@@ -26,7 +27,7 @@ paths:
       summary: Read account validity, tier, lastBattletag, apiVersion and capabilities
       responses:
         '200':
-          description: Account and capability flags (history, analysis, idempotency, sharedQuota, reservations, webPush)
+          description: Account and capability flags (history, analysis, idempotency, sharedQuota, reservations, webPush, eventTracking)
           content:
             application/json:
               schema:
@@ -221,6 +222,31 @@ paths:
       summary: Request centrally limited event refresh using the same query filters
       responses:
         '200': {description: Event results or refresh state}
+  /events/tracking/sync:
+    post:
+      summary: Renew Bot event tracking and read verified schedule stability
+      description: >-
+        Free and personal accounts can track known OWCS reminder IDs without creating website
+        reservations. Schedule observations are shared; Bot chat destinations stay on the client.
+        canNotify requires an unchanged schedule for ten minutes, a fresh verification, and the
+        current published start time to have arrived. Missing or ambiguous events cannot notify.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [matchIds]
+              properties:
+                matchIds:
+                  type: array
+                  maxItems: 50
+                  items: {type: string, pattern: '^[a-f0-9]{64}$'}
+      responses:
+        '200': {description: 'serverTime, retryAfter and per-match schedule tracking state'}
+        '400': {description: Invalid tracking request}
+        '429': {description: Tracking capacity or request limit reached}
+        '503': {description: Event tracking unavailable}
   /events/reminders:
     get:
       summary: List personal reservations, notices and Web Push availability

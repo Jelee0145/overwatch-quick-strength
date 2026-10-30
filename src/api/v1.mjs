@@ -6,7 +6,7 @@ import { readArchive } from '../history/store.mjs';
 import { analyzeArchive, selectArchiveMatch, selectArchiveEnvelope } from '../history/analysis.mjs';
 import { webAnalysisView, requireSlimFlag } from '../history/view.mjs';
 import { handleHistoryAnalysis } from './history.mjs';
-import { listEvents, handleReminder } from '../events/application.mjs';
+import { listEvents, handleReminder, syncEventTracking } from '../events/application.mjs';
 import { analysisService } from '../services/runtime.mjs';
 import { analyzeResult } from './analysis.mjs';
 import { renderApiChart, compactAnalysis } from './chart.mjs';
@@ -19,6 +19,7 @@ const capabilities = (env, auth) => ({
   sharedQuota: true,
   reservations: auth.tier !== 'free' && !!env.REMINDERS,
   webPush: auth.tier !== 'free' && !!env.REMINDERS,
+  eventTracking: !!env.REMINDERS,
   // The page mirrors this flag, so reopening queries needs only a config change.
   queries: !querySuspended(env),
   reads: true
@@ -149,6 +150,22 @@ const routes = [
       requireMethod(request, 'POST');
       const input = await jsonInput(request);
       return json(await call('/ai-review', { ...input, requestId: operationKey(request, input) }));
+    }
+  },
+  {
+    match: (path) => path === '/api/v1/events/tracking/sync',
+    async handle({ request, env, auth }) {
+      requireMethod(request, 'POST');
+      try {
+        return json(await syncEventTracking(env, auth.user.id, await jsonInput(request)));
+      } catch (error) {
+        if (error instanceof Fault && error.status === 429)
+          return Response.json(
+            { error: error.message, code: 'RATE_LIMITED', requestId: crypto.randomUUID() },
+            { status: 429, headers: { 'Retry-After': String(error.retryAfter || 60) } }
+          );
+        throw error;
+      }
     }
   },
   {
