@@ -3,6 +3,65 @@ import { authCall } from '../actors/tasks.mjs';
 import { readBody as body, sessionInput, checkCookieWrite } from './context.mjs';
 import { listEvents, handleReminder } from '../events/application.mjs';
 export async function legacyApi(request, env, url, path) {
+  if (path === '/api/admin/data-inventory') {
+    if (request.method !== 'GET') throw new Fault('请求方法错误', 405);
+    const input = sessionInput(request);
+    await authCall(env, '/authorize-inventory', {}, input);
+    const params = [...url.searchParams.keys()];
+    if (params.some((key) => key !== 'cursor') || url.searchParams.getAll('cursor').length > 1)
+      throw new Fault('盘点参数无效', 400);
+    try {
+      const page = await authCall(
+        env,
+        '/admin/data-inventory',
+        {
+          ...(url.searchParams.has('cursor') ? { cursor: url.searchParams.get('cursor') } : {})
+        },
+        input
+      );
+      const users = [];
+      for (const user of page.users) {
+        const task = env.TASKS.get(env.TASKS.idFromName(user.id));
+        const response = await task.fetch('https://internal/', {
+          method: 'POST',
+          body: JSON.stringify({
+            path: '/admin-history-inventory',
+            user: user.id,
+            adminToken: input.adminToken
+          })
+        });
+        if (!response.ok) throw new Error('Inventory unavailable');
+        const history = await response.json();
+        users.push({ anonymousId: user.anonymousId, status: user.status, history });
+      }
+      return json(
+        {
+          version: 1,
+          coverage: 'catalog-metadata-only',
+          scopes: 'all',
+          snapshot: false,
+          generatedAt: new Date().toISOString(),
+          cursor: url.searchParams.get('cursor'),
+          nextCursor: page.nextCursor,
+          total: page.total,
+          statusTotals: page.statusTotals,
+          metadataRevision: page.metadataRevision,
+          users,
+          pageTotals: {
+            users: users.length,
+            gameAccounts: users.reduce((n, u) => n + u.history.accountCount, 0),
+            batches: users.reduce((n, u) => n + u.history.batchCount, 0),
+            matches: users.reduce((n, u) => n + u.history.matchCount, 0)
+          }
+        },
+        200,
+        { 'Cache-Control': 'no-store' }
+      );
+    } catch (error) {
+      if (error instanceof Fault && error.status === 400) throw error;
+      throw new Fault('盘点服务暂不可用', 503);
+    }
+  }
   const mutation = request.method === 'POST';
   checkCookieWrite(request);
   const i = { ...sessionInput(request), body: mutation ? await body(request) : {} };

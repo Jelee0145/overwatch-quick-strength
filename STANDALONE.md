@@ -6,6 +6,20 @@
 
 后端 `npm run server:build` 只生成 Node 业务与出图资源包，不包含完整网页；网页由 `npm run web:package` 生成独立包。Node 默认仅提供 API，组合开发预览设 `OWQS_SERVE_WEB=1`。当前线上由 Nginx 直接提供 `/opt/owqs-work/public`，API 转发回环端口；受保护页面通过只读会话检查保持登录跳转。操作与契约见 [统一后端说明](docs/unified-backend.md)。
 
+## Cloudflare 网页共享腾讯云数据源
+
+`wrangler.jsonc` 默认设置固定 `API_ORIGIN=https://106.55.47.68:8443`，Cloudflare 仅提供静态网页与同源 API 网关，不再运行独立业务后端；cron 配置为空。此配置随下一次 Cloudflare 发布生效，不代表已完成生产切换。Node 配置不设置该项。启用后所有 `/api/`（包括健康、旧接口、管理员接口）均访问腾讯云；受保护页面通过远端 `/api/v1/auth/session` 验证已授权会话。内部接口不对外转发，页面会话门禁在 Worker 内转换为该只读远端检查。Worker cron 和旧 Durable Object alarm 停止本地后台写入，原绑定、migration 与历史存储保留。
+
+按当前方案直接使用腾讯云现有账号与云数据，旧 Cloudflare 数据保留封存，不自动迁移或合并。旧 Cloudflare 独有账号与历史不会自动出现在腾讯云；可使用管理员只读盘点接口后续核对差异。禁止使用要求空目标库的旧迁移工具导入已有数据的 Node 库。原 Durable Object bindings 与 migration 仅用于保留旧存储，代理模式不会访问这些对象执行正常业务，也不会回退到旧数据源。
+
+两站 Cookie 按访问主机隔离，启用后 Cloudflare 旧本地会话需要重新登录，腾讯云网站的 Cookie 不会自动登录 Cloudflare。后续两站登录使用同一腾讯云账号与数据，不提供跨域单点登录。Web Push 订阅同样绑定网页来源，Cloudflare 设备需在该站重新授权并订阅，不能直接复用腾讯云来源的浏览器订阅。
+
+代理对 POST 先核对当前网页同源 Origin 和 JSON 类型，再改写成固定后端 Origin，保留 CSRF、Cookie 与 Bearer；拒绝后端重定向，连接失败返回 502、后端 503 原样返回，均不回退旧 DO。响应禁用缓存并保留多个 Set-Cookie，后端现有 host-only Cookie 继续归属当前访问的 Cloudflare 主机。代理剔除客户端传入的转发 IP 头，不扩大腾讯云 Nginx/Node 的可信代理范围；因此经过 Worker 的匿名登录/重置限流可能按 Cloudflare 出口 IP 聚合，不能宣称保留逐用户真实 IP 限流。
+
+当前 `compatibility_date=2026-10-12` 已默认启用 `allow_custom_ports`（Cloudflare 自 2024-09-02 默认启用），`fetch` 保留目标 8443 端口；HTTPS 8443 也属于 Cloudflare 支持的代理端口。依据 [Worker 兼容标记](https://developers.cloudflare.com/workers/configuration/compatibility-flags/#allow-specifying-a-custom-port-when-making-a-subrequest-with-the-fetch-api)。生产仍需单独验收目标 TLS/连接可达性。
+
+本地合成双站预览配置为 `backend-proxy-preview`：Node 数据源 8792、代理网页 8793，完全使用内存存储和模拟上游；先停止占用 8792 的 `query-control-preview` 再启动。
+
 ## 单目录运行（2026-10-25 起）
 
 仓库目录 `/opt/owqs-work` 就是线上应用，不再保留版本副本：

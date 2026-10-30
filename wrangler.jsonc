@@ -8,8 +8,9 @@
   "assets": {"directory": "public", "binding": "ASSETS", "run_worker_first": ["/", "/index.html", "/tools/*", "/api/*", "/login", "/admin", "/reset"], "html_handling": "none"},
   "durable_objects": {"bindings": [{"name": "AUTH", "class_name": "AuthDirectory"}, {"name": "TASKS", "class_name": "UserTasks"}, {"name": "EVENTS", "class_name": "EventCenter"}]},
   "migrations": [{"tag": "v1", "new_sqlite_classes": ["AuthDirectory", "UserTasks"]}, {"tag": "v2", "new_sqlite_classes": ["EventCenter"]}],
-  "vars": {"DASHEN_DTS": "2026", "DASHEN_SERVER": "1", "EVENTS_CONTACT": "https://106.55.47.68:8443"},
-  "triggers": {"crons": ["0 * * * *"]},
+  // Frontend and same-origin API gateway only. Retain old DO bindings/data for recovery.
+  "vars": {"API_ORIGIN": "https://106.55.47.68:8443"},
+  "triggers": {"crons": []},
   "observability": {"enabled": false},
   "rules": [{"type": "Text", "globs": ["**/*.md"], "fallthrough": true}]
 }

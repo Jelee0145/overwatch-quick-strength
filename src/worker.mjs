@@ -3,6 +3,7 @@ import { authCall } from './actors/tasks.mjs';
 import { release } from './release.mjs';
 import { apiV1, apiVersion } from './api/v1.mjs';
 import { legacyApi } from './api/legacy.mjs';
+import { proxyBackend, authorizeBackendPage } from './http/backend-proxy.mjs';
 export { AuthDirectory } from './actors/auth.mjs';
 export { UserTasks } from './actors/tasks.mjs';
 export { EventCenter } from './events/center.mjs';
@@ -17,6 +18,12 @@ export async function route(request, env) {
   let path = url.pathname;
   const mutation = request.method === 'POST';
   if (!['GET', 'POST'].includes(request.method)) throw new Fault('不支持该请求方法', 405);
+  if (env.API_ORIGIN && path === '/api/internal/page-session') {
+    if (mutation) throw new Fault('请求方法错误', 405);
+    await authorizeBackendPage(request, env);
+    return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+  }
+  if (env.API_ORIGIN && path.startsWith('/api/')) return proxyBackend(request, env);
   if ((path === '/api/health' || path === '/api/v1/health') && !mutation)
     return json({ ok: true, ...release, apiVersion });
   if (path === '/api/internal/page-session') {
@@ -37,8 +44,10 @@ export async function route(request, env) {
   }
   if (path === '/' || path === '/index.html' || path.startsWith('/tools/')) {
     try {
-      await authCall(env, '/authorize', {}, { userToken: getCookie(request, 'qs_session') });
-    } catch {
+      if (env.API_ORIGIN) await authorizeBackendPage(request, env);
+      else await authCall(env, '/authorize', {}, { userToken: getCookie(request, 'qs_session') });
+    } catch (error) {
+      if (env.API_ORIGIN && ![401, 403].includes(error.status)) throw error;
       return Response.redirect(
         url.origin +
           '/login' +
@@ -62,6 +71,7 @@ export async function route(request, env) {
 }
 export default {
   async scheduled(event, env, ctx) {
+    if (env.API_ORIGIN) return;
     ctx.waitUntil(
       env.EVENTS.get(env.EVENTS.idFromName('global')).fetch('https://events.internal/sync', {
         method: 'POST'

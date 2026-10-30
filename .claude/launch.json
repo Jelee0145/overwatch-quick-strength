@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "backend-proxy-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/preview-backend-proxy.mjs"],
+      "port": 8793
+    },
+    {
       "name": "query-control-preview",
       "runtimeExecutable": "node",
       "runtimeArgs": ["scripts/preview-query-control.mjs"],

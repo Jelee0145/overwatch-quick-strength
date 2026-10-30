@@ -322,6 +322,20 @@ paths:
         '200': {description: Legacy admin response}
   /admin/users:
     get: *adminRead
+  /admin/data-inventory:
+    get:
+      summary: Read administrator-only paged pseudonymous catalog metadata inventory
+      description: Read-only, all history scopes, 20 users per page. No account/batch bodies, migration, signature verification or atomic snapshot. Legacy alias /api/admin/data-inventory. Responses use Cache-Control no-store.
+      security: [{adminSession: []}]
+      parameters:
+        - {in: query, name: cursor, schema: {type: string, pattern: '^[a-f0-9]{64}$'}, description: Omit for first page; use previous nextCursor thereafter}
+      responses:
+        '200':
+          description: Paged users with domain-separated digest identifiers, status, catalog account scope digests, counts, batch IDs and revision; total/statusTotals, metadataRevision, pageTotals, cursor/nextCursor, coverage catalog-metadata-only, scopes all and snapshot false
+        '400': {description: Invalid cursor or query parameters}
+        '401': {description: Missing, expired or non-administrator session; Bearer keys unsupported}
+        '405': {description: GET required}
+        '503': {description: Any inventory read failed; no partial successful page returned}
   /admin/query-control:
     get:
       summary: Read durable query switch and redacted daily probe status
