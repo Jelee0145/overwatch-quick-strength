@@ -68,15 +68,13 @@ export class SqliteStorage {
       for (const key of Array.isArray(keys) ? keys : [keys]) stmt.run(this.ns, key);
     });
   }
-  list({ prefix = '', startAfter = '', limit = 2147483647 } = {}) {
+  list({ prefix = '' } = {}) {
     return this.run(
       () =>
         new Map(
           this.database.db
-            .prepare(
-              'SELECT key,value FROM kv WHERE ns=? AND substr(key,1,?)=? AND key>? ORDER BY key LIMIT ?'
-            )
-            .all(this.ns, prefix.length, prefix, startAfter, limit)
+            .prepare('SELECT key,value FROM kv WHERE ns=? AND substr(key,1,?)=? ORDER BY key')
+            .all(this.ns, prefix.length, prefix)
             .map((r) => [r.key, JSON.parse(r.value)])
         )
     );

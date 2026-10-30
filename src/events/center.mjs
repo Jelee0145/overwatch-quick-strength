@@ -124,7 +124,6 @@ export class EventCenter {
     return this.pending;
   }
   async alarm() {
-    if (this.env.API_ORIGIN) return;
     try {
       await this.refresh();
     } catch {

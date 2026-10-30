@@ -1,6 +1,5 @@
 import policy from '../../access-policy.json' with { type: 'json' };
 import { QueryControl } from '../query/control.mjs';
-import { inventoryUsers } from '../operations/data-inventory.mjs';
 import {
   Fault,
   token,
@@ -154,11 +153,6 @@ export class AuthDirectory {
     return u;
   }
   async handle(i) {
-    if (i.path === '/authorize-inventory' || i.path === '/admin/data-inventory') {
-      await this.authorize({ adminToken: i.adminToken }, true);
-      if (i.path === '/authorize-inventory') return { authorized: true };
-      return inventoryUsers(this.storage, i.body?.cursor);
-    }
     await this.init();
     const b = i.body || {},
       p = await this.storage.get('policy');
@@ -403,7 +397,6 @@ export class AuthDirectory {
     throw new Fault('接口不存在', 404);
   }
   async alarm() {
-    if (this.env.API_ORIGIN) return;
     const work = this.chain.then(() => this.runAlarm());
     this.chain = work.catch(() => {});
     return work;

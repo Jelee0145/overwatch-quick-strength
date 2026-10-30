@@ -1,5 +1,4 @@
 import { CloudHistory } from '../history/cloud-history.mjs';
-import { historyInventory } from '../operations/data-inventory.mjs';
 import { warmHistoryAnalysis } from '../history/response.mjs';
 import { normalizeQueryOptions, legacyQueryOptions, queryRequestId } from '../query/options.mjs';
 import { selectApiMatch } from '../services/match-view.mjs';
@@ -269,10 +268,6 @@ export class UserTasks {
   }
   async handle(i) {
     const { user, version, path, body: b = {} } = i;
-    if (path === '/admin-history-inventory') {
-      await authCall(this.env, '/authorize-inventory', {}, { adminToken: i.adminToken });
-      return historyInventory(this.storage, user);
-    }
     await authCall(this.env, '/check-user', { user, version });
     const request = { user, version, path, body: b };
     const routes = new Map([
@@ -579,7 +574,6 @@ export class UserTasks {
     return 0;
   }
   async alarm() {
-    if (this.env.API_ORIGIN) return;
     if (this.executing) return;
     this.executing = true;
     try {

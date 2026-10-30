@@ -1,12 +1,5 @@
 # Agent update log
 
-## 2026-10-30 Optional Cloudflare backend proxy
-
-- Implemented a fixed API_ORIGIN proxy in src/http/backend-proxy.mjs. The Worker forwards all public API/health/legacy/admin requests, validates same-origin JSON POST before rewriting Origin, preserves cookie/CSRF/Bearer and all Set-Cookie headers, strips client forwarding identity, refuses upstream redirects, disables caching and never falls back to local actors on errors. Protected-page checks use the remote approved session; internal API paths are not forwarded.
-- Proxy mode disables Worker cron and the three old Durable Object alarm handlers without deleting bindings, migrations or stored data. wrangler.jsonc documents the setting but leaves it disabled pending account/history reconciliation; Node config must not set API_ORIGIN. Context7 confirmed compatibility_date 2026-10-12 preserves HTTPS custom port 8443 by default.
-- Verified: build, full npm test (421 Node tests and five native workerd suites), check dry-run, and focused real synthetic Node HTTP auth/CSRF/proxy tests passed. Preview backend-proxy-preview starts memory-only Node port 8792 plus proxy frontend port 8793. Browser verification belongs to the coordinating session.
-- No private data was read or migrated. Cloudflare full inventory remains incomplete; do not run the legacy empty-target importer against the populated Node store or activate proxy traffic before reconciliation. Cookie domains require fresh login, Web Push requires subscription on the CF origin, and backend anonymous rate limits may aggregate Worker egress IPs. No commit, push, deployment or live configuration change.
-
 ## 2026-10-30 Unified durable query control
 
 - Supersedes the 2026-10-27 force-pause and Cloudflare config-only rules below: QUERY_SUSPENDED is completely ignored on both deployments. Fresh state defaults to auto/open; existing durable manual/automatic state is retained. No legacy environment flag is migrated into a pause.
