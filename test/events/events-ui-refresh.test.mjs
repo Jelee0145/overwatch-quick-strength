@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import worker from '../../backend/src/worker.mjs';
+import { element } from './fake-dom.mjs';
 
 const script = await readFile(new URL('../../frontend/web/events.js', import.meta.url), 'utf8');
 const model = await readFile(
@@ -43,46 +44,6 @@ function harness(handler = () => snapshot()) {
     listeners = {},
     documentListeners = {},
     calls = [];
-  function element(tag = 'div') {
-    let ownText = '';
-    const node = {
-      tagName: tag,
-      children: [],
-      attributes: {},
-      value: '',
-      hidden: false,
-      disabled: false,
-      events: {},
-      className: '',
-      classList: { add() {} },
-      get childElementCount() {
-        return this.children.length;
-      },
-      get textContent() {
-        return (
-          ownText + this.children.map((n) => (typeof n === 'string' ? n : n.textContent)).join('')
-        );
-      },
-      set textContent(value) {
-        ownText = String(value);
-        this.children = [];
-      },
-      setAttribute(name, value) {
-        this.attributes[name] = String(value);
-      },
-      append(...items) {
-        this.children.push(...items);
-      },
-      replaceChildren(...items) {
-        ownText = '';
-        this.children = items;
-      },
-      addEventListener(type, fn) {
-        (this.events[type] ||= []).push(fn);
-      }
-    };
-    return node;
-  }
   const get = (id) => {
     if (!nodes.has(id)) nodes.set(id, element());
     return nodes.get(id);
@@ -183,6 +144,9 @@ function harness(handler = () => snapshot()) {
       }
       now = end;
       await flush();
+    },
+    emit(type) {
+      dispatch(listeners, type);
     },
     async visible(value) {
       document.visibilityState = value ? 'visible' : 'hidden';
@@ -544,13 +508,39 @@ test('periodic refresh keeps the rendered rows in place when nothing changed', a
   );
 });
 
-test('a changed score replaces the rendered rows', async () => {
+test('a changed score updates the rendered rows in place', async () => {
   let scores = [null, null];
   const app = harness(() => snapshot({ matches: [match({ scores })] }));
   await flush();
   const before = app.get('eventsList').children[0];
   scores = [1, 0];
   await app.advance(60000);
-  assert.notEqual(app.get('eventsList').children[0], before);
+  // Re-inserting rows replays their entrance animation, which is the flash users saw.
+  assert.equal(app.get('eventsList').children[0], before);
   assert.match(app.get('eventsList').textContent, /1 : 0/);
+});
+
+test('reserving a match only updates its button and keeps rows in place', async () => {
+  const app = harness(() => snapshot({ matches: [match({ reservable: true, reminderId: 'r1' })] }));
+  await flush();
+  const rows = [...app.get('eventsList').children],
+    state = app.window.EventReminders.state;
+  const button = () => {
+    const walk = (n) => (n.className === 'event-reserve' ? n : n.children?.map(walk).find(Boolean));
+    return walk(app.get('eventsList'));
+  };
+  const original = button();
+  assert.equal(original.textContent, '预约');
+  for (const next of [
+    { pending: true },
+    { pending: false, reservations: [{ id: 'r1', state: 'scheduled', match: match() }] }
+  ]) {
+    Object.assign(state, next);
+    app.emit('owqs:reminders');
+  }
+  assert.ok(
+    [...app.get('eventsList').children].every((node, i) => node === rows[i]),
+    'reservation must not re-insert the list'
+  );
+  assert.equal(button(), original);
 });

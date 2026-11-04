@@ -28,6 +28,8 @@ function rowStrength(row){
  return compact(s);
 }
 function rank(v){if(!Number.isFinite(v)||v<500)return '无有效样本';const i=Math.min(8,Math.floor((v-500)/500));return bands[i]+Math.max(1,5-Math.floor((v-(500+i*500))/100));}
+// Only the provider's own image CDN is accepted; anything else falls back to the default art.
+function avatarUrl(v){return typeof v==='string'&&v.length<=400&&/^https:\/\/ld5picproxy\.ds\.163\.com\/[A-Za-z0-9_\/-]+(\.[A-Za-z0-9]+)?$/.test(v)?v:''}
 function normalize(raw){
  if(!raw||typeof raw!=='object'||!Array.isArray(raw.matches)||raw.matches.length>50)throw Error('JSON 必须包含 matches 数组，最多 50 场');
  const matches=raw.matches.map((m,i)=>{
@@ -43,7 +45,7 @@ function normalize(raw){
  const recentHistory=(Array.isArray(raw.recentHistory)?raw.recentHistory:[]).slice(0,12).map(h=>({name:String(h.name||'').slice(0,100),queriedAt:String(h.queriedAt||'').slice(0,80),cached:!!h.cached,matches:normalize({matches:(Array.isArray(h.matches)?h.matches:[]).slice(0,2)}).matches}));
  const historyStatus=raw.historyStatus?Object.fromEntries(['sampledPlayers','playersWithGames','games','cacheHits','requests','requestBudget','errors','maxPlayers','gamesPerPlayer'].map(k=>[k,nonnegative(raw.historyStatus[k])])):null;
  const syncStatus=raw.syncStatus?{...Object.fromEntries(['fetchedMatches','reusedMatches','totalMatches','listedMatches','rankFetches','rankReuses'].map(k=>[k,nonnegative(raw.syncStatus[k])])),cachedOnly:!!raw.syncStatus.cachedOnly}:null;
- return {schemaVersion:1,battletag:String(raw.battletag??'导入玩家').slice(0,100),source:String(raw.source??'导入数据').slice(0,140),queriedAt:String(raw.queriedAt??'未知').slice(0,80),used_previous_season_fallback:!!raw.used_previous_season_fallback,matches,recentHistory,historyStatus,syncStatus,historyQueriedAt:String(raw.historyQueriedAt||'').slice(0,80)};
+ return {schemaVersion:1,battletag:String(raw.battletag??'导入玩家').slice(0,100),...(avatarUrl(raw.avatar)?{avatar:raw.avatar}:{}),source:String(raw.source??'导入数据').slice(0,140),queriedAt:String(raw.queriedAt??'未知').slice(0,80),used_previous_season_fallback:!!raw.used_previous_season_fallback,matches,recentHistory,historyStatus,syncStatus,historyQueriedAt:String(raw.historyQueriedAt||'').slice(0,80)};
 }
 function pick(p,strategy,heroes){
  const want=p.role||role(heroes[p.hero]?.role),res=p.res||{},rows=res.rows||[],prev=res.previousRows||[];
@@ -366,5 +368,5 @@ function summarize(raw,matches,options,heroes,evaluatePerformance,confidence,fro
  summary.confidencePercent=confidence.percent;
  return {...raw,matches,summary,confidence,options,personalPrediction:personalPrediction(raw,matches,heroes,evaluatePerformance,frozenPrediction),algorithmVersion:'2.6',aggregation:'equal-match-mean'};
 }
-const api={bands,bases,roles,states,role,esc,compact,rowStrength,rank,normalize,pick,build,summarize,rosterLimit,rosterSize,hasSubstitutes,modeLabel,modeOf};root.QS=api;if(typeof module!=='undefined')module.exports=api;
+const api={bands,bases,roles,states,role,esc,compact,rowStrength,rank,normalize,avatarUrl,pick,build,summarize,rosterLimit,rosterSize,hasSubstitutes,modeLabel,modeOf};root.QS=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

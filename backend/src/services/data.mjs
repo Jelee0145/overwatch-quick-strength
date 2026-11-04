@@ -36,6 +36,13 @@ export const usableMatch = (m, name) =>
     m.players?.some((p) => p.name === name)
   );
 
+/** Player portrait from the provider's own image CDN; mirrors QS.avatarUrl in source/core.js. */
+export const avatarUrl = (v) =>
+  typeof v === 'string' &&
+  v.length <= 400 &&
+  /^https:\/\/ld5picproxy\.ds\.163\.com\/[A-Za-z0-9_/-]+(\.[A-Za-z0-9]+)?$/.test(v)
+    ? v
+    : '';
 /** @typedef {{battletag?:string, matches:Array<object>, recentHistory?:Array<object>}} Snapshot */
 /** Pure transformations. normalizeSnapshot is the existing cloud algorithm's normalizer. */
 export function createDataService({ normalizeSnapshot } = {}) {

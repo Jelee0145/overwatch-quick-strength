@@ -1,5 +1,6 @@
 import { createChartService } from '../services/chart.mjs';
 import { analysisService, dataService } from '../services/runtime.mjs';
+import { avatarUrl } from '../services/data.mjs';
 import { maps } from '../shared/data.mjs';
 import media from '../shared/media.mjs';
 
@@ -39,7 +40,9 @@ export async function renderApiChart(snapshot, options, assets) {
   const raw = dataService.normalize(snapshot),
     all = analysisService.analyzeBatch(raw, options),
     model = analysisService.summarize(raw, all.matches.slice(-10), options);
-  return renderModel(model, assets, { statisticsRange: '10' });
+  return renderModel(raw.avatar ? { ...model, avatar: raw.avatar } : model, assets, {
+    statisticsRange: '10'
+  });
 }
 
 /** Render a server-analyzed archive view without selecting or evaluating matches again. */
@@ -59,6 +62,23 @@ export async function renderAnalysisChart(view, assets) {
     statistics: view.statistics,
     axis: view.axis
   });
+}
+/** Embed the player's own portrait; any failure keeps the bundled default. */
+async function portrait(src) {
+  if (!avatarUrl(src)) return '';
+  try {
+    const response = await fetch(src, { redirect: 'manual', signal: AbortSignal.timeout(5000) }),
+      type = (response.headers.get('Content-Type') || '').split(';')[0];
+    if (!response.ok || !/^image\/(png|jpeg|webp|gif)$/.test(type)) return '';
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > 512 * 1024) return '';
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 8192)
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return 'data:' + type + ';base64,' + btoa(binary);
+  } catch {
+    return '';
+  }
 }
 async function renderModel(model, assets, metadata) {
   if (!model.matches.length) return null;
@@ -94,7 +114,10 @@ async function renderModel(model, assets, metadata) {
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, load));
+  await Promise.all([
+    ...Array.from({ length: Math.min(4, queue.length) }, load),
+    portrait(model.avatar).then((uri) => uri && embedded.set('player', uri))
+  ]);
   const art = Object.fromEntries(
     model.matches.map((m) => [m.mapGuid, embedded.get(media.maps[m.mapGuid]?.export) || ''])
   );
@@ -104,7 +127,7 @@ async function renderModel(model, assets, metadata) {
   const chart = createChartService({
     core: globalThis.QS,
     maps,
-    avatar: embedded.get(media.avatar) || '',
+    avatar: embedded.get('player') || embedded.get(media.avatar) || '',
     rankArt
   });
   return {

@@ -1,5 +1,5 @@
 import { ServiceError as Fault } from './errors.mjs';
-import { createDataService, nameKey, usableMatch } from './data.mjs';
+import { createDataService, nameKey, usableMatch, avatarUrl } from './data.mjs';
 
 /**
  * Resumable acquisition engine; owns no storage, signing, quota or HTTP responses.
@@ -797,6 +797,7 @@ export function createMatchService({
       touchToken(s, t.name, v.customerToken);
       if (o.kind === 'account') {
         s.mainToken = v.customerToken;
+        s.avatar = avatarUrl(v.icon);
         s.phase = 'list';
       } else if (o.kind === 'rank-account') t.ct = v.customerToken;
       else s.actors[t.name].phase = 'list';
@@ -973,6 +974,9 @@ export function createMatchService({
       queryIndexMatches,
       schemaVersion: 3,
       battletag: s.tag,
+      ...((s.avatar || avatarUrl(s.prior.avatar)) && {
+        avatar: s.avatar || avatarUrl(s.prior.avatar)
+      }),
       source: '网易大神 · 云端增量查询',
       queriedAt: s.now,
       used_previous_season_fallback: s.out.some((m) =>

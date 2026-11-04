@@ -228,7 +228,8 @@ function summarizeArchive(prepared, history) {
     plotScale: axis,
     axis,
     statisticsRange: normalized.statisticsRange,
-    statisticsLabel
+    statisticsLabel,
+    ...(history.raw.avatar && { avatar: history.raw.avatar })
   };
   return {
     version: 1,

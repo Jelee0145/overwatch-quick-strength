@@ -11,6 +11,7 @@ import worker from '../../backend/src/worker.mjs';
 import { createRuntime } from '../../backend/server/runtime.mjs';
 import { card, page, response } from '../events-fixture.mjs';
 import { filterEvents } from '../../backend/src/events/filter.mjs';
+import { element } from './fake-dom.mjs';
 
 import { MemoryStorage as Storage } from '../helpers/storage.mjs';
 function setup(fetcher = async () => response(page())) {
@@ -545,19 +546,7 @@ test('events local status interval updates due labels without API polling and re
     nodes = new Map(),
     windowListeners = {},
     documentListeners = {};
-  const node = () => ({
-    children: [],
-    value: '',
-    textContent: '',
-    setAttribute() {},
-    addEventListener() {},
-    append(...children) {
-      this.children.push(...children);
-    },
-    replaceChildren(...children) {
-      this.children = children;
-    }
-  });
+  const node = () => element();
   const document = {
     visibilityState: 'visible',
     getElementById(id) {
@@ -624,7 +613,7 @@ test('events local status interval updates due labels without API polling and re
     clearTimeout() {}
   };
   vm.runInNewContext(script, context);
-  const text = (element) => element.textContent + element.children.map(text).join('');
+  const text = (node) => node.textContent;
   const tick = () => {
     now += 15000;
     for (const fn of [...intervals.values()]) fn();

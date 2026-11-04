@@ -85,7 +85,10 @@ function chartView() {
     statsMatches: timeline.statistics.matches,
     windowOffset: w.start,
     plotScale: timeline.axis,
-    lazyArt: true
+    lazyArt: true,
+    avatar: QS.avatarUrl(raw?.avatar)
+      ? '/api/v1/media/avatar?src=' + encodeURIComponent(raw.avatar)
+      : ''
   };
 }
 function paintTimeline() {
@@ -114,6 +117,11 @@ function paintTimeline() {
       };
     });
   restoreTimelineImages($('chart').querySelector('svg'), images);
+  const portrait = $('chart').querySelector('[data-player-avatar]');
+  if (portrait && QS_AVATAR)
+    portrait.addEventListener('error', () => portrait.setAttribute('href', QS_AVATAR), {
+      once: true
+    });
   queueMapArt();
   const selected = Math.max(
     0,

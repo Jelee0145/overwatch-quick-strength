@@ -61,12 +61,16 @@
     return r.changed ? '时间已变更' : '已预约';
   }
   function renderReminders() {
+    const live = $('eventsReservations'),
+      stage = document.createElement('ul');
+    live.setAttribute('aria-busy', String(!reminderState()?.ready));
+    paintReminders(stage);
+    morph(live, stage);
+  }
+  function paintReminders(list) {
     const s = reminderState(),
       ready = s?.ready,
-      list = $('eventsReservations'),
       enable = $('eventsEnableNotifications');
-    list.setAttribute('aria-busy', String(!ready));
-    list.replaceChildren();
     enable.disabled = !ready || !s.enabled || s.pending || s.deviceEnabled;
     enable.textContent = s?.deviceEnabled ? '本机通知已启用' : '启用本机通知';
     const statusNode = $('eventsRemindersStatus');
@@ -211,7 +215,39 @@
     const html = JSON.stringify(fingerprint(stage));
     if (html === listHTML && target.children.length) return;
     listHTML = html;
-    target.replaceChildren(...Array.from(stage.children));
+    morph(target, stage);
+  }
+  // Patch the live list toward the staged one so a reservation only touches its button: re-inserting every
+  // row would reload logos and, right after a click, replay the entrance animation across the whole list.
+  function morph(live, next) {
+    const want = Array.from(next.childNodes);
+    want.forEach((node, i) => {
+      const old = live.childNodes[i];
+      if (
+        old &&
+        old.nodeType === node.nodeType &&
+        (node.nodeType !== 1 || old.tagName === node.tagName)
+      ) {
+        if (node.nodeType !== 1) {
+          if (old.nodeValue !== node.nodeValue) old.nodeValue = node.nodeValue;
+          return;
+        }
+        for (const name of old.getAttributeNames())
+          if (!node.hasAttribute(name) && name !== 'class') old.removeAttribute(name);
+        for (const name of node.getAttributeNames()) {
+          const value = node.getAttribute(name);
+          if (name !== 'class' && old.getAttribute(name) !== value) old.setAttribute(name, value);
+        }
+        // motion.js adds .enter to new rows; keep it on rows that were already shown.
+        const kept = old.classList.contains('enter') ? ' enter' : '';
+        if (old.className !== node.className + kept) old.className = node.className + kept;
+        old.onclick = node.onclick;
+        old.onerror = node.onerror;
+        morph(old, node);
+      } else if (old) live.replaceChild(node, old);
+      else live.append(node);
+    });
+    while (live.childNodes.length > want.length) live.lastChild.remove();
   }
   function paint(list) {
     const f = filters(),

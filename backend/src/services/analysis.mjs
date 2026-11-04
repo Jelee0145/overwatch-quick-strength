@@ -44,12 +44,16 @@ export function createAnalysisService({
     const originals = new Map(),
       models = new Map(),
       histories = new Map();
-    let latest = null;
+    let latest = null,
+      portrait = null;
     for (const [id, envelope] of Object.entries(archive.batches)) {
       const raw = data.normalize(envelope.content.data);
       originals.set(id, raw);
       models.set(id, buildNormalized(raw, options));
       if (!latest || Date.parse(raw.queriedAt) > Date.parse(latest.queriedAt)) latest = raw;
+      // Batches saved before portraits were recorded carry none; keep the newest known one.
+      if (raw.avatar && (!portrait || Date.parse(raw.queriedAt) > Date.parse(portrait.queriedAt)))
+        portrait = raw;
       for (const h of raw.recentHistory || []) {
         const old = histories.get(h.name);
         if (!old || Date.parse(h.queriedAt) > Date.parse(old.queriedAt)) histories.set(h.name, h);
@@ -81,6 +85,7 @@ export function createAnalysisService({
       raw: {
         ...latest,
         battletag: archive.tag,
+        ...(portrait && { avatar: portrait.avatar }),
         matches: rawMatches,
         recentHistory: [...histories.values()]
       },

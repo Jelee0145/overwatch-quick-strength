@@ -37,7 +37,9 @@ function renderChart(model,art,showArt,title){
  z.push(`<path d="M24 38V24h32M${W-56} 24h32v14M24 ${H-38}v14h32M${W-56} ${H-24}h32v-14" fill="none" stroke="#68727d" stroke-width="1" opacity=".55"/>`);
  panel(34,34,W-68,150);rect(34,58,3,38,'#f58220');
  z.push('<circle cx="93" cy="91" r="35" fill="#2f3b46" stroke="#f6b06f" stroke-width="1.5"/>');
- if(typeof QS_AVATAR!=='undefined'&&QS_AVATAR)z.push(`<image href="${esc(QS_AVATAR)}" x="61" y="59" width="64" height="64" clip-path="url(#chart-avatar)"/>`);else text(93,102,'Q',30,ink,'text-anchor="middle"');
+ // model.avatar is the player's own portrait; the bundled art is only the fallback.
+ const avatarArt=model.avatar||(typeof QS_AVATAR!=='undefined'?QS_AVATAR:'');
+ if(avatarArt)z.push(`<image href="${esc(avatarArt)}"${model.avatar?' data-player-avatar="1"':''} x="61" y="59" width="64" height="64" clip-path="url(#chart-avatar)"/>`);else text(93,102,'Q',30,ink,'text-anchor="middle"');
  const [name,tag]=model.battletag.split('#');
  z.push(`<g clip-path="url(#chart-name)"><title>${esc(model.battletag)}</title>`);text(145,88,name||'快速对局',28,ink,'font-weight="700"');text(145,113,tag?'#'+tag:'快速对局记录',15,muted);z.push('</g>');
  const caption=title||'快速强度图';text(61,156,caption.length>18?caption.slice(0,18)+'…':caption,15,'#c8d0d9');text(387,156,`${windowed?windowSize:n} 场`,15,muted,'text-anchor="end"');

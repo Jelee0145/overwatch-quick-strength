@@ -10,6 +10,7 @@ import { listEvents, handleReminder, syncEventTracking } from '../events/applica
 import { analysisService } from '../services/runtime.mjs';
 import { analyzeResult } from './analysis.mjs';
 import { renderApiChart, compactAnalysis } from './chart.mjs';
+import { avatarUrl } from '../services/data.mjs';
 export const apiVersion = '1.1';
 export { analysisResponseCache } from './history.mjs';
 const capabilities = async (env, auth) => ({
@@ -43,8 +44,37 @@ async function taskArchive(call, auth, env, id) {
   };
 }
 
+// The portrait CDN sends no CORS headers, so chart export needs a same-origin copy.
+async function playerAvatar(url) {
+  const src = avatarUrl(url.searchParams.get('src'));
+  if (!src) throw new Fault('头像地址无效');
+  const response = await fetch(src, {
+    redirect: 'manual',
+    signal: AbortSignal.timeout(8000)
+  }).catch(() => null);
+  const type = response?.headers.get('Content-Type') || '';
+  if (!response?.ok || !/^image\/(png|jpeg|webp|gif)$/.test(type.split(';')[0]))
+    throw new Fault('头像读取失败', 502);
+  const body = await response.arrayBuffer();
+  if (body.byteLength > 512 * 1024) throw new Fault('头像过大', 502);
+  return new Response(body, {
+    headers: {
+      'Content-Type': type,
+      'Cache-Control': 'private, max-age=604800',
+      'X-Content-Type-Options': 'nosniff'
+    }
+  });
+}
+
 // Ordered descriptors preserve exact paths, prefix actions, and parameter matching.
 const routes = [
+  {
+    match: (path) => path === '/api/v1/media/avatar',
+    async handle({ request, url }) {
+      requireMethod(request, 'GET');
+      return playerAvatar(url);
+    }
+  },
   {
     match: (path) => path === '/api/v1/account',
     async handle({ request, env, auth, call }) {
