@@ -528,3 +528,29 @@ test('date queries explicitly retain both statuses instead of inheriting the API
   assert.equal(params.get('paginate'), '0');
   assert.equal(params.get('from'), '2026-10-23');
 });
+
+test('periodic refresh keeps the rendered rows in place when nothing changed', async () => {
+  const app = harness();
+  await flush();
+  const rows = [...app.get('eventsList').children];
+  assert.ok(rows.length > 0);
+  // Clock tick (15s), poll (60s) and a repeated snapshot all re-render with identical content.
+  await app.advance(130000);
+  const after = [...app.get('eventsList').children];
+  assert.equal(after.length, rows.length);
+  assert.ok(
+    after.every((node, i) => node === rows[i]),
+    'unchanged list must not be replaced, or logos reload and the page flashes'
+  );
+});
+
+test('a changed score replaces the rendered rows', async () => {
+  let scores = [null, null];
+  const app = harness(() => snapshot({ matches: [match({ scores })] }));
+  await flush();
+  const before = app.get('eventsList').children[0];
+  scores = [1, 0];
+  await app.advance(60000);
+  assert.notEqual(app.get('eventsList').children[0], before);
+  assert.match(app.get('eventsList').textContent, /1 : 0/);
+});

@@ -185,13 +185,38 @@
     );
     select.value = value;
   }
+  // The list is rebuilt off-screen and only swapped in when its markup changed: the 15s clock tick, polling and
+  // reminder updates usually produce identical rows, and replacing them reloads logos and replays hover/animation.
+  let listHTML = '';
+  const fingerprint = (node) =>
+    typeof node === 'string'
+      ? node
+      : [
+          node.tagName,
+          node.className,
+          node.href,
+          node.src,
+          node.title,
+          node.disabled,
+          node.dateTime,
+          node.dataset?.reminder,
+          node.textContent,
+          Array.from(node.children || []).map(fingerprint)
+        ];
   function render() {
     if (!snapshot) return;
+    const stage = document.createElement('div'),
+      target = $('eventsList');
+    paint(stage);
+    const html = JSON.stringify(fingerprint(stage));
+    if (html === listHTML && target.children.length) return;
+    listHTML = html;
+    target.replaceChildren(...Array.from(stage.children));
+  }
+  function paint(list) {
     const f = filters(),
       invalid = f.from && f.to && f.from > f.to,
-      matches = invalid ? [] : model.select(snapshot.matches, f),
-      list = $('eventsList');
-    list.replaceChildren();
+      matches = invalid ? [] : model.select(snapshot.matches, f);
     $('eventsCount').textContent = `${matches.length} 场比赛`;
     $('eventsUpdated').textContent = '更新于 ' + dateTime.format(new Date(snapshot.updatedAt));
     if (invalid) {
@@ -307,6 +332,7 @@
           isReserved = reserved(match),
           button = element('button', 'event-reserve', isReserved ? '已预约' : '预约');
         button.type = 'button';
+        button.dataset.reminder = match.reminderId || '';
         button.disabled = !!isReserved || !s?.ready || !s.enabled || s.pending;
         button.title = isReserved
           ? '可在“我的预约”中取消'
@@ -377,7 +403,10 @@
       if (next.state === 'pending') {
         notice('查询中…');
         $('eventsCount').textContent = '正在补查…';
-        if (!snapshot) $('eventsList').replaceChildren(element('p', 'events-empty', '查询中…'));
+        if (!snapshot) {
+          listHTML = '';
+          $('eventsList').replaceChildren(element('p', 'events-empty', '查询中…'));
+        }
         scheduleRetry(next.retryAfter);
         return;
       }
@@ -415,6 +444,7 @@
       notice(error.message + (snapshot ? '，已保留当前赛程。' : ''));
       if (!snapshot) {
         $('eventsCount').textContent = '暂无赛程';
+        listHTML = '';
         $('eventsList').replaceChildren(element('p', 'events-empty', '加载失败，请刷新重试'));
       }
     } finally {
