@@ -344,3 +344,15 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
 /* Hero detail tabs: flat underline tabs, not the global rounded/raised button. */
 .mobile-hero-tabs button,.mobile-hero-tabs button:hover:not(:disabled),.mobile-hero-tabs button:active:not(:disabled){border-radius:0;box-shadow:none;transform:none;background:transparent;border-top-color:transparent;border-left-color:transparent;border-right-color:transparent}
 .mobile-hero-tabs [aria-selected=true],.mobile-hero-tabs [aria-selected=true]:hover:not(:disabled){border-bottom-color:#f58220}
+
+/* Desktop analysis: chart first (aligned with the settings panel), then one action row under it. */
+@media(min-width:761px){
+  body:not(.mobile-analysis) .results{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:12px;align-items:center}
+  body:not(.mobile-analysis) .results>*{grid-column:1/-1}
+  body:not(.mobile-analysis) .results>.result-toolbar{display:contents}
+  body:not(.mobile-analysis) .results>.canvas-wrap{grid-row:1;min-width:0}
+  body:not(.mobile-analysis) .result-toolbar>.chart-tools{grid-row:2;grid-column:1}
+  body:not(.mobile-analysis) .results>.timeline-navigation{grid-row:2;grid-column:2;justify-content:center;gap:18px;margin-top:10px}
+  body:not(.mobile-analysis) .result-toolbar>.actions{grid-row:2;grid-column:3;display:flex;gap:8px}
+  body:not(.mobile-analysis) .result-toolbar>*{margin-top:10px}
+}
