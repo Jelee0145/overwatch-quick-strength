@@ -190,15 +190,17 @@ body.motion:not(.cloud-pending) .draw-stage,body.motion:not(.cloud-pending) .eve
 body.motion:not(.cloud-pending) .draw-controls,body.motion:not(.cloud-pending) .events-tabs{animation-delay:.15s}
 body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
 .motion .auth-shell{animation:rise .8s var(--ease) both}
-/* Dynamic lists animate on first load and after a user action, not on background refreshes (motion.js toggles .motion-lists) */
-.motion-lists .event-match,.motion-lists .events-day,.motion-lists .events-reservation{animation:rise-sm .55s var(--ease) both}
-.motion-lists .event-match:nth-child(2){animation-delay:.05s}.motion-lists .event-match:nth-child(3){animation-delay:.1s}.motion-lists .event-match:nth-child(4){animation-delay:.15s}.motion-lists .event-match:nth-child(n+5){animation-delay:.2s}
-.motion-lists #players tr{animation:rise-sm .45s var(--ease) both}
-.motion-lists #players tr:nth-child(2){animation-delay:.04s}.motion-lists #players tr:nth-child(3){animation-delay:.08s}.motion-lists #players tr:nth-child(4){animation-delay:.12s}.motion-lists #players tr:nth-child(5){animation-delay:.16s}.motion-lists #players tr:nth-child(n+6){animation-delay:.2s}
-.motion-lists .ai-review:not([hidden]),.motion-lists .estimate-detail:not([hidden]),.motion-lists .performance-panel:not([hidden]),.motion-lists .empty-state{animation:rise-sm .5s var(--ease) both}
-.motion-lists .live-dot,.motion-lists .local i{animation:pulse-ring 2s ease-out infinite}
-.motion-lists .empty-state strong{animation:float-y 4s ease-in-out infinite}
-.motion-lists #chart svg{animation:fade-in .6s ease both}
+/* Entrance animations are tied to elements, not to a global switch: motion.js adds .enter once to nodes inserted at load
+   or right after a user action, so unrelated clicks and background re-renders never replay anything. */
+.enter.event-match,.enter.events-day,.enter.events-reservation{animation:rise-sm .55s var(--ease) both}
+.enter.event-match:nth-child(2){animation-delay:.05s}.enter.event-match:nth-child(3){animation-delay:.1s}.enter.event-match:nth-child(4){animation-delay:.15s}.enter.event-match:nth-child(n+5){animation-delay:.2s}
+#players>tr.enter{animation:rise-sm .45s var(--ease) both}
+#players>tr.enter:nth-child(2){animation-delay:.04s}#players>tr.enter:nth-child(3){animation-delay:.08s}#players>tr.enter:nth-child(4){animation-delay:.12s}#players>tr.enter:nth-child(5){animation-delay:.16s}#players>tr.enter:nth-child(n+6){animation-delay:.2s}
+.motion .ai-review:not([hidden]),.motion .estimate-detail:not([hidden]),.motion .performance-panel:not([hidden]){animation:rise-sm .5s var(--ease) both}
+.enter.empty-state{animation:rise-sm .5s var(--ease) both}
+.motion .live-dot,.motion .local i{animation:pulse-ring 2s ease-out infinite}
+.motion .empty-state strong{animation:float-y 4s ease-in-out infinite}
+#chart>svg.enter{animation:fade-in .6s ease both}
 
 /* Fine hairline loading shimmer for status text */
 .status[role=status]:empty{display:none}

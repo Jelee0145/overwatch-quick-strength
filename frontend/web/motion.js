@@ -3,24 +3,37 @@
   var body = document.body;
   if (!body) return;
   body.classList.add('motion');
-  var settle;
-  function lists(ms) {
-    body.classList.add('motion-lists');
-    clearTimeout(settle);
+  // Nodes inserted while this is true get .enter (see theme.css): page load, and a moment after a user action.
+  var animating = true,
     settle = setTimeout(function () {
-      body.classList.remove('motion-lists');
-    }, ms);
-  }
-  lists(2500);
+      animating = false;
+    }, 2500);
   ['pointerdown', 'keydown', 'input', 'change'].forEach(function (type) {
     document.addEventListener(
       type,
       function () {
-        lists(1200);
+        animating = true;
+        clearTimeout(settle);
+        settle = setTimeout(function () {
+          animating = false;
+        }, 1200);
       },
       { passive: true, capture: true }
     );
   });
+  var ENTER = '.event-match,.events-day,.events-reservation,#players>tr,.empty-state,#chart>svg';
+  new MutationObserver(function (records) {
+    if (!animating) return;
+    records.forEach(function (record) {
+      record.addedNodes.forEach(function (node) {
+        if (node.nodeType !== 1) return;
+        if (node.matches(ENTER)) node.classList.add('enter');
+        node.querySelectorAll(ENTER).forEach(function (child) {
+          child.classList.add('enter');
+        });
+      });
+    });
+  }).observe(body, { childList: true, subtree: true });
   var ticking = false;
   var top = 0;
   function sync() {
