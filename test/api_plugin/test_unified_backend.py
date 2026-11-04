@@ -23,13 +23,28 @@ class PersistedQueryTests(unittest.TestCase):
                 store.pending_query('sender', 'bound:other', query)
             self.assertIsNone(store.pending_query('other', 'free:scope', query))
             self.assertEqual(store.db.execute('SELECT count(*) FROM free_usage').fetchone()[0], 1)
-            store.db.execute("UPDATE query_requests SET job='',created=0 WHERE owner='sender'")
-            store.db.commit()
-            with self.assertRaisesRegex(client.UserError, '保留期限'):
-                store.pending_query('sender', 'free:scope', query)
-            store.finish_query('sender')
-            self.assertNotEqual(store.start_query('sender', 'free:scope', query)['requestId'], pending['requestId'])
+            with self.assertRaisesRegex(client.UserError, r'约 \d+ 分钟后再查'):
+                store.pending_query('sender', 'free:scope', client.Query('Other#123'))
+            self.assertNotEqual(store.start_query('sender', 'free:scope', query)['requestId'], '')
             store.close()
+
+    def test_stale_pending_record_never_blocks_forever(self):
+        # A job acknowledged long ago (or never acknowledged) is gone from the website; neither the same
+        # retry nor a different query may stay locked behind it.
+        for job in ('a' * 64, ''):
+            with tempfile.TemporaryDirectory() as directory:
+                store = client.Bindings(directory)
+                old = client.Query('Daze#51307')
+                pending = store.start_query('sender', 'bound:scope', old)
+                store.query_job('sender', pending['requestId'], job)
+                store.db.execute("UPDATE query_requests SET created=created-3600 WHERE owner='sender'")
+                store.db.commit()
+                self.assertIsNone(store.pending_query('sender', 'bound:scope', client.Query('Azuma#51216')))
+                self.assertEqual(store.db.execute('SELECT count(*) FROM query_requests').fetchone()[0], 0)
+                fresh = store.start_query('sender', 'bound:scope', old)
+                self.assertNotEqual(fresh['requestId'], pending['requestId'])
+                self.assertEqual(fresh['job'], '')
+                store.close()
 
 
 class DeliveryStateTests(unittest.IsolatedAsyncioTestCase):

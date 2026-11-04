@@ -52,6 +52,8 @@ def owner_key(event):
 
 POOLS = {"5v5": "55", "55": "55", "6v6": "66", "66": "66"}
 POOL_LABELS = {"55": "快速 5v5", "66": "快速 6v6", "": "全部快速模式"}
+# Seconds a pending query record is honoured; just under the website's one-hour job retention.
+PENDING_TTL = 3500
 
 
 @dataclass(frozen=True)
@@ -124,10 +126,15 @@ class Bindings:
         fingerprint = hashlib.sha256(json.dumps([query.tag, query.limit, query.mode, query.pool], ensure_ascii=False).encode()).hexdigest()
         row = self.db.execute('SELECT scope,fingerprint,request_id,job,reservation,created FROM query_requests WHERE owner=?', (owner,)).fetchone()
         if row:
+            age = datetime.now(timezone.utc).timestamp() - row[5]
+            # Past the website's job retention the old job and its idempotency key are gone: resuming can
+            # only fail again and a new query cannot duplicate it, so a stale record must not block forever.
+            if age >= PENDING_TTL:
+                self.finish_query(owner)
+                return None
             if row[0] != scope or row[1] != fingerprint:
-                raise UserError('上次查询结果尚未确认，请先用相同账号和参数重试，避免重复扣费')
-            if not row[3] and datetime.now(timezone.utc).timestamp() - row[5] >= 3500:
-                raise UserError('上次请求结果不明且已接近任务保留期限，为避免再次扣费已停止重发；请管理员核对网站任务后处理本地待确认记录')
+                minutes = max(1, int((PENDING_TTL - age + 59) // 60))
+                raise UserError(f'上次查询结果尚未确认，为避免重复扣费暂不发起新查询；可用相同账号和参数重试，或约 {minutes} 分钟后再查')
             return {'requestId': row[2], 'job': row[3], 'reservation': row[4]}
         return None
 
