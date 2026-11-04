@@ -71,4 +71,31 @@
     },
     { passive: true }
   );
+  // Desktop analysis page: keep the settings panel vertically centred on the strength chart.
+  var workspace = document.querySelector('.workspace'),
+    side = workspace && workspace.querySelector(':scope > aside'),
+    plot = workspace && workspace.querySelector('.canvas-wrap');
+  if (side && plot) {
+    var place = function () {
+      if (!matchMedia('(min-width:761px)').matches) {
+        side.style.marginTop = '';
+        return;
+      }
+      side.style.marginTop = '0px';
+      var w = workspace.getBoundingClientRect(),
+        c = plot.getBoundingClientRect();
+      side.style.marginTop = Math.max(0, c.top - w.top + (c.height - side.offsetHeight) / 2) + 'px';
+    };
+    if (window.ResizeObserver) {
+      var ro = new ResizeObserver(place);
+      ro.observe(plot);
+      ro.observe(side);
+    }
+    window.addEventListener('resize', place);
+    window.addEventListener('owqs:analysis-updated', function () {
+      setTimeout(place, 0);
+    });
+    setTimeout(place, 1200);
+    place();
+  }
 })();

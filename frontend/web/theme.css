@@ -77,7 +77,6 @@ aside,.events-reminders,.event-match,.table-wrap,.auth-shell,.admin-row,.ai-revi
   border-radius:var(--radius);border-color:var(--line);background:var(--surface);box-shadow:var(--shadow-1);
 }
 aside{background:linear-gradient(180deg,#fff,#fffcf8);padding:24px}
-@media(min-width:761px){.workspace>aside{align-self:center}}
 .section-head{letter-spacing:.3px}
 .tabs{background:#f3ede5;border-radius:11px}
 .tabs button.active{border-radius:8px;box-shadow:0 2px 8px rgba(60,40,20,.1)}
@@ -341,3 +340,7 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
   .mobile-filter-toggle b[hidden]{display:none}
   .mobile-events .events-tabs>span{display:none}
 }
+
+/* Hero detail tabs: flat underline tabs, not the global rounded/raised button. */
+.mobile-hero-tabs button,.mobile-hero-tabs button:hover:not(:disabled),.mobile-hero-tabs button:active:not(:disabled){border-radius:0;box-shadow:none;transform:none;background:transparent;border-top-color:transparent;border-left-color:transparent;border-right-color:transparent}
+.mobile-hero-tabs [aria-selected=true],.mobile-hero-tabs [aria-selected=true]:hover:not(:disabled){border-bottom-color:#f58220}
