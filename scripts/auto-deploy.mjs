@@ -25,7 +25,23 @@ const read = (file) => {
 const failed = read(state),
   deployed = read(released);
 
-git('fetch', '--quiet', 'git@github.com:Jelee0145/overwatch-quick-strength.git', 'main');
+// GitHub outages make fetch fail for a while; log one timestamped line instead of a stack trace
+// and let the next timer run retry.
+try {
+  execFileSync(
+    'git',
+    ['fetch', '--quiet', 'git@github.com:Jelee0145/overwatch-quick-strength.git', 'main'],
+    { cwd: root, encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+} catch (error) {
+  const lines = String(error.stderr || error.message)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean),
+    reason = lines.find((line) => !/^warning:/i.test(line)) || lines[0] || '未知错误';
+  log('拉取 GitHub 失败，等待下次重试：' + reason);
+  process.exit(1);
+}
 const target = git('rev-parse', 'FETCH_HEAD'),
   current = git('rev-parse', 'HEAD');
 if (target === deployed) {
