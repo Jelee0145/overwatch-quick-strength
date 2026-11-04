@@ -302,9 +302,7 @@
       : '<div class="mobile-list-empty">输入战网昵称，查询后查看玩家数据<button type="button" class="primary" id="mobileEmptyQuery">开始查询</button></div>';
     list
       .querySelectorAll('[data-player]')
-      .forEach(
-        (button) => (button.onclick = () => toggleInline(Number(button.dataset.player)))
-      );
+      .forEach((button) => (button.onclick = () => toggleInline(Number(button.dataset.player))));
     if (inlineHero !== null) paintInline();
     list
       .querySelectorAll('[data-rating]')
@@ -432,7 +430,9 @@
     if (current !== view) return;
     inlineHero = index;
     paintInline();
-    list.querySelector('.mobile-player-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    list
+      .querySelector('.mobile-player-detail')
+      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   async function openHero(index, tab) {
     const current = view,
