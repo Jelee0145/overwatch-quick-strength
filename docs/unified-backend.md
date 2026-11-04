@@ -70,7 +70,7 @@
 
 后端默认仅服务 API、renderer 媒体只供内部出图。组合开发预览可设 `OWQS_SERVE_WEB=1`，网页根目录可设 `OWQS_WEB_ROOT`，renderer 可设 `OWQS_RENDERER_ROOT`。仓库内 `scripts/diagnostics/preview-unified.mjs` 使用内存数据库和合成数据，经桌面预览启动，不读取真实配置。
 
-Nginx 模板将 `/api/*` 转发 Node、网页指向 `/opt/owqs-work/public`；保护页面使用内部会话校验并保留登录跳转，管理员登录 HTML 公共、操作 API 单独授权。保持原 origin、Host、Cookie、SW 根路径、gzip 和安全头。必须在目标服务器上通过 nginx 配置验证，再按单独授权发布。
+反向代理（线上为 1Panel OpenResty，仓库 `deploy/nginx-https.conf` 为参考副本，生效位置见 STANDALONE.md“反向代理与证书”）将 `/api/*` 转发 Node、网页指向 `/opt/owqs-work/public`；保护页面使用内部会话校验并保留登录跳转，管理员登录 HTML 公共、操作 API 单独授权。保持原 origin、Host、Cookie、SW 根路径、gzip 和安全头。必须在目标服务器上通过容器内 `nginx -t` 验证，再按单独授权重载。
 
 ## 精简与兼容
 

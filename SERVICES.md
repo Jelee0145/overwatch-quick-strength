@@ -2,7 +2,7 @@
 
 `backend/src/services/index.mjs` 导出 `createMatchService`、`createDataService`、`createAnalysisService` 和 `ServiceError`。模块使用 ESM；数据整理和分析计算没有网络、DOM、存储或 Cloudflare 依赖。它们返回新的数据，不修改输入。获取服务会更新传入的查询状态，但会复制初始快照、恢复数据及传入缓存。
 
-图表服务 `createChartService({core, maps, avatar, rankArt}).render(model, {art, showArt, title})` 同样从统一入口导出，返回 SVG 字符串。`core` 提供 `esc/rank/bands/roles`，其余参数显式提供素材与地图信息，不访问 DOM 或请求网络。`source/chart.js` 是浏览器与后端共用的唯一图表权威源，同时保留网页四参数 `renderChart` 入口。默认调用保持 API/Bot 原有输出；可选 `windowOffset`、`windowSize`、`columnOffset`、`plotScale`、`histogram` 和按需加载的地图素材供网页时间轴使用，构建不再替换图表源码。`scripts/sync-local.mjs` 只同步算法、数据和提示词，`chart.js` 不在同步范围。
+图表服务 `createChartService({core, maps, avatar, rankArt}).render(model, {art, showArt, title})` 同样从统一入口导出，返回 SVG 字符串。`core` 提供 `esc/rank/bands/roles`，其余参数显式提供素材与地图信息，不访问 DOM 或请求网络。头像优先取 `model.avatar`（网页传同源代理地址 `/api/v1/media/avatar?src=…`，带 `data-player-avatar`），为空时用服务参数 `avatar`；分析结果会携带原始头像地址，所以服务端和独立插件出图前须把 `model.avatar` 置空，只通过 `avatar` 传入已内嵌的 data URI，保证 SVG 不含外链。`source/chart.js` 是浏览器与后端共用的唯一图表权威源，同时保留网页四参数 `renderChart` 入口。默认调用保持 API/Bot 原有输出；可选 `windowOffset`、`windowSize`、`columnOffset`、`plotScale`、`histogram` 和按需加载的地图素材供网页时间轴使用，构建不再替换图表源码。`scripts/sync-local.mjs` 只同步算法、数据和提示词，`chart.js` 不在同步范围。
 
 独立 AstrBot 插件、配置与部署说明见 [插件 README](plugins/astrbot_plugin_owqs/README.md)。执行 `npm run plugin:build` 输出带算法、图表和素材的独立 ZIP；插件不依赖网站账户或 Cloudflare。
 

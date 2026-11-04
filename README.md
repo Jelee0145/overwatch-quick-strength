@@ -69,7 +69,7 @@ Authorization: Bearer owqs_...
 
 ## 构建与部署
 
-当前生产环境是腾讯云独立站点（`https://106.55.47.68:8443`，`/opt/owqs/current` 指向 `/opt/owqs/releases/<版本>`）。独立网站、SQLite 持久化、HTTPS 与 Cloudflare 账号历史迁移见 [STANDALONE.md](STANDALONE.md)。独立网站继续提供现有 Bot 查询 API。
+当前生产环境是腾讯云独立站点（`https://106.55.47.68:8443`），线上直接运行仓库 `/opt/owqs-work`，推送 `main` 后由服务器轮询、测试并自动发布，反向代理是 1Panel 的 OpenResty 容器。独立网站、SQLite 持久化、HTTPS 与 Cloudflare 账号历史迁移见 [STANDALONE.md](STANDALONE.md)。独立网站继续提供现有 Bot 查询 API。
 
 AstrBot 的 OWQS 网站 API 插件已部署在该服务器。更新时替换插件文件后热重载即可，不需要重启容器（AstrBot 容器的文件监听未启用，必须显式触发重载）：
 
@@ -104,7 +104,7 @@ Cloudflare Workers Builds 绑定私有仓库的 `main` 分支；根目录 `/`，
 
 ## 地图素材与加载
 
-云端网页不加载本机的内嵌 `art.js`，也不请求本机 `/api/map-art`。地图、头像和段位图标由免费 Workers Static Assets 提供；脚本／样式与图片均使用内容哈希，一年 immutable 缓存。账号与 API 响应不公共缓存。地图仅加载当前图表需要的素材，最多并行四张；导出时使用较高清图片并内嵌，下载文件可以独立打开。
+云端网页不加载本机的内嵌 `art.js`，也不请求本机 `/api/map-art`。地图、默认头像和段位图标是站内静态素材（腾讯云由 OpenResty、Cloudflare 由 Workers Static Assets 提供）；脚本／样式与图片均使用内容哈希，一年 immutable 缓存。账号与 API 响应不公共缓存。强度图左上角显示玩家自己的游戏头像：查询结果记录大神返回的头像地址，网页经同源代理 `/api/v1/media/avatar` 读取（浏览器私有缓存 7 天，导出时内嵌），Bot 图由服务端内嵌；没有或读取失败时显示默认头像。地图仅加载当前图表需要的素材，最多并行四张；导出时使用较高清图片并内嵌，下载文件可以独立打开。
 
 `source/media/manifest.json` 覆盖全部133条地图记录，`coverage.json` 保存来源、同名别名和缺失项。现已取得131条真实素材；VPP Green Room、寺院没有可核实的来源，显示统一背景。预览最长边960，导出1920，不放大小图。日常 CI 使用已提交的 WebP，不请求外站。地图目录更新后，在本机用带 Pillow 的 Python 手动运行 `scripts/prepare-media.py`，检查覆盖报告，再构建部署；该脚本原图缓存仅留在 `.private`。
 

@@ -38,7 +38,7 @@ curl -sS -X POST "$BASE_URL/api/v1/query" \
 
 随后轮询：
 
-Bot 图片回复可使用 `GET /api/v1/jobs/<任务ID>?render=svg&compact=1`。任务完成后增加 `chart`：`{version:1, format:"svg", mimeType:"image/svg+xml", width:1440, height:1100, displayed:10, statisticsRange:"10", missingAssets:0, svg:"<svg ...>"}`。素材内嵌为 data URI，可断网转 PNG；图片始终展示并统计最近最多 10 场，不改变查询范围。没有可展示对局时 `chart` 为 null；出图失败返回 `chartError`，原分析仍可用。图片与结果使用相同 Bearer 认证和账号隔离，不提供公开图片链接，也不额外扣查询额度。
+Bot 图片回复可使用 `GET /api/v1/jobs/<任务ID>?render=svg&compact=1`。任务完成后增加 `chart`：`{version:1, format:"svg", mimeType:"image/svg+xml", width:1440, height:1100, displayed:10, statisticsRange:"10", missingAssets:0, svg:"<svg ...>"}`。素材内嵌为 data URI，可断网转 PNG；左上角是玩家自己的游戏头像（服务端从大神图片站读取后以 PNG/JPEG data URI 内嵌，读取失败时用默认头像），SVG 内不含任何外链，渲染端应同时接受 `image/webp`、`image/png`、`image/jpeg` 的 data URI。图片始终展示并统计最近最多 10 场，不改变查询范围。没有可展示对局时 `chart` 为 null；出图失败返回 `chartError`，原分析仍可用。图片与结果使用相同 Bearer 认证和账号隔离，不提供公开图片链接，也不额外扣查询额度。
 
 `compact=1` 省略原始 `result`、`analysis.statsMatches`、玩家完整阵容及完整个人预测过程，只保留摘要、所选个人预测和逐局主要字段。`render` 仅接受 `svg`，参数非法返回 400。不带这些参数时，v1 原有返回结构保持不变。AstrBot API 插件会在 Bot 本机渲染 PNG，并默认发送图片；AI 查询工具也会直接发送图片。
 
@@ -308,6 +308,7 @@ Authorization: Bearer owqs_...
 | 字段 | 说明 |
 |---|---|
 | `battletag` | 查询账号 |
+| `avatar` | 可选，玩家游戏头像地址（仅限 `https://ld5picproxy.ds.163.com/…`）；本次复用 30 分钟内的账号令牌时取缓存或上次结果，均无则省略。图表已内嵌，Bot 无需自行下载 |
 | `queriedAt` | 查询时间 ISO 字符串 |
 | `source` | 数据来源说明 |
 | `matches` | 主查询对局，最多 50 场；列表范围由 `limit` 控制，历史合并可能带出更多 |

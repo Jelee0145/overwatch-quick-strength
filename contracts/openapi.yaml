@@ -211,6 +211,20 @@ paths:
       summary: Poll owned AI task
       responses:
         '200': {description: 'AI task state, match, review and quota status'}
+  /media/avatar:
+    get:
+      summary: Same-origin copy of a player portrait for charts and image export
+      description: |
+        `src` must be an https URL on ld5picproxy.ds.163.com, as returned in a query result's
+        `avatar` field; anything else is 400. The image (PNG/JPEG/WebP/GIF, at most 512 KiB) is
+        fetched without following redirects. Successful responses may be kept privately by the
+        browser for 7 days; errors are no-store. Bot-rendered SVG embeds the portrait instead.
+      parameters:
+        - {name: src, in: query, required: true, schema: {type: string, maxLength: 400}}
+      responses:
+        '200': {description: Portrait image bytes}
+        '400': {description: src is not an accepted portrait URL}
+        '502': {description: Portrait could not be fetched or is not an accepted image}
   /events:
     get:
       summary: Read centrally cached events and date-range backfill progress

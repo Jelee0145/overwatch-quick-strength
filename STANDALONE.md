@@ -4,18 +4,18 @@
 
 ## 独立前后端
 
-后端 `npm run server:build` 只生成 Node 业务与出图资源包，不包含完整网页；网页由 `npm run web:package` 生成独立包。Node 默认仅提供 API，组合开发预览设 `OWQS_SERVE_WEB=1`。当前线上由 Nginx 直接提供 `/opt/owqs-work/public`，API 转发回环端口；受保护页面通过只读会话检查保持登录跳转。操作与契约见 [统一后端说明](docs/unified-backend.md)。
+后端 `npm run server:build` 只生成 Node 业务与出图资源包，不包含完整网页；网页由 `npm run web:package` 生成独立包。Node 默认仅提供 API，组合开发预览设 `OWQS_SERVE_WEB=1`。当前线上由 1Panel 的 OpenResty 容器直接提供 `/opt/owqs-work/public`，API 转发回环端口（见下文“反向代理与证书”）；受保护页面通过只读会话检查保持登录跳转。操作与契约见 [统一后端说明](docs/unified-backend.md)。
 
 ## 单目录运行（2026-10-25 起）
 
 仓库目录 `/opt/owqs-work` 就是线上应用，不再保留版本副本：
 
 - `owqs.service` 的 `WorkingDirectory=/opt/owqs-work`，运行 `backend/server/main.mjs`，出图资源读 `dist/backend-assets`。仓库根目录的 `server/main.mjs` 是旧 unit 的兼容入口；把已安装 unit 的 `ExecStart` 改为新路径并 `systemctl daemon-reload` 后可以删除。
-- Nginx 网页根目录为 `/opt/owqs-work/public`；`.git`、`.private`、`.dev.vars` 不在网页目录内，且 Nginx 拒绝点开头的路径。
+- OpenResty 网页根目录为 `/opt/owqs-work/public`（容器内挂载同一路径）；`.git`、`.private`、`.dev.vars` 不在网页目录内，且反向代理拒绝点开头的路径。
 - 发布：确认工作区干净后运行 `node scripts/deploy-local.mjs`。它执行 `backend:build`、`web:build`，重启服务，核对线上健康版本与登录页字节一致，并打 `deploy/<日期>` 标签。
 - 回滚：`git checkout deploy/<日期>` 后重跑同一命令；数据库不回滚，兼容迁移仍是独立前提。
 - 历史批次存储 v2 启用后，回到仍使用整包 `batches` 的旧版本前，须先停止服务并用当前代码的 `scripts/history-storage-rollback.mjs` 校验、恢复旧格式，再 checkout。具体顺序及 WAL 备份边界见 [历史性能验收](docs/history-performance.md#存储迁移与回退)。仅切换代码不能恢复旧读路径。
-- 服务用户 `owqs` 与 Nginx 只需读取权限；仓库其余文件保持 `root` 所有。数据库、配置仍在 `/var/lib/owqs` 与 `/etc/owqs`。
+- 服务用户 `owqs` 与 OpenResty 只需读取权限；仓库其余文件保持 `root` 所有。数据库、配置仍在 `/var/lib/owqs` 与 `/etc/owqs`。
 - 旧 `/opt/owqs/releases`、`web-releases`、`current`、`web-current` 及切换记录已于同日删除。`deploy/split-release.mjs` 保留为历史工具，不再用于本站发布。
 
 ### 推送自动发布
@@ -23,24 +23,20 @@
 推送到 `main` 后由服务器侧轮询发布，不开放入站 SSH，也不需要仓库 Secret：
 
 - `.github/workflows/deploy.yml` 在推送和手动触发时构建并运行完整测试，作为可见的构建记录。
-- `owqs-autodeploy.timer` 每 2 分钟运行 `scripts/auto-deploy.mjs`：用服务器现有只读部署密钥取回 `main`，无新提交即退出。
+- `owqs-autodeploy.timer` 每 2 分钟运行 `scripts/auto-deploy.mjs`：用服务器部署密钥 `/root/.ssh/owqs_github`（仓库部署密钥 `owqs`，GitHub 上为读写权限，脚本只用它拉取）取回 `main`，无新提交即退出。
 - 有新提交时先在临时 detached worktree 执行 `npm ci`、`npm run build`、`npm test`，不覆盖正在服务的网页产物；验证结束清理临时目录。全部通过后才快进合并线上仓库。测试不通过就不合并、不发布，并记录该提交避免反复重试。临时目录仅用于验证，不是部署版本副本。
 - 测试通过后调用 `scripts/deploy-local.mjs`：构建、重启、校验版本与静态资源、打 `deploy/<日期-时分>` 标签。
-- 日志：`/var/log/owqs-auto-deploy.log`（轮询与测试）、`/var/log/owqs-ci-deploy.log`（已停用的旧 CI 入口）。
+- 日志：`/var/log/owqs-auto-deploy.log`（轮询与测试）、`/var/log/owqs-ci-deploy.log`（已停用的旧 CI 入口）。每行带 ISO 时间；没有新提交时记“<提交> 已发布，无需处理”。
+- 拉取 `main` 失败时只记一行“拉取 GitHub 失败，等待下次重试：<原因>”，退出码 1，由下一次定时任务重试，不需要人工处理。GitHub 故障期间会连续出现 `Permission denied (publickey)`，可对照 githubstatus.com 的 Git Operations 事件；只有 GitHub 正常时仍持续失败，才需要检查部署密钥 `/root/.ssh/owqs_github`（对应仓库部署密钥 `owqs`）。
 - 工作区有已跟踪文件改动时自动发布直接跳过，避免覆盖未提交修改。
 
-数据库、配置、密钥和公网 origin 不因拆分变更。更新 `deploy/owqs.service` 的后端 release 指针和 Nginx 模板前，需分别验证安装包和 `nginx -t`。`deploy/split-release.mjs` 提供显式校验/激活流程；没有激活参数不切换。代码回滚不回滚数据库，兼容状态迁移是独立回退的前提。此文不代表已获上线授权。
-
-2026-10-22 发布日志记录后端 `/opt/owqs/releases/20261022-d8e804a`、网页 `/opt/owqs/web-releases/20261022-d8e804a` 已分别激活；这是历史部署记录，不代表当前 HEAD 或实时线上版本。后端指针为 `/opt/owqs/current`，网页指针为 `/opt/owqs/web-current`。
-
-`deploy/split-release.mjs` 默认仅校验安装包清单；显式 `--activate` 才执行切换，并要求已有可校验的同类回退版本。后端激活前用 SQLite backup API 备份，切换后重启并核验健康版本；网页切换后核验静态资源。验收失败会恢复原指针并再次验收，恢复失败则报错并留下审计记录。它不持续监测线上健康，也不自动回退数据库或 Nginx 配置。首次从旧整包迁入拆包布局需单独协调 Nginx 与双指针；回到旧整包时必须恢复旧 Nginx 配置。
+数据库、配置、密钥和公网 origin 不随代码发布变更；代码回滚不回滚数据库，兼容状态迁移是独立回退的前提。
 
 ## 运行与数据
 
-- Node.js 24；进程由 `owqs.service` 管理，监听 `127.0.0.1:8788`，Nginx 提供公网 HTTPS。
+- Node.js 24；进程由 `owqs.service` 管理，监听 `127.0.0.1:8788`，1Panel OpenResty 提供公网 HTTPS。
 - 赛事中心的 `EVENTS` 缓存使用同一 SQLite 文件内独立的 `events` 命名空间，不改账号或查询额度。赛程请求直接访问 Liquipedia，不占大神接口调度；`PUBLIC_ORIGIN` 默认用作上游 User-Agent 联系地址，也可通过 `EVENTS_CONTACT` 指定公开联系网址／邮箱。HTML 解析器已在构建时打包，不需在服务器安装 npm 依赖。
 - 网站启动时检查近期数据时效，必要时补同步；持久化告警按比赛状态自适应更新：临近一小时或开赛后六小时内尚未结束的比赛、源站标记进行中的比赛约每 1 分钟，未来 24 小时内或刚结束的比赛约每 5 分钟，无近期比赛时每 15 分钟。进入更快更新窗口时主动唤醒，不依赖网页访问。进入赛事页自动请求刷新，前台页面每 30–60 秒读取最新缓存，也可手动刷新；服务器合并并发请求，至少间隔 30 秒，失败后至少退避 5 分钟并遵守 Retry-After。Bot 和网页通过共享接口按完整日期范围及赛事范围补查，默认仍为 OWCS。补查队列与分块结果也保存在 events 命名空间，重启／无人访问时由告警继续，使用同一上游间隔和退避。补查结果独立于近期快照，稳定历史日期缓存 24 小时；近期查询按相同比赛时效策略更新，跨午夜仍进行中的比赛不会直接降为 24 小时缓存。失败可保留 7 天旧结果；最多 8 个共享查询。近期旧数据最多保留 48 小时，失败或手动刷新受限时明确提示并保留当前内容。
-- `/opt/owqs/releases/<版本>/` 保存白名单应用包，`/opt/owqs/current` 指向当前版本。更新时创建新版本目录，保留旧版本用于回滚。
 - `/etc/owqs/config.json` 保存运行配置，权限 `root:owqs 0640`。禁止放进应用包、Git、静态目录或日志。
 - `/var/lib/owqs/state.sqlite3` 保存账号、额度、API 密钥加密记录、任务、签名历史及持久化告警。SQLite 开启 WAL 和 FULL 同步；备份使用 SQLite backup API，不能只复制运行中的主文件而遗漏 WAL。
 - 只运行一个网站进程；SQLite 事务队列、任务串行化和全站大神请求调度由该进程负责。不同用户最多并行执行四个后台对象，上游最多同时三个请求、启动间隔至少 500ms。
@@ -62,7 +58,7 @@ Node 在服务器私有 `/etc/owqs/config.json` 配置 `"QUERY_PROBE_TAG": "daze
 
 ## 预约推送（Web Push）
 
-**状态：2026-10-20 已发布至腾讯云 `/opt/owqs/releases/20261020-c9a7a5f`。** 该版本分离快速 5v5／6v6 查询与替补判定；网站公网健康、版本标识与 Bot 插件热重载已核验。 预约路由、官方直播入口和全站三秒悬浮提醒已上线；服务器已生成并配置 `WEB_PUSH_*`，原配置项保留。公网健康、未登录鉴权、脚本与版本更新日志已核验。真实设备的系统通知及关页送达尚未完成验收，仍受浏览器授权、系统设置和推送网络影响。
+**状态：2026-10-20 起已在线上运行（当时仍为版本目录发布，现随单目录 `/opt/owqs-work` 一起更新）。** 预约路由、官方直播入口和全站三秒悬浮提醒已上线；服务器已生成并配置 `WEB_PUSH_*`，原配置项保留。公网健康、未登录鉴权、脚本与版本更新日志已核验。真实设备的系统通知及关页送达尚未完成验收，仍受浏览器授权、系统设置和推送网络影响。
 
 比赛中心的开赛提醒由网站进程直接发送，不经过 Cloudflare。`backend/server/runtime.mjs` 只有在 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY`、`WEB_PUSH_SUBJECT` 三项非空时才创建推送发送器；缺少任一项时提醒投递未启用，设备订阅接口返回 503；当前新代码允许独立保存账号预约，并通过 `deliveryReady` 明确没有可投递设备。配置只在启动时读取，首次启用或修改后必须重启 `owqs.service`。运行环境为 Node.js 24。
 
@@ -108,17 +104,29 @@ npm run server:build
 npm run web:package
 ```
 
-`dist/owqs-server.tar.gz` 包含 `server/`、`src/`（由仓库的 `backend/` 打包，包内布局不变）、白名单 `backend-assets/` 出图媒体、初始化访问策略、最小 package.json 和安装包清单，不含完整 `public/`、`local/`、`.private/`、`.dev.vars`、Git 或研究数据。网页另打包为 `dist/owqs-web.tar.gz`，含 `public/` 和安装包清单，放入 `/opt/owqs/web-releases/<版本>/`。两包各有相邻 `.sha256` 文件；部署前核对校验值并校验清单，在新 release 目录解压，不覆盖数据库或配置。
+`dist/owqs-server.tar.gz` 包含 `server/`、`src/`（由仓库的 `backend/` 打包，包内布局不变）、白名单 `backend-assets/` 出图媒体、初始化访问策略、最小 package.json 和安装包清单，不含完整 `public/`、`local/`、`.private/`、`.dev.vars`、Git 或研究数据。网页另打包为 `dist/owqs-web.tar.gz`，含 `public/` 和安装包清单。两包各有相邻 `.sha256` 文件，供在其他服务器独立安装时核对；本站发布不使用安装包，直接在 `/opt/owqs-work` 构建（见上文“单目录运行”）。
 
 `npm run server:start` 从 `OWQS_CONFIG` 和 `OWQS_DATA` 指定的目录启动；默认读取上述 Linux 路径。生产配置必须有 `PUBLIC_ORIGIN`、`PASSWORD_PEPPER`、`CACHE_SIGNING_KEY`、`API_KEY_ENCRYPTION_KEY`、`ADMIN_PASSWORD_HASH`；查询需要大神配置，AI 需要 `DEEPSEEK_KEY`。
 
-## 公网 IP 与证书
+## 反向代理与证书
 
-`deploy/nginx-http.conf` 仅提供 ACME 校验与 HTTPS 跳转，`deploy/nginx-https.conf` 通过 8443 代理应用，当前 `PUBLIC_ORIGIN` 为 `https://106.55.47.68:8443`。Cookie 始终带 Secure。公网 IP 使用 Let's Encrypt shortlived 证书，必须启用 `owqs-cert-renew.timer` 每 12 小时检查并在续期后重载 Nginx。安全组需允许 IPv4 TCP 80 和 8443（来源 `0.0.0.0/0`）；IPv6 的 `::/0` 不会放行 IPv4。不要把应用的 8788 端口暴露公网。
+线上 80／443／8443 由 Docker 容器 `1Panel-openresty-Y8F9` 提供。系统 `nginx.service` 未运行，`/etc/nginx/` 下的旧文件不生效，不要在那里改配置。实际生效的文件：
 
-`deploy/nginx-https.conf` 的 server 块启用 gzip：应用把脚本标为 `text/javascript`，且响应经过反向代理，因此 `gzip_types` 必须包含 `text/javascript`，并设置 `gzip_proxied any`；否则 JS/CSS 会以原始体积传输（首屏约 300 KB，压缩后约 92 KB）。修改后用 `nginx -t && nginx -s reload` 生效。
+| 文件 | 内容 |
+|---|---|
+| `/opt/1panel/apps/openresty/openresty/conf/http.d/owqs-shared.conf` | http 级共享：`$owqs_cache_policy` 等缓存 map、`owqs` 日志格式、`owqs_backend` 上游 |
+| `/opt/1panel/www/conf.d/owqs.conf` | `106.55.47.68:8443` 站点（当前 `PUBLIC_ORIGIN` 为 `https://106.55.47.68:8443`） |
+| `/opt/1panel/www/conf.d/owqs-domain.conf` | `owqs.lyzi.cloud:443` 反代，等待备案后切换 |
+| `owqs-http.conf`、`owqs-domain-http.conf`（同目录） | 80 端口 ACME 校验与 HTTPS 跳转 |
 
-配置域名后，将 `PUBLIC_ORIGIN`、Nginx server_name、证书配置和 HTTP 跳转一起更新。原 IP 浏览器站点数据不会自动出现在新域名；云端账号历史保留。
+仓库 `deploy/nginx-https.conf`、`deploy/nginx-http.conf` 是上述配置的参考副本，发布脚本不会安装它们。修改流程：先备份目标文件，改完运行 `docker exec 1Panel-openresty-Y8F9 nginx -t`，通过后 `docker exec 1Panel-openresty-Y8F9 nginx -s reload`（平滑重载，不中断连接），再同步仓库副本。重载时“conflicting server name … on 0.0.0.0:80”警告来自已有 80 端口站点，与本站无关。
+
+- **缓存策略：** server 块统一 `add_header Cache-Control $owqs_cache_policy always`，`/api/` 隐藏后端的 `Cache-Control`。默认 `no-store`；带内容哈希的 `/static/`、`/media/` 一年 immutable。玩家头像代理 `/api/v1/media/avatar` 只有 200 响应为 `private, max-age=604800`，401 或上游失败仍是 `no-store`，避免把“未登录”缓存一周。新增可缓存接口时必须在 map 里单独放行，否则后端设置的缓存头不会到达浏览器。
+- **gzip：** 应用把脚本标为 `text/javascript`，且响应经过反向代理，因此 `gzip_types` 必须包含 `text/javascript`，并设置 `gzip_proxied any`；否则 JS/CSS 会以原始体积传输（首屏约 300 KB，压缩后约 92 KB）。
+- **证书：** 公网 IP 使用 Let's Encrypt shortlived 证书。`owqs-cert-renew.timer` 每 12 小时运行 `certbot renew`，续期后由 `/usr/local/sbin/owqs-web-tls-reload` 把证书复制到 `/opt/1panel/www/sites/owqs/ssl/`，在容器内 `openresty -t` 后重载；容器不在运行时才退回 `systemctl reload nginx`。
+- **端口：** 安全组需允许 IPv4 TCP 80 和 8443（来源 `0.0.0.0/0`）；IPv6 的 `::/0` 不会放行 IPv4。不要把应用的 8788 端口暴露公网。Cookie 始终带 Secure。
+
+备案通过后切换域名，需将 `PUBLIC_ORIGIN`、`owqs-domain.conf` 的证书与 HTTP 跳转一起更新。原 IP 浏览器站点数据不会自动出现在新域名；云端账号历史保留，Web Push 订阅需要每台设备重新启用。
 
 非标准端口不替代内地网站正式对外服务所需的备案；域名准备好后再完善正式入口。
 
