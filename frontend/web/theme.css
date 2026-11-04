@@ -77,6 +77,7 @@ aside,.events-reminders,.event-match,.table-wrap,.auth-shell,.admin-row,.ai-revi
   border-radius:var(--radius);border-color:var(--line);background:var(--surface);box-shadow:var(--shadow-1);
 }
 aside{background:linear-gradient(180deg,#fff,#fffcf8);padding:24px}
+@media(min-width:761px){.workspace>aside{align-self:center}}
 .section-head{letter-spacing:.3px}
 .tabs{background:#f3ede5;border-radius:11px}
 .tabs button.active{border-radius:8px;box-shadow:0 2px 8px rgba(60,40,20,.1)}
