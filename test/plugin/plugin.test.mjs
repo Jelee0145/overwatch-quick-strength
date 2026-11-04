@@ -194,6 +194,23 @@ test('ZIP is self-contained, contains only allowlisted paths and runs outside th
   assert.match(picture.svg, /&lt;长昵称&amp;中文&gt;/);
   assert.equal(picture.displayed, 3);
   await writeFile(path.join(temp, 'preview.svg'), picture.svg);
+  const portrait = 'https://ld5picproxy.ds.163.com/overwatch/' + 'b'.repeat(32) + '.png',
+    original = globalThis.fetch;
+  globalThis.fetch = async (url) =>
+    url === portrait
+      ? new Response(new Uint8Array([137, 80, 78, 71]), {
+          headers: { 'Content-Type': 'image/png' }
+        })
+      : original(url);
+  try {
+    const own = await renderSnapshot(
+      { ...raw, avatar: portrait },
+      path.join(destination, 'assets')
+    );
+    assert.match(own.svg, /<image href="data:image\/png;base64,iVBORw=="/);
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 test('standalone plugin charts only the requested quick-play pool', async () => {
   const mock = fixture({ mixedModes: true }),

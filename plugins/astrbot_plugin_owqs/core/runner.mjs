@@ -4,6 +4,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createMatchService,createChartService,ServiceError} from '../../../backend/src/services/index.mjs';
 import {analysisService,dataService} from '../../../backend/src/services/runtime.mjs';
+import {avatarUrl} from '../../../backend/src/services/data.mjs';
 import {upstream} from '../../../backend/src/adapters/dashen.mjs';
 import {canonical,digest,token} from '../../../backend/src/security.mjs';
 
@@ -13,6 +14,17 @@ const analysisOptions={side:'all',strategy:'legacy',estimate:true};
 export function chartModel(snapshot,pool=''){
  const options={...analysisOptions,pool},raw=dataService.normalize(snapshot),all=analysisService.analyzeBatch(raw,options);
  return analysisService.summarize(raw,all.matches.slice(-10),options);
+}
+
+// The player's own portrait from the provider CDN; any failure keeps the packaged default.
+async function portrait(src){
+ if(!avatarUrl(src))return '';
+ try{
+  const response=await fetch(src,{redirect:'manual',signal:AbortSignal.timeout(5000)}),type=(response.headers.get('Content-Type')||'').split(';')[0];
+  if(!response.ok||!/^image\/(png|jpeg|webp|gif)$/.test(type))return '';
+  const bytes=Buffer.from(await response.arrayBuffer());
+  return bytes.length>512*1024?'':'data:'+type+';base64,'+bytes.toString('base64');
+ }catch{return '';}
 }
 
 export async function renderSnapshot(snapshot,assetRoot,pool=''){
@@ -29,8 +41,9 @@ export async function renderSnapshot(snapshot,assetRoot,pool=''){
  const art=Object.fromEntries(await Promise.all([...new Set(model.matches.map(m=>m.mapGuid))].map(async id=>[id,await embed(manifest.maps[id]?.export)])));
  const rankArt=Object.fromEntries(await Promise.all(Object.entries(manifest.ranks).map(async([id,url])=>[id,await embed(url)])));
  const maps=Object.fromEntries(Object.entries(manifest.maps).map(([id,m])=>[id,{name:m.name}]));
- const chart=createChartService({core:globalThis.QS,maps,rankArt,avatar:await embed(manifest.avatar)});
- return {svg:chart.render(model,{art,title:'狸狸天眼查 · 快速强度图'}),displayed:model.matches.length,summary:model.summary};
+ const chart=createChartService({core:globalThis.QS,maps,rankArt,avatar:await portrait(model.avatar)||await embed(manifest.avatar)});
+ // The portrait is embedded through `avatar`; a URL left on the model would win over it.
+ return {svg:chart.render({...model,avatar:''},{art,title:'狸狸天眼查 · 快速强度图'}),displayed:model.matches.length,summary:model.summary};
 }
 
 /** Private stdio protocol. Cache output contains account tokens; never log it. */

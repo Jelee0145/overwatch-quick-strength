@@ -40,9 +40,7 @@ export async function renderApiChart(snapshot, options, assets) {
   const raw = dataService.normalize(snapshot),
     all = analysisService.analyzeBatch(raw, options),
     model = analysisService.summarize(raw, all.matches.slice(-10), options);
-  return renderModel(raw.avatar ? { ...model, avatar: raw.avatar } : model, assets, {
-    statisticsRange: '10'
-  });
+  return renderModel({ ...model, avatar: raw.avatar }, assets, { statisticsRange: '10' });
 }
 
 /** Render a server-analyzed archive view without selecting or evaluating matches again. */
@@ -139,6 +137,8 @@ async function renderModel(model, assets, metadata) {
     displayed: model.matches.length,
     ...metadata,
     missingAssets: missing.length,
-    svg: chart.render(model, { art, title: '狸狸天眼查 · 快速强度图' })
+    // The portrait goes in embedded through `avatar`; a URL left on the model would win and
+    // put an external link in an SVG that Bot renderers must accept as self-contained.
+    svg: chart.render({ ...model, avatar: '' }, { art, title: '狸狸天眼查 · 快速强度图' })
   };
 }

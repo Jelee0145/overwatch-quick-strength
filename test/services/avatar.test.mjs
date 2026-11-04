@@ -31,6 +31,30 @@ test('history keeps the newest known portrait even when the latest batch has non
   assert.equal(analysisService.analyzeHistory(archive).raw.avatar, portrait);
 });
 
+test('Bot chart SVG embeds the portrait and never links out', async () => {
+  const { renderApiChart } = await import('../../backend/src/api/chart.mjs'),
+    original = globalThis.fetch,
+    assets = { fetch: async () => new Response('', { status: 404 }) };
+  globalThis.fetch = async (url) =>
+    url === portrait
+      ? new Response(new Uint8Array([137, 80, 78, 71]), {
+          headers: { 'Content-Type': 'image/png' }
+        })
+      : new Response('', { status: 404 });
+  try {
+    const { svg } = await renderApiChart({ ...analysisFixture(), avatar: portrait }, {}, assets);
+    assert.match(svg, /<image href="data:image\/png;base64,iVBORw=="/);
+    assert.doesNotMatch(svg, /href="https?:/);
+    globalThis.fetch = async () => {
+      throw Error('offline');
+    };
+    const fallback = await renderApiChart({ ...analysisFixture(), avatar: portrait }, {}, assets);
+    assert.doesNotMatch(fallback.svg, /href="https?:/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test('chart prefers the player portrait over the bundled default', () => {
   const raw = analysisFixture(),
     model = analysisService.summarize(raw, analysisService.analyzeBatch(raw).matches.slice(-10)),

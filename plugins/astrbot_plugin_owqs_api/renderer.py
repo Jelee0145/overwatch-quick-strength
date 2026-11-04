@@ -25,7 +25,8 @@ def chart_svg(chart):
             for name, value in node.attrib.items():
                 if name.lower().startswith("on") or re.search(r"javascript:|@import|url\(\s*[^#]", value, re.I):
                     raise ValueError()
-                if name.endswith("href") and not re.fullmatch(r"data:image/webp;base64,[A-Za-z0-9+/=]+", value):
+                # Map and rank art is WebP; the embedded player portrait keeps the provider's PNG/JPEG.
+                if name.endswith("href") and not re.fullmatch(r"data:image/(webp|png|jpeg|gif);base64,[A-Za-z0-9+/=]+", value):
                     raise ValueError()
     except (ET.ParseError, ValueError):
         raise UserError("网站图片包含不支持的内容") from None

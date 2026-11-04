@@ -23,6 +23,14 @@ class ChartTests(unittest.TestCase):
             with self.assertRaises(renderer.UserError):
                 renderer.chart_svg({**CHART,'svg':content})
 
+    def test_embedded_player_portrait_is_accepted(self):
+        for kind in ['webp', 'png', 'jpeg']:
+            svg = SVG.replace('<rect', f'<image href="data:image/{kind};base64,AAAA"/><rect')
+            self.assertEqual(renderer.chart_svg({**CHART,'svg':svg}), svg)
+        for href in ['data:image/svg+xml;base64,AAAA', 'data:text/html;base64,AAAA']:
+            with self.assertRaises(renderer.UserError):
+                renderer.chart_svg({**CHART,'svg':SVG.replace('<rect', f'<image href="{href}"/><rect')})
+
     def test_old_image_cleanup_stays_inside_private_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             r=renderer.Renderer(directory)
