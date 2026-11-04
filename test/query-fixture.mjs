@@ -25,7 +25,8 @@ export function service({
   historyEmpty = false,
   added = 0,
   mode = 'LeisurePreset',
-  mixedModes = false
+  mixedModes = false,
+  icon = ''
 } = {}) {
   const counts = {},
     details = [],
@@ -41,7 +42,8 @@ export function service({
         return {
           customerToken: names.includes(b.name)
             ? [...roster('T'), ...roster('E')].find((p) => p.name === b.name).customerToken
-            : 'main-private'
+            : 'main-private',
+          ...(icon && b.name === 'Main#100' && { icon })
         };
       if (path === '/customer/queryMatchList') {
         if (p.token === 'main-private' || p.token === 'T0-private')

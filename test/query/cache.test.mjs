@@ -249,3 +249,29 @@ test('quick-play pool keeps only the chosen roster size and records the mode', a
   await finish(all, both);
   assert.equal(all.result.matches.length, 10);
 });
+
+test('a query reusing a cached account token keeps the player portrait', async () => {
+  const icon = 'https://ld5picproxy.ds.163.com/overwatch/' + 'c'.repeat(32) + '.png';
+  const first = createQuery('Main#100', 10, undefined, [], { supplementOtherMatches: false });
+  await finish(first, service({ icon }));
+  assert.equal(first.result.avatar, icon);
+  assert.equal(accountRecords(first).find((a) => a.name === 'Main#100').avatar, icon);
+  // No prior history: only the cached account record can carry the portrait.
+  const again = createQuery(first.tag, 10, undefined, accountRecords(first), {
+      supplementOtherMatches: false
+    }),
+    next = service({ icon });
+  await finish(again, next);
+  assert.equal(
+    next.counts['/searchBnetAccount'] || 0,
+    0,
+    'the cached token skips the account search'
+  );
+  assert.equal(again.result.avatar, icon);
+  // Without the cached record, the previous result still supplies it.
+  const fromPrior = createQuery(first.tag, 10, { ...first.result, matches: [] }, [], {
+    supplementOtherMatches: false
+  });
+  await finish(fromPrior, service());
+  assert.equal(fromPrior.result.avatar, icon);
+});

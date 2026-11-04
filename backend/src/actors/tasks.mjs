@@ -107,7 +107,9 @@ export class UserTasks {
             matches: latest.matches,
             recentHistory: latest.recentHistory || [],
             queryCache: latest.queryCache,
-            matchIndex: latest.queryIndexMatches || []
+            matchIndex: latest.queryIndexMatches || [],
+            // A query that reuses a cached account token skips the search that returns the portrait.
+            ...(latest.avatar && { avatar: latest.avatar })
           }
         : null;
     } catch {

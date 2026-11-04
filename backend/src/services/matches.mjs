@@ -139,7 +139,12 @@ export function createMatchService({
   function accountRecords(s) {
     return Object.entries(s.tokens)
       .filter(([name]) => tagOK(name) && fresh(s.tokenTimes[name], HOUR / 2))
-      .map(([name, token]) => ({ name, token, queriedAt: s.tokenTimes[name] }))
+      .map(([name, token]) => ({
+        name,
+        token,
+        queriedAt: s.tokenTimes[name],
+        ...(s.avatars?.[name] && { avatar: s.avatars[name] })
+      }))
       .slice(-500);
   }
   function profile(s, name, res) {
@@ -148,10 +153,13 @@ export function createMatchService({
     if (!old || Date.parse(res.rankQueriedAt) > Date.parse(old.rankQueriedAt || 0))
       s.profiles[name] = res;
   }
-  function touchToken(s, name, token) {
+  function touchToken(s, name, token, icon) {
     if (!token) return;
     s.tokens[name] = token;
     s.tokenTimes[name] = new Date(now()).toISOString();
+    // The account search is the only source of the portrait; keep it with the cached token
+    // so a query that reuses the token still knows it.
+    if (avatarUrl(icon)) (s.avatars ||= {})[name] = avatarUrl(icon);
   }
   async function detail(v, m, owner, s, env) {
     if (!v || !('teammateList' in v || 'enemyList' in v)) throw new Fault('对局详情异常', 502);
@@ -277,6 +285,7 @@ export function createMatchService({
       rowTokens: {},
       tokens: {},
       tokenTimes: {},
+      avatars: {},
       ranks: {},
       profiles: {},
       battles: {},
@@ -307,6 +316,7 @@ export function createMatchService({
       if (tagOK(a.name) && fresh(a.queriedAt, HOUR / 2)) {
         s.tokens[a.name] = a.token;
         s.tokenTimes[a.name] = a.queriedAt;
+        if (avatarUrl(a.avatar)) s.avatars[a.name] = avatarUrl(a.avatar);
       }
     for (const m of prior.matches || []) {
       s.mainIndex[m.mid] = m;
@@ -542,6 +552,7 @@ export function createMatchService({
   async function advance(s) {
     if (s.phase === 'account' && s.tokens[s.tag]) {
       s.mainToken = s.tokens[s.tag];
+      s.avatar ||= s.avatars?.[s.tag] || '';
       s.accountHits++;
       s.phase = 'list';
     }
@@ -794,10 +805,11 @@ export function createMatchService({
         if (canonical) s.tag = canonical;
       }
       if (!v?.customerToken) throw new Fault('未找到可查询玩家');
-      touchToken(s, t.name, v.customerToken);
+      touchToken(s, t.name, v.customerToken, v.icon);
       if (o.kind === 'account') {
         s.mainToken = v.customerToken;
         s.avatar = avatarUrl(v.icon);
+        if (s.avatar) s.avatars[s.tag] = s.avatar;
         s.phase = 'list';
       } else if (o.kind === 'rank-account') t.ct = v.customerToken;
       else s.actors[t.name].phase = 'list';
