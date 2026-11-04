@@ -195,11 +195,18 @@ export async function buildWeb({ base, capture = false } = {}) {
       '\n' +
       (await readFile(path.join(base, 'frontend/web/mobile.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'frontend/web/event-reminders.css'), 'utf8')),
+      (await readFile(path.join(base, 'frontend/web/event-reminders.css'), 'utf8')) +
+      '\n' +
+      (await readFile(path.join(base, 'frontend/web/theme.css'), 'utf8')),
     'css',
     'app'
   );
 
+  const motion = await staticFile(
+    await readFile(path.join(base, 'frontend/web/motion.js'), 'utf8'),
+    'js',
+    'motion'
+  );
   const browserData = await readFile(path.join(webBase, 'data.js'), 'utf8');
   const runtime = await Promise.all(
     sharedSources.map((name) => readFile(path.join(source, name), 'utf8'))
@@ -243,7 +250,7 @@ export async function buildWeb({ base, capture = false } = {}) {
     await readFile(path.join(base, 'frontend/web/changelog.html'), 'utf8')
   );
   const apiKey = rewriteCopy(await readFile(path.join(base, 'frontend/web/api-key.html'), 'utf8'));
-  const headAssets = `<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"><link rel="manifest" href="/manifest.json"><link rel="preload" as="script" href="${mobile}" media="(max-width:760px), (max-height:500px) and (pointer:coarse)"><link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${lazyLoader}"></script><script defer src="/install.js"></script>`;
+  const headAssets = `<link rel="icon" type="image/svg+xml" sizes="any" href="${faviconURL}"><link rel="manifest" href="/manifest.json"><link rel="preload" as="script" href="${mobile}" media="(max-width:760px), (max-height:500px) and (pointer:coarse)"><link rel="stylesheet" href="${css}"><script defer src="${main}"></script><script defer src="${lazyLoader}"></script><script defer src="${motion}"></script><script defer src="/install.js"></script>`;
   html = html
     .replaceAll('{{SITE_MARK}}', logo)
     .replace('{{CHANGELOG}}', changelog + '\n')
@@ -278,7 +285,7 @@ export async function buildWeb({ base, capture = false } = {}) {
       .replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g, '')
       .replace(
         '</head>',
-        `<link rel="stylesheet" href="${css}"><script defer src="${js}"></script><script defer src="/install.js"></script></head>`
+        `<link rel="stylesheet" href="${css}"><script defer src="${js}"></script><script defer src="${motion}"></script><script defer src="/install.js"></script></head>`
       );
     await writeFile(
       path.join(base, 'public', page + '.html'),

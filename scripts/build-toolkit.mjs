@@ -67,9 +67,16 @@ export async function buildToolkit({
       '\n' +
       (await readFile(path.join(base, 'frontend/web/mobile-shell.css'), 'utf8')) +
       '\n' +
-      (await readFile(path.join(base, 'frontend/web/event-reminders.css'), 'utf8')),
+      (await readFile(path.join(base, 'frontend/web/event-reminders.css'), 'utf8')) +
+      '\n' +
+      (await readFile(path.join(base, 'frontend/web/theme.css'), 'utf8')),
     'css',
     'toolkit'
+  );
+  const motion = await staticFile(
+    await readFile(path.join(base, 'frontend/web/motion.js'), 'utf8'),
+    'js',
+    'motion'
   );
   const common = [
     'window.QS_RELEASE_NOTES=' + JSON.stringify(releaseNotes) + ';',
@@ -135,7 +142,9 @@ export async function buildToolkit({
       page !== 'draw'
         ? '<link rel="stylesheet" href="' +
           (await staticFile(
-            await readFile(path.join(base, 'frontend/web/events.css'), 'utf8'),
+            (await readFile(path.join(base, 'frontend/web/events.css'), 'utf8')) +
+              '\n' +
+              (await readFile(path.join(base, 'frontend/web/theme.css'), 'utf8')),
             'css',
             'events'
           )) +
@@ -156,7 +165,7 @@ export async function buildToolkit({
         'js',
         'events-page'
       );
-      scripts = `<script defer src="${before}"></script><script defer src="${reminderEngine}"></script><script defer src="${after}"></script>`;
+      scripts = `<script defer src="${motion}"></script><script defer src="${before}"></script><script defer src="${reminderEngine}"></script><script defer src="${after}"></script>`;
     } else {
       const script = await staticFile(
         rewriteCopy(
@@ -165,7 +174,7 @@ export async function buildToolkit({
         'js',
         page
       );
-      scripts = `<script defer src="${script}"></script><script defer src="${lazyLoader}"></script>`;
+      scripts = `<script defer src="${motion}"></script><script defer src="${script}"></script><script defer src="${lazyLoader}"></script>`;
     }
     html = html.replace(
       '</head>',

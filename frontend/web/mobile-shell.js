@@ -17,7 +17,8 @@
     draw: 'm4 7 8-4 8 4v11l-8 4-8-4Zm0 0 8 4 8-4M12 11v11',
     close: 'm6 6 12 12M18 6 6 18',
     query: 'M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5-2 6 6',
-    chevron: 'm9 5 7 7-7 7'
+    chevron: 'm9 5 7 7-7 7',
+    down: 'm6 9 6 6 6-6'
   };
   const icon = (name) =>
     `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${icons[name] || icons.chevron}"/></svg>`;
@@ -38,8 +39,8 @@
   const action = document.createElement('button');
   action.type = 'button';
   action.className = 'mobile-header-action';
-  action.textContent = analysis ? '查询' : draw ? '抽取记录' : '';
-  action.hidden = !analysis && !draw;
+  action.textContent = analysis ? '查询' : draw ? '抽取记录' : events ? '刷新' : '';
+  action.hidden = !analysis && !draw && !events;
   header.append(action);
   const nav = document.createElement('nav');
   nav.className = 'mobile-bottom-nav';
@@ -61,7 +62,7 @@
   drawer.className = 'mobile-drawer';
   drawer.setAttribute('aria-labelledby', 'mobileMenuTitle');
   drawer.innerHTML = `<div class="mobile-modal-head"><h2 id="mobileMenuTitle">菜单</h2><button type="button" aria-label="关闭菜单">${icon('close')}</button></div><div class="mobile-drawer-account"></div><div class="mobile-drawer-links">${[
-    ['query', '查询设置'],
+    ...(analysis ? [['query', '查询设置']] : []),
     ['history', '历史记录'],
     ['api', 'API 管理'],
     ['changelog', '更新日志'],
@@ -216,7 +217,43 @@
     menu.setAttribute('aria-expanded', 'true');
   };
   action.onclick = () =>
-    analysis ? run('query') : document.getElementById('historyOpen')?.click();
+    analysis
+      ? run('query')
+      : events
+        ? document.getElementById('eventsRefresh')?.click()
+        : document.getElementById('historyOpen')?.click();
+  // Bottom sheets close by dragging the header down, like the native pattern the grab handle suggests.
+  function dragToClose(dialog) {
+    let start = null;
+    dialog.addEventListener('pointerdown', (e) => {
+      if (!media.matches || !e.target.closest('.mobile-modal-head') || e.target.closest('button'))
+        return;
+      start = { y: e.clientY, id: e.pointerId };
+      dialog.setPointerCapture?.(e.pointerId);
+      dialog.classList.add('is-dragging');
+    });
+    dialog.addEventListener('pointermove', (e) => {
+      if (!start || e.pointerId !== start.id) return;
+      dialog.style.transform = `translateY(${Math.max(0, e.clientY - start.y)}px)`;
+    });
+    const end = (e) => {
+      if (!start || e.pointerId !== start.id) return;
+      const dy = e.clientY - start.y;
+      start = null;
+      dialog.classList.remove('is-dragging');
+      if (dy > 90) {
+        dialog.classList.add('is-closing');
+        dialog.style.transform = '';
+        setTimeout(() => {
+          dialog.close();
+          dialog.classList.remove('is-closing');
+        }, 200);
+      } else dialog.style.transform = '';
+    };
+    dialog.addEventListener('pointerup', end);
+    dialog.addEventListener('pointercancel', end);
+  }
+  dragToClose(panel);
   media.addEventListener('change', () => {
     if (!media.matches && active) {
       active.close();
@@ -234,7 +271,35 @@
   window.visualViewport?.addEventListener('resize', fitKeyboard);
   document.addEventListener('focusin', fitKeyboard);
   document.addEventListener('focusout', () => requestAnimationFrame(fitKeyboard));
-  window.OWQS_MOBILE = { media, icon, esc, track, openContent, run };
+  if (events) {
+    const form = document.getElementById('eventsFilters'),
+      bar = document.querySelector('.events-tabs'),
+      toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'mobile-filter-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', 'eventsFilters');
+    toggle.innerHTML = '<span>筛选</span><b hidden></b>' + icon('down');
+    bar?.append(toggle);
+    const count = () => {
+      const fields = ['eventsFrom', 'eventsTo', 'eventsTournament', 'eventsRegion', 'eventsTeam'],
+        n = fields.filter((id) => document.getElementById(id)?.value).length,
+        badge = toggle.querySelector('b');
+      badge.hidden = !n;
+      badge.textContent = n;
+    };
+    const setOpen = (open) => {
+      document.body.classList.toggle('filters-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+    };
+    toggle.onclick = () => setOpen(!document.body.classList.contains('filters-open'));
+    form?.addEventListener('input', count);
+    form?.addEventListener('change', count);
+    form?.addEventListener('reset', () => setTimeout(count, 0));
+    form?.addEventListener('submit', () => setOpen(false));
+    count();
+  }
+  window.OWQS_MOBILE = { media, icon, esc, track, openContent, run, dragToClose, panel };
   const requested = new URL(location.href).searchParams.get('panel');
   if (media.matches && ['query', 'history', 'help'].includes(requested)) {
     const url = new URL(location.href);

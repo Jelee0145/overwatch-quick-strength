@@ -59,7 +59,7 @@
     Object.assign(document.createElement('div'), {
       className: 'mobile-evidence-actions',
       innerHTML:
-        '<button type="button" data-evidence="personal">预测依据</button><button type="button" data-evidence="estimate">本场依据</button>'
+        '<button type="button" data-evidence="personal">个人段位预测依据</button><button type="button" data-evidence="estimate">本场对局信息与估算依据</button>'
     })
   );
   for (const [page, id] of [
@@ -124,7 +124,7 @@
   const more = document.createElement('button');
   more.type = 'button';
   more.className = 'mobile-chart-more';
-  more.textContent = '更多';
+  more.textContent = '导出';
   more.onclick = () => openContent('导出图表', [results.querySelector('.actions')]);
   results.querySelector('.chart-tools').append(more);
   document.querySelectorAll('[data-evidence]').forEach(
@@ -142,8 +142,11 @@
           ]);
       })
   );
+  const tabNames = ['chart', 'data', 'review'];
   function setTab(name, focus = false) {
+    const backwards = tabNames.indexOf(name) < tabNames.indexOf(currentTab);
     currentTab = name;
+    pages[name].classList.toggle('from-left', backwards);
     tabs.querySelectorAll('[data-tab]').forEach((button) => {
       const selected = button.dataset.tab === name;
       button.setAttribute('aria-selected', String(selected));
@@ -177,6 +180,45 @@
     );
   };
   setTab('chart');
+  // Swiping sideways moves between chart / data / review; scrollable regions keep their own gesture.
+  let swipe = null;
+  results.addEventListener(
+    'touchstart',
+    (e) => {
+      swipe =
+        media.matches &&
+        e.touches.length === 1 &&
+        !e.target.closest('.canvas-wrap,#timelineScroll,select,input,textarea,.mobile-match-bar')
+          ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+          : null;
+    },
+    { passive: true }
+  );
+  results.addEventListener(
+    'touchend',
+    (e) => {
+      if (!swipe) return;
+      const dx = e.changedTouches[0].clientX - swipe.x,
+        dy = e.changedTouches[0].clientY - swipe.y;
+      swipe = null;
+      if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+      const next = tabNames[tabNames.indexOf(currentTab) + (dx < 0 ? 1 : -1)];
+      if (next) setTab(next);
+    },
+    { passive: true }
+  );
+  // Submitting a query from the sheet returns to the chart so progress and the result are what the user sees.
+  document.addEventListener(
+    'submit',
+    (e) => {
+      if (!media.matches || e.target.id !== 'onlinePanel') return;
+      setTimeout(() => {
+        if (shell.panel.open) shell.panel.close();
+        setTab('chart');
+      }, 0);
+    },
+    true
+  );
   function selectMatch(index) {
     if (!view?.model.matches.length) return;
     index = Math.max(0, Math.min(index, view.model.matches.length - 1));
@@ -290,6 +332,7 @@
   heroDialog.innerHTML = `<div class="mobile-modal-head"><div><h2 id="mobileHeroTitle"></h2><p id="mobileHeroScore"></p></div><button type="button" aria-label="关闭英雄详情">${icon('close')}</button></div><div class="mobile-hero-tabs" role="tablist" aria-label="英雄详情内容"><button id="mobileHeroDataTab" role="tab" aria-controls="mobileHeroData" aria-selected="true" type="button" data-hero-tab="data">数据</button><button id="mobileHeroRatingTab" role="tab" aria-controls="mobileHeroRating" aria-selected="false" type="button" data-hero-tab="rating">评分依据</button></div><div class="mobile-hero-content"><div id="mobileHeroData" role="tabpanel" aria-labelledby="mobileHeroDataTab"></div><div id="mobileHeroRating" role="tabpanel" aria-labelledby="mobileHeroRatingTab" hidden></div></div>`;
   document.body.append(heroDialog);
   shell.track(heroDialog);
+  shell.dragToClose(heroDialog);
   heroDialog.querySelector('.mobile-modal-head button').onclick = () => heroDialog.close();
   heroDialog.addEventListener('close', () => {
     selectedHero = null;
