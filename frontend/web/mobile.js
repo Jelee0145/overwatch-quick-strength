@@ -87,7 +87,7 @@
   list.addEventListener('click', (event) => {
     if (event.target.closest('button')) return;
     const player = event.target.closest('.mobile-player-row')?.querySelector('[data-player]');
-    if (player) openHero(Number(player.dataset.player), 'data');
+    if (player) toggleInline(Number(player.dataset.player));
   });
   const dataNote = document.createElement('p');
   dataNote.className = 'mobile-data-note';
