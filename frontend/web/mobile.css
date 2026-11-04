@@ -24,3 +24,10 @@
 @media(max-width:370px){.mobile-player-columns,.mobile-player-row{grid-template-columns:minmax(0,1fr) 111px 61px;padding-left:6px;padding-right:6px}.mobile-kad{font-size:11px}.mobile-player-grade{font-size:15px;gap:3px}.mobile-player-grade span{font-size:11px}.mobile-player-open{gap:5px}.mobile-player-open img,.mobile-avatar-fallback{width:26px;height:30px}.mobile-summary strong{font-size:17px}}
 @media(max-width:760px) and (max-height:700px){.mobile-player-row{min-height:44px}.mobile-summary>div{padding:7px}.mobile-summary small{display:none}.mobile-analysis .canvas-wrap{min-height:150px}.mobile-analysis-page.mobile-page-active{gap:6px}}
 @media(prefers-reduced-motion:reduce){.mobile-app *{scroll-behavior:auto!important}}
+.mobile-player-detail{padding:8px;background:#fbf7f1;border-bottom:1px solid #f0f1f3}
+.mobile-player-detail .mobile-hero-metrics{gap:5px}
+.mobile-player-detail .mobile-hero-metrics>div{padding:6px 8px}
+.mobile-player-detail .mobile-hero-metrics span{font-size:10px}
+.mobile-player-detail .mobile-hero-metrics strong{font-size:15px;margin-top:1px}
+.mobile-hero-ref{margin:6px 2px 0;color:#818791;font-size:11px}
+.mobile-player-open[aria-expanded="true"]{background:#fff4e6}

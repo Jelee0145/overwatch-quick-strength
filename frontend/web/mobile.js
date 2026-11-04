@@ -13,6 +13,7 @@
   let view = null,
     currentTab = 'chart',
     selectedHero = null,
+    inlineHero = null,
     lastMatch = null,
     zoomScale = 1,
     pan = { x: 0, y: 0 },
@@ -241,6 +242,7 @@
     if (lastMatch !== identity) {
       if (heroDialog.open) heroDialog.close();
       selectedHero = null;
+      inlineHero = null;
       list.scrollTop = 0;
     }
     lastMatch = identity;
@@ -301,8 +303,9 @@
     list
       .querySelectorAll('[data-player]')
       .forEach(
-        (button) => (button.onclick = () => openHero(Number(button.dataset.player), 'data'))
+        (button) => (button.onclick = () => toggleInline(Number(button.dataset.player)))
       );
+    if (inlineHero !== null) paintInline();
     list
       .querySelectorAll('[data-rating]')
       .forEach(
@@ -365,15 +368,7 @@
     );
     heroDialog.querySelector('[aria-selected="true"]').focus();
   };
-  function paintHero() {
-    const p = view?.model.matches[view.index]?.players[selectedHero];
-    if (!p) return;
-    const r = p.performance;
-    $('mobileHeroTitle').textContent =
-      p.name + ' · ' + (QS_DATA.heroes[p.hero]?.name || '未知英雄');
-    $('mobileHeroScore').textContent = r?.grade
-      ? `${r.grade} · ${r.score.toFixed(1)} 分`
-      : '待评 · ' + (r?.reason || '缺少数据');
+  function heroDataHtml(p) {
     const fields = [
       ['击杀', p.stats.kill],
       ['助攻', p.stats.assist],
@@ -385,8 +380,18 @@
       ['受治疗', p.stats.healingTaken],
       ['承伤', p.stats.damageTaken]
     ];
-    $('mobileHeroData').innerHTML =
-      `<div class="mobile-hero-metrics">${fields.map(([label, n]) => `<div><span>${label}</span><strong>${value(n)}</strong></div>`).join('')}</div><dl class="mobile-hero-reference"><dt>参考段位</dt><dd>${p.score === null ? '—' : esc(QS.rank(p.score))}</dd><dt>强度</dt><dd>${value(p.score)}</dd></dl><p class="hint">— 表示未返回，0 表示实际为零。受治疗未拆分来源；承伤与抵挡不同。</p>`;
+    return `<div class="mobile-hero-metrics">${fields.map(([label, n]) => `<div><span>${label}</span><strong>${value(n)}</strong></div>`).join('')}</div><p class="mobile-hero-ref">参考段位 ${p.score === null ? '—' : esc(QS.rank(p.score))} · 强度 ${value(p.score)}　— 未返回，0 为实际为零</p>`;
+  }
+  function paintHero() {
+    const p = view?.model.matches[view.index]?.players[selectedHero];
+    if (!p) return;
+    const r = p.performance;
+    $('mobileHeroTitle').textContent =
+      p.name + ' · ' + (QS_DATA.heroes[p.hero]?.name || '未知英雄');
+    $('mobileHeroScore').textContent = r?.grade
+      ? `${r.grade} · ${r.score.toFixed(1)} 分`
+      : '待评 · ' + (r?.reason || '缺少数据');
+    $('mobileHeroData').innerHTML = heroDataHtml(p);
     // Reuse the existing rating renderer; never recompute a score in the mobile view.
     const target = $('performancePanel');
     if (r?.grade) {
@@ -396,6 +401,38 @@
       const close = $('mobileHeroRating').querySelector('#closePerformance');
       if (close) close.remove();
     } else $('mobileHeroRating').innerHTML = `<p>${esc(r?.reason || '缺少评分依据')}</p>`;
+  }
+  // Hero data opens as an inline panel under the tapped row; ratings still use the dialog.
+  function paintInline() {
+    list.querySelector('.mobile-player-detail')?.remove();
+    const p = view?.model.matches[view.index]?.players[inlineHero],
+      button = list.querySelector(`[data-player="${inlineHero}"]`);
+    list.querySelectorAll('[data-player]').forEach((b) => b.removeAttribute('aria-expanded'));
+    if (!p || !button) return;
+    button.setAttribute('aria-expanded', 'true');
+    const detail = document.createElement('div');
+    detail.className = 'mobile-player-detail';
+    detail.innerHTML = heroDataHtml(p);
+    button.closest('.mobile-player-row').after(detail);
+  }
+  async function toggleInline(index) {
+    if (inlineHero === index) {
+      inlineHero = null;
+      return paintInline();
+    }
+    const current = view,
+      p = current?.model.matches[current.index]?.players[index];
+    if (!p) return;
+    try {
+      await app.ensurePlayerDetail(p);
+    } catch (error) {
+      $('status').textContent = error.message;
+      return;
+    }
+    if (current !== view) return;
+    inlineHero = index;
+    paintInline();
+    list.querySelector('.mobile-player-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   async function openHero(index, tab) {
     const current = view,
