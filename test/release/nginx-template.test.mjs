@@ -11,11 +11,11 @@ const template = await readFile(
 test('public origin keeps one connection and can resume TLS sessions', () => {
   // A first-load graph is several files; without HTTP/2 each one pays a handshake on
   // a path that measurably drops handshake packets.
-  assert.match(template, /^\s*listen 8443 ssl;/m);
+  assert.match(template, /^\s*listen 443 ssl;/m);
   assert.match(template, /^\s*http2 on;/m);
   assert.doesNotMatch(
     template,
-    /listen 8443 ssl http2;/,
+    /listen 443 ssl http2;/,
     'the combined form is deprecated in nginx 1.25+'
   );
   assert.match(template, /ssl_session_cache shared:/);

@@ -110,23 +110,21 @@ npm run web:package
 
 ## 反向代理与证书
 
-线上 80／443／8443 由 Docker 容器 `1Panel-openresty-Y8F9` 提供。系统 `nginx.service` 未运行，`/etc/nginx/` 下的旧文件不生效，不要在那里改配置。实际生效的文件：
+线上 80／443 由 Docker 容器 `1Panel-openresty-Y8F9` 提供。系统 `nginx.service` 未运行，`/etc/nginx/` 下的旧文件不生效，不要在那里改配置。实际生效的文件：
 
 | 文件 | 内容 |
 |---|---|
 | `/opt/1panel/apps/openresty/openresty/conf/http.d/owqs-shared.conf` | http 级共享：`$owqs_cache_policy` 等缓存 map、`owqs` 日志格式、`owqs_backend` 上游 |
-| `/opt/1panel/www/conf.d/owqs.conf` | `106.55.47.68:8443` 旧 IP 入口，整体 308 跳转到域名（当前 `PUBLIC_ORIGIN` 为 `https://owqs.lyzi.cloud`）；面板托管文件，在面板保存站点设置可能重写它，需检查跳转行 |
-| `/opt/1panel/www/conf.d/owqs-domain.conf` | `owqs.lyzi.cloud:443` 反代，证书为 certbot 的 `owqs.lyzi.cloud`；不要在面板里给 owqs 站点开 HTTPS，会与它冲突 |
-| `00-owqs-http.conf`、`owqs-domain-http.conf`（同目录） | 80 端口 ACME 校验与跳转到域名。前者必须排在 `aylu.conf` 之前，否则 IP 的 80 端口校验会被 aylu 站点接走，IP 证书无法续期；后者同时放行 certbot 与面板两处验证目录 |
+| `/opt/1panel/www/conf.d/owqs.conf` | 面板托管的 `owqs.lyzi.cloud` 站点（80 跳转 HTTPS、443 反代；`PUBLIC_ORIGIN` 为 `https://owqs.lyzi.cloud`）。证书由面板用 HTTP 验证申请并自动续签。文件内的 `/.well-known/acme-challenge/` 放行段与其他自定义段落在面板保存后须检查是否仍在 |
 
 仓库 `deploy/nginx-https.conf`、`deploy/nginx-http.conf` 是上述配置的参考副本，发布脚本不会安装它们。修改流程：先备份目标文件，改完运行 `docker exec 1Panel-openresty-Y8F9 nginx -t`，通过后 `docker exec 1Panel-openresty-Y8F9 nginx -s reload`（平滑重载，不中断连接），再同步仓库副本。重载时“conflicting server name … on 0.0.0.0:80”警告来自已有 80 端口站点，与本站无关。
 
 - **缓存策略：** server 块统一 `add_header Cache-Control $owqs_cache_policy always`，`/api/` 隐藏后端的 `Cache-Control`。默认 `no-store`；带内容哈希的 `/static/`、`/media/` 一年 immutable。玩家头像代理 `/api/v1/media/avatar` 只有 200 响应为 `private, max-age=604800`，401 或上游失败仍是 `no-store`，避免把“未登录”缓存一周。新增可缓存接口时必须在 map 里单独放行，否则后端设置的缓存头不会到达浏览器。
 - **gzip：** 应用把脚本标为 `text/javascript`，且响应经过反向代理，因此 `gzip_types` 必须包含 `text/javascript`，并设置 `gzip_proxied any`；否则 JS/CSS 会以原始体积传输（首屏约 300 KB，压缩后约 92 KB）。
-- **证书：** 公网 IP 使用 Let's Encrypt shortlived 证书。`owqs-cert-renew.timer` 每 12 小时运行 `certbot renew`，续期后由 `/usr/local/sbin/owqs-web-tls-reload` 把证书复制到 `/opt/1panel/www/sites/owqs/ssl/`，在容器内 `openresty -t` 后重载；容器不在运行时才退回 `systemctl reload nginx`。
-- **端口：** 安全组需允许 IPv4 TCP 80 和 8443（来源 `0.0.0.0/0`）；IPv6 的 `::/0` 不会放行 IPv4。不要把应用的 8788 端口暴露公网。Cookie 始终带 Secure。
+- **证书：** 域名证书由 1Panel 申请和续签，验证文件写在 OpenResty 默认目录，站点内必须保留放行 `/.well-known/acme-challenge/` 的 location（它先于“拒绝点开头路径”的规则）。旧的 IP 证书与 `owqs-cert-renew.timer` 已不再使用；`/usr/local/sbin/owqs-web-tls-reload` 只重载，不再复制证书到站点目录。
+- **端口：** 安全组需允许 IPv4 TCP 80 和 443（来源 `0.0.0.0/0`）；IPv6 的 `::/0` 不会放行 IPv4。不要把应用的 8788 端口暴露公网。Cookie 始终带 Secure。
 
-备案通过后切换域名，需将 `PUBLIC_ORIGIN`、`owqs-domain.conf` 的证书与 HTTP 跳转一起更新。原 IP 浏览器站点数据不会自动出现在新域名；云端账号历史保留，Web Push 订阅需要每台设备重新启用。
+公网入口已切换为 `https://owqs.lyzi.cloud`，IP 入口（8443）已取消。原 IP 浏览器站点数据不会自动出现在新域名；云端账号历史保留，Web Push 订阅需要每台设备重新启用。
 
 非标准端口不替代内地网站正式对外服务所需的备案；域名准备好后再完善正式入口。
 
