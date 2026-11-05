@@ -69,7 +69,7 @@ Authorization: Bearer owqs_...
 
 ## 构建与部署
 
-当前生产环境是腾讯云独立站点（`https://106.55.47.68:8443`），线上直接运行仓库 `/opt/owqs-work`，推送 `main` 后由服务器轮询、测试并自动发布，反向代理是 1Panel 的 OpenResty 容器。独立网站、SQLite 持久化、HTTPS 与 Cloudflare 账号历史迁移见 [STANDALONE.md](STANDALONE.md)。独立网站继续提供现有 Bot 查询 API。
+当前生产环境是腾讯云独立站点（`https://owqs.lyzi.cloud`），线上直接运行仓库 `/opt/owqs-work`，推送 `main` 后由服务器轮询、测试并自动发布，反向代理是 1Panel 的 OpenResty 容器。独立网站、SQLite 持久化、HTTPS 与 Cloudflare 账号历史迁移见 [STANDALONE.md](STANDALONE.md)。独立网站继续提供现有 Bot 查询 API。
 
 AstrBot 的 OWQS 网站 API 插件已部署在该服务器。更新时替换插件文件后热重载即可，不需要重启容器（AstrBot 容器的文件监听未启用，必须显式触发重载）：
 

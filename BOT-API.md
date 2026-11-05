@@ -3,7 +3,7 @@
 版本：v1（统一能力契约 1.1；2026-10-22 腾讯云上线记录见 [发布日志](docs/agent-update-log.md)）
 
 新增同账号 Cookie/Bearer 业务入口、历史分析/稳定对局引用、共享预约、持久幂等及纯缓存免扣规则。完整新增接口见 [OpenAPI](contracts/openapi.yaml) 和 [统一后端说明](docs/unified-backend.md)。旧 Bot 图片仍固定最近十场；旧已保存任务保留原结算策略。
-腾讯云生产环境：`https://106.55.47.68:8443`
+腾讯云生产环境：`https://owqs.lyzi.cloud`
 适用对象：已获授权账户的 Bot 后端服务器。接口不开放浏览器跨域直连。
 
 > 如果项目部署在其他域名，请把下文示例中的 `BASE_URL` 替换为实际地址。
@@ -17,7 +17,7 @@
 3. 轮询任务状态，完成后读取原始对局数据和分析结果。
 
 ```bash
-BASE_URL="https://106.55.47.68:8443"
+BASE_URL="https://owqs.lyzi.cloud"
 OWQS_API_KEY="owqs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 curl -sS -X POST "$BASE_URL/api/v1/query" \

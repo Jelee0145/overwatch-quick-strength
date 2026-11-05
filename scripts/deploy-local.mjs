@@ -74,8 +74,8 @@ const health = retrySync(
       '--max-time',
       '5',
       '--resolve',
-      '106.55.47.68:8443:127.0.0.1',
-      'https://106.55.47.68:8443/api/health'
+      'owqs.lyzi.cloud:443:127.0.0.1',
+      'https://owqs.lyzi.cloud/api/health'
     ]),
   20000
 );
@@ -90,8 +90,8 @@ const page = output('curl', [
   '--max-time',
   '15',
   '--resolve',
-  '106.55.47.68:8443:127.0.0.1',
-  'https://106.55.47.68:8443/login'
+  'owqs.lyzi.cloud:443:127.0.0.1',
+  'https://owqs.lyzi.cloud/login'
 ]);
 if (page !== readFileSync(path.join(root, 'public/login.html'), 'utf8'))
   throw Error('线上登录页与构建产物不一致');
@@ -107,10 +107,10 @@ for (const [, asset] of index.matchAll(/(?:src|href)="(\/(?:static|media)\/[^"?]
     '--max-time',
     '10',
     '--resolve',
-    '106.55.47.68:8443:127.0.0.1',
+    'owqs.lyzi.cloud:443:127.0.0.1',
     '-o',
     copy,
-    'https://106.55.47.68:8443' + asset
+    'https://owqs.lyzi.cloud' + asset
   ]);
   if (!readFileSync(copy).equals(readFileSync(target)))
     throw Error('静态资源不可读或不一致：' + asset);

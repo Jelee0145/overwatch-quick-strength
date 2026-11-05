@@ -2,7 +2,7 @@
   "api_base": {
     "type": "string",
     "description": "网站 API 基础地址",
-    "default": "https://106.55.47.68:8443",
+    "default": "https://owqs.lyzi.cloud",
     "hint": "只填 HTTPS 网站地址及端口，不加 /api/v1；域名更换后在这里更新"
   },
   "query_timeout": {

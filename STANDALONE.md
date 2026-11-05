@@ -115,9 +115,9 @@ npm run web:package
 | 文件 | 内容 |
 |---|---|
 | `/opt/1panel/apps/openresty/openresty/conf/http.d/owqs-shared.conf` | http 级共享：`$owqs_cache_policy` 等缓存 map、`owqs` 日志格式、`owqs_backend` 上游 |
-| `/opt/1panel/www/conf.d/owqs.conf` | `106.55.47.68:8443` 站点（当前 `PUBLIC_ORIGIN` 为 `https://106.55.47.68:8443`） |
-| `/opt/1panel/www/conf.d/owqs-domain.conf` | `owqs.lyzi.cloud:443` 反代，等待备案后切换 |
-| `owqs-http.conf`、`owqs-domain-http.conf`（同目录） | 80 端口 ACME 校验与 HTTPS 跳转 |
+| `/opt/1panel/www/conf.d/owqs.conf` | `106.55.47.68:8443` 旧 IP 入口，整体 308 跳转到域名（当前 `PUBLIC_ORIGIN` 为 `https://owqs.lyzi.cloud`）；面板托管文件，在面板保存站点设置可能重写它，需检查跳转行 |
+| `/opt/1panel/www/conf.d/owqs-domain.conf` | `owqs.lyzi.cloud:443` 反代，证书为 certbot 的 `owqs.lyzi.cloud`；不要在面板里给 owqs 站点开 HTTPS，会与它冲突 |
+| `00-owqs-http.conf`、`owqs-domain-http.conf`（同目录） | 80 端口 ACME 校验与跳转到域名。前者必须排在 `aylu.conf` 之前，否则 IP 的 80 端口校验会被 aylu 站点接走，IP 证书无法续期；后者同时放行 certbot 与面板两处验证目录 |
 
 仓库 `deploy/nginx-https.conf`、`deploy/nginx-http.conf` 是上述配置的参考副本，发布脚本不会安装它们。修改流程：先备份目标文件，改完运行 `docker exec 1Panel-openresty-Y8F9 nginx -t`，通过后 `docker exec 1Panel-openresty-Y8F9 nginx -s reload`（平滑重载，不中断连接），再同步仓库副本。重载时“conflicting server name … on 0.0.0.0:80”警告来自已有 80 端口站点，与本站无关。
 
