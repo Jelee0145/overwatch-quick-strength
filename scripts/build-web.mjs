@@ -50,6 +50,13 @@ export async function buildWeb({ base, capture = false } = {}) {
   await writeFile(path.join(base, 'public/release-notes.json'), JSON.stringify(releaseNotes));
 
   const media = JSON.parse(await readFile(path.join(source, 'media/manifest.json'), 'utf8'));
+  // Hero icons are served locally; a roster change must rerun scripts/prepare-hero-media.py.
+  const heroIconSources = JSON.parse(
+    await readFile(path.join(source, 'media/hero-icon-sources.json'), 'utf8')
+  );
+  for (const guid of Object.keys(heroIconSources))
+    if (!/^\/media\/icons\/[a-f0-9]{20}\.webp$/.test(media.heroIcons?.[guid] || ''))
+      throw Error('Missing local hero icon, run scripts/prepare-hero-media.py: ' + guid);
   for (const dir of ['maps', 'icons'])
     await cp(path.join(source, 'media', dir), path.join(base, 'public/media', dir), {
       recursive: true
@@ -223,7 +230,7 @@ export async function buildWeb({ base, capture = false } = {}) {
   const smallArt =
     'window.QS_MEDIA=' +
     JSON.stringify(media) +
-    ';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;';
+    ';window.QS_ART={};window.QS_AVATAR=QS_MEDIA.avatar;window.QS_RANK_ART=QS_MEDIA.ranks;window.QS_HERO_ICONS=QS_MEDIA.heroIcons;';
   const main = await staticFile(
     rewriteCopy(
       [
@@ -294,7 +301,7 @@ export async function buildWeb({ base, capture = false } = {}) {
   }
   await writeFile(
     path.join(base, 'public/_headers'),
-    `/release-notes.json\n  Cache-Control: no-store\n/event-reminders-sw.js\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://liquipedia.net https://d15f34w2p8l1cc.cloudfront.net https://img.166.net; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\n`
+    `/release-notes.json\n  Cache-Control: no-store\n/event-reminders-sw.js\n  Cache-Control: no-store\n/static/*\n  Cache-Control: public, max-age=31536000, immutable\n/media/*\n  Cache-Control: public, max-age=31536000, immutable\n/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://liquipedia.net; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'\n`
   );
   await buildAssetPreload({ base, media, staticFile });
 }

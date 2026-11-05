@@ -23,14 +23,17 @@ export async function buildAssetPreload({ base, media, staticFile }) {
   for (const url of [
     media.avatar,
     ...Object.values(media.ranks),
-    ...heroes.heroes.map((h) => '/media/heroes/' + h.id + '.' + h.sha256.slice(0, 16) + '.png'),
+    ...Object.values(media.heroIcons),
+    ...heroes.heroes.map(
+      (h) => '/media/heroes/' + h.id + '.' + h.webpSha256.slice(0, 16) + '.webp'
+    ),
     ...Object.values(media.maps).map((m) => m.preview)
   ])
     if (url) urls.add(url);
   const assets = [];
   for (const url of urls) {
     if (
-      !/^\/(?:static\/[a-z0-9-]+\.[a-f0-9]{16}\.(?:js|css|svg)|media\/(?:maps|icons)\/[a-f0-9]{20}\.webp|media\/heroes\/[a-z0-9-]+\.[a-f0-9]{16}\.png)$/.test(
+      !/^\/(?:static\/[a-z0-9-]+\.[a-f0-9]{16}\.(?:js|css|svg)|media\/(?:maps|icons)\/[a-f0-9]{20}\.webp|media\/heroes\/[a-z0-9-]+\.[a-f0-9]{16}\.webp)$/.test(
         url
       )
     )

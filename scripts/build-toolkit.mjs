@@ -18,14 +18,24 @@ export async function buildToolkit({
   await mkdir(path.join(base, 'public/media/heroes'), { recursive: true });
   for (const hero of manifest.heroes) {
     const directory = path.resolve(base, 'frontend/web/draw/portraits'),
-      file = path.resolve(directory, hero.file);
-    if (path.dirname(file) !== directory || !/^[a-z0-9-]+$/.test(hero.id) || !hero.transparent)
+      file = path.resolve(directory, hero.webp || '');
+    if (
+      path.dirname(file) !== directory ||
+      !/^[a-z0-9-]+$/.test(hero.id) ||
+      hero.webp !== hero.id + '.webp' ||
+      !hero.transparent
+    )
       throw Error('Invalid transparent hero portrait: ' + hero.id);
+    // The served WebP is derived from the committed PNG by scripts/prepare-hero-media.py.
     const bytes = await readFile(file),
       digest = createHash('sha256').update(bytes).digest('hex');
-    if (digest !== hero.sha256 || bytes.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a')
+    if (
+      digest !== hero.webpSha256 ||
+      bytes.subarray(0, 4).toString() !== 'RIFF' ||
+      bytes.subarray(8, 12).toString() !== 'WEBP'
+    )
       throw Error('Hero portrait verification failed: ' + hero.id);
-    const portrait = '/media/heroes/' + hero.id + '.' + digest.slice(0, 16) + '.png';
+    const portrait = '/media/heroes/' + hero.id + '.' + digest.slice(0, 16) + '.webp';
     await writeFile(path.join(base, 'public', portrait.slice(1)), bytes);
     heroes.push({ id: hero.id, name: hero.name, role: hero.role, portrait });
   }

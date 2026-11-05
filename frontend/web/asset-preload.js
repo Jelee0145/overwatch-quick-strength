@@ -15,7 +15,7 @@
     loaded = false;
   const state = (root.OWQS_ASSET_PRELOAD = { completed: 0, bytes: 0 });
   const allowed =
-    /^\/(?:static\/[a-z0-9-]+\.[a-f0-9]{16}\.(?:js|css|svg)|media\/(?:maps|icons)\/[a-f0-9]{20}\.webp|media\/heroes\/[a-z0-9-]+\.[a-f0-9]{16}\.png)$/;
+    /^\/(?:static\/[a-z0-9-]+\.[a-f0-9]{16}\.(?:js|css|svg)|media\/(?:maps|icons)\/[a-f0-9]{20}\.webp|media\/heroes\/[a-z0-9-]+\.[a-f0-9]{16}\.webp)$/;
   function blocked() {
     const n = navigator.connection;
     return (

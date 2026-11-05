@@ -11,7 +11,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "reaper.webp",
+      "webpSha256": "af9a8b146ed96a27a44a9142dd084f4cb714104df3cd4085d9742fc7ad932d29"
     },
     {
       "id": "tracer",
@@ -22,7 +24,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "tracer.webp",
+      "webpSha256": "313233c239c085cc18c55c19514e78ce194c4f6c5ed3c16fd4e5b929ec3ec134"
     },
     {
       "id": "mercy",
@@ -33,7 +37,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "mercy.webp",
+      "webpSha256": "045eb15ae60fa3f594b37a3fba1588689aa89dc9900b863a2de37c8994e1e59b"
     },
     {
       "id": "hanzo",
@@ -44,7 +50,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "hanzo.webp",
+      "webpSha256": "a9f5fbae7ba67c4b614c079455c1e364739654ca1db6027eb327149dead6583f"
     },
     {
       "id": "torbjorn",
@@ -55,7 +63,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "torbjorn.webp",
+      "webpSha256": "d239878e6cc6913128e86dedd793fe6c94a4ee401e42662125dd9d52a20a7d29"
     },
     {
       "id": "reinhardt",
@@ -66,7 +76,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "reinhardt.webp",
+      "webpSha256": "c34a31d1108ed53a9c8a30a64668862df4053bfedc3e219f8a5ed9a7173cc881"
     },
     {
       "id": "pharah",
@@ -77,7 +89,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "pharah.webp",
+      "webpSha256": "f85926a55a199e13c4c082a7e3ebaa180c46d6d23b60859d17233217e398d1a2"
     },
     {
       "id": "winston",
@@ -88,7 +102,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "winston.webp",
+      "webpSha256": "d4d90e86ad47da964fcfb7009a9471583ec961f0400b007a7b057ead8be05154"
     },
     {
       "id": "widowmaker",
@@ -99,7 +115,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "widowmaker.webp",
+      "webpSha256": "57f274472c02d7e10640d34f6709626500b7edb3975673c1a4e142113fc711ed"
     },
     {
       "id": "bastion",
@@ -110,7 +128,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "bastion.webp",
+      "webpSha256": "177e52aed76258e90c09a23fb9659aedc03e236b89eaccf821bce4bccbf6a8bc"
     },
     {
       "id": "symmetra",
@@ -121,7 +141,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "symmetra.webp",
+      "webpSha256": "83f60d50ab9049bb2c2dedd6c64104e1489e7c440532c2c693516e2f6b5b15c4"
     },
     {
       "id": "zenyatta",
@@ -132,7 +154,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "zenyatta.webp",
+      "webpSha256": "80a9f7024b940c6b8fbc887d92124f584ec9b5073479ddd27c087193b4bbc321"
     },
     {
       "id": "genji",
@@ -143,7 +167,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "genji.webp",
+      "webpSha256": "fe116401164a9346bb1508c0c93f571f7ed816c66dcc36fd372c2a0c31634f12"
     },
     {
       "id": "roadhog",
@@ -154,7 +180,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "roadhog.webp",
+      "webpSha256": "edac7ff38ef7d44757cf73f46efca3f3ae137376ac4ca695c1672cd2c9a7996e"
     },
     {
       "id": "cassidy",
@@ -165,7 +193,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "cassidy.webp",
+      "webpSha256": "0cea5889e8931990feecb58b76c0248d271aaa7d20b2a384e5ce2862734c92e5"
     },
     {
       "id": "junkrat",
@@ -176,7 +206,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "junkrat.webp",
+      "webpSha256": "5f3f3eeb3a62d3c956c59d217a17cbc8f5acc4ea2ed2e3ae15c63a382fe17d36"
     },
     {
       "id": "zarya",
@@ -187,7 +219,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "zarya.webp",
+      "webpSha256": "c0959427796f0c0252b5030bf00cac9d4a94d6866aac202f9819e811f8c6e13c"
     },
     {
       "id": "soldier-76",
@@ -198,7 +232,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "soldier-76.webp",
+      "webpSha256": "bd3f6ce6be41f25bf453f8348e849c2e1929c276d45e970d0d76916b61690d8d"
     },
     {
       "id": "lucio",
@@ -209,7 +245,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "lucio.webp",
+      "webpSha256": "f5a97b66e85551994a87c7184d72406afa64114662ad346766af2611936314e5"
     },
     {
       "id": "dva",
@@ -220,7 +258,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "dva.webp",
+      "webpSha256": "c18e0d814107c0fbdd2142f353c43338e5bfcb07cfda3ea2d759c3c46d37cc99"
     },
     {
       "id": "mei",
@@ -231,7 +271,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "mei.webp",
+      "webpSha256": "5210131e0e17d93de26bd08936282b0aed6ad4d083bff4d002fbb2704ea0587e"
     },
     {
       "id": "sombra",
@@ -242,7 +284,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "sombra.webp",
+      "webpSha256": "8dfd77fc598475fe5dc1a692ef9716f91d5825c5cebbc60837451e142494daac"
     },
     {
       "id": "doomfist",
@@ -253,7 +297,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "doomfist.webp",
+      "webpSha256": "39a75ab79ea667f55402e73bcda630693fb74a05f60e4f7d1a03ccdd81767083"
     },
     {
       "id": "ana",
@@ -264,7 +310,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/985b06beae46b7ba3ca87d1512d0fc62ca7f206ceca58ef16fc44d43a1cc84ed.png"
+      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/985b06beae46b7ba3ca87d1512d0fc62ca7f206ceca58ef16fc44d43a1cc84ed.png",
+      "webp": "ana.webp",
+      "webpSha256": "d0316f86b26b8e8b2cf5030ca3ee558ef4a01b78baab5699d0bc5441214e7b47"
     },
     {
       "id": "orisa",
@@ -275,7 +323,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "orisa.webp",
+      "webpSha256": "f6f2ade8b781a917dfbd44e270f1d37d7be693c03273ae9e275f875e3a0bcf69"
     },
     {
       "id": "brigitte",
@@ -286,7 +336,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "brigitte.webp",
+      "webpSha256": "ea6a5997e71489fb35f34ec54744463c4ae69a68caaac7607b53140af460eea9"
     },
     {
       "id": "moira",
@@ -297,7 +349,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "moira.webp",
+      "webpSha256": "ffb488679aece5b20a1030e28505de4224f187a8fda044a9fd4115d366833590"
     },
     {
       "id": "wrecking-ball",
@@ -308,7 +362,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "wrecking-ball.webp",
+      "webpSha256": "bea1345e487d2da38b8c8e98c589c954410ce09c9c48167ebe9c354570b9b62b"
     },
     {
       "id": "sojourn",
@@ -319,7 +375,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "sojourn.webp",
+      "webpSha256": "267ce3ad8a8bef8a90b5252b6d0fcfa5dac45550744a9ec65f6834c6cd578a8c"
     },
     {
       "id": "ashe",
@@ -330,7 +388,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "ashe.webp",
+      "webpSha256": "6b64ad283d77fe27b36fc8be2d218839bbce713023341c6ec84e7940b951b524"
     },
     {
       "id": "echo",
@@ -341,7 +401,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "echo.webp",
+      "webpSha256": "71b242dfa42fb5c78dba763d006f9b7e5ffd103229980b12e05e7a37534fb4c1"
     },
     {
       "id": "baptiste",
@@ -352,7 +414,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "baptiste.webp",
+      "webpSha256": "5d73771a0323f88e456164d6b6c581b89d86402b37c82499c3175b138d1a8c94"
     },
     {
       "id": "kiriko",
@@ -363,7 +427,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "kiriko.webp",
+      "webpSha256": "2aa92f68930a98a2f49ffeb088b1bcf50876d132ea97a7571b298682b1a6f57c"
     },
     {
       "id": "junker-queen",
@@ -374,7 +440,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "junker-queen.webp",
+      "webpSha256": "491986dca92d03eeee863840929bb4ee93a4a618726a1bfcf573925c6d4e1dd0"
     },
     {
       "id": "sigma",
@@ -385,7 +453,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "sigma.webp",
+      "webpSha256": "58a1d5f86a1d41bfb9e2784536676554a74852d68426e6a4bac79dd5fe6d2e66"
     },
     {
       "id": "ramattra",
@@ -396,7 +466,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "ramattra.webp",
+      "webpSha256": "635f5862f3b5d379b687d8f33a25e022f5b5039a4b4dc8a442e2c910cca64b26"
     },
     {
       "id": "lifeweaver",
@@ -407,7 +479,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "lifeweaver.webp",
+      "webpSha256": "51bfc3d221262ded8d99e6dddaa5738f6175b4bd8918dc2270aa4a64793d9060"
     },
     {
       "id": "mauga",
@@ -418,7 +492,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6dbd80a0b40bd0464db35948f98d91ecc6dfcede8c94ff9b1ecefda781a7aa1f.png"
+      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/6dbd80a0b40bd0464db35948f98d91ecc6dfcede8c94ff9b1ecefda781a7aa1f.png",
+      "webp": "mauga.webp",
+      "webpSha256": "a5fc051be7d848d4873c4c59deefa1375523ac2394e775db8408d6575bf73638"
     },
     {
       "id": "illari",
@@ -429,7 +505,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "illari.webp",
+      "webpSha256": "d4ddeec76788deef6d92c3b01baf366d5a72738a26b35a6cb5ffafb73d69c107"
     },
     {
       "id": "venture",
@@ -440,7 +518,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "venture.webp",
+      "webpSha256": "6ff4d38a2e12160d67a3f5a3fbda319b57ec0b64e6abfe7f50460b54c7d833fd"
     },
     {
       "id": "hazard",
@@ -451,7 +531,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "hazard.webp",
+      "webpSha256": "7dc95d1a13a97f896b85dd72a4837f6178728f2d2b146a9e38748328ee8615ae"
     },
     {
       "id": "juno",
@@ -462,7 +544,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "juno.webp",
+      "webpSha256": "d36d62e793e2e591a6c4f94628710ebd1869c485f18573f3be072c54ddbad06c"
     },
     {
       "id": "freja",
@@ -473,7 +557,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "freja.webp",
+      "webpSha256": "35ae1627e4280b3484d1fcb2bb0197a94468a5a6f39d976d3974e956de65faa9"
     },
     {
       "id": "wuyang",
@@ -484,7 +570,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "wuyang.webp",
+      "webpSha256": "598ac5023c40b271c8ac18a958976f64d768cce0b969551d0c7450b98acd75ac"
     },
     {
       "id": "anran",
@@ -495,7 +583,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "anran.webp",
+      "webpSha256": "e4a981a3bdf5302b042446fa768fb1829accbc1f8754f8dca0d7b6a94c2c8c6a"
     },
     {
       "id": "emre",
@@ -506,7 +596,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "emre.webp",
+      "webpSha256": "bf487835b957a82c095ac85f4805092d81636804df0dde604a13787e97894a98"
     },
     {
       "id": "domina",
@@ -517,7 +609,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "domina.webp",
+      "webpSha256": "fb88c8730847218d4d87ed3fce04637f9bbbcfe3cb99d6da9fb5ba354bcd5833"
     },
     {
       "id": "mizuki",
@@ -528,7 +622,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "mizuki.webp",
+      "webpSha256": "506975e12897e91b1f43c30af74f38d3771215835e8789deaea53e4e6ef71888"
     },
     {
       "id": "jetpack-cat",
@@ -539,7 +635,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "jetpack-cat.webp",
+      "webpSha256": "32d5484f9bbf3467ba17c66aa7fae4a84a214561658edbb136213cc11f4dfb06"
     },
     {
       "id": "vendetta",
@@ -550,7 +648,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "FoxyArcade"
+      "source": "FoxyArcade",
+      "webp": "vendetta.webp",
+      "webpSha256": "e931d14be8e5ad19951c604d1988c60a4e8ae050922c515f8883a946d86451c9"
     },
     {
       "id": "sierra",
@@ -561,7 +661,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4bfd3d8b95844231115cb5bf4db03344c71bc3e865189c52403b2dc51438e63a.png"
+      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/4bfd3d8b95844231115cb5bf4db03344c71bc3e865189c52403b2dc51438e63a.png",
+      "webp": "sierra.webp",
+      "webpSha256": "f03e174fe2a0c8b055e82b75b3eacd976752fda9836966bc781184f2faa7fc26"
     },
     {
       "id": "shion",
@@ -572,7 +674,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/070481cf871590a2b45a51d1335f9fe3d65eb4e4d361ecdd998b34fae2ed65d5.png"
+      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/070481cf871590a2b45a51d1335f9fe3d65eb4e4d361ecdd998b34fae2ed65d5.png",
+      "webp": "shion.webp",
+      "webpSha256": "2b22e362b161c4a8f079d956a8943865779b4f12c08788618e8e0dd445fe5714"
     },
     {
       "id": "doctrine",
@@ -583,7 +687,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2492a15c575c12314907d0d77501ec337b4d56796bc7f03e5dfb50d415612bae.png"
+      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/2492a15c575c12314907d0d77501ec337b4d56796bc7f03e5dfb50d415612bae.png",
+      "webp": "doctrine.webp",
+      "webpSha256": "91c79b3956f427d8b1f9d8f3872927b2aa4d2345c8b0de473d526a79cda80c49"
     },
     {
       "id": "dmon",
@@ -594,7 +700,9 @@
       "width": 256,
       "height": 256,
       "transparent": true,
-      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a46c60b8562fdbd0b8308396d0808f7606fba208bc67cccf3f82fe56d2c73b9d.png"
+      "source": "https://d15f34w2p8l1cc.cloudfront.net/overwatch/a46c60b8562fdbd0b8308396d0808f7606fba208bc67cccf3f82fe56d2c73b9d.png",
+      "webp": "dmon.webp",
+      "webpSha256": "9def115101db47a0d61e8c8b22b64ea5cba73e6569bfb070ef774f9f60bafd51"
     }
   ]
 }

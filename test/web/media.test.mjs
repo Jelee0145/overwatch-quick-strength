@@ -14,9 +14,12 @@ test('CDN manifest covers every map ID; content-addressed media is real WebP', a
   assert.deepEqual(Object.keys(manifest.maps).sort(), catalog.map((m) => m.guid).sort());
   assert.ok(coverage.maps.length >= 131);
   assert.equal(coverage.maps.length + coverage.missing.length, 133);
+  const heroIconSources = JSON.parse(await read('source/media/hero-icon-sources.json'));
+  assert.deepEqual(Object.keys(manifest.heroIcons).sort(), Object.keys(heroIconSources).sort());
   const urls = [
     manifest.avatar,
     ...Object.values(manifest.ranks),
+    ...Object.values(manifest.heroIcons),
     ...Object.values(manifest.maps).flatMap((m) => [m.preview, m.export])
   ].filter(Boolean);
   for (const url of new Set(urls)) {
