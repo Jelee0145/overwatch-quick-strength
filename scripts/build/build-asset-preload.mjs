@@ -7,6 +7,7 @@ export async function buildAssetPreload({ base, media, staticFile }) {
     'tools/strength.html',
     'tools/draw.html',
     'tools/events.html',
+    'tools/event.html',
     'login.html'
   ];
   const contents = await Promise.all(

@@ -222,6 +222,16 @@ const routes = [
     }
   },
   {
+    match: (path) => path === '/api/v1/events/detail',
+    async handle({ request, env, url }) {
+      requireMethod(request, 'GET');
+      const target = String(url.searchParams.get('t') || '').slice(0, 200);
+      return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch(
+        'https://events.internal/detail?' + new URLSearchParams({ t: target })
+      );
+    }
+  },
+  {
     match: (path) => path === '/api/v1/events' || path === '/api/v1/events/refresh',
     async handle({ request, env, url, path, auth }) {
       const refresh = path.endsWith('/refresh');
