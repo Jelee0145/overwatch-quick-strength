@@ -5,6 +5,7 @@ import { EventCenter } from '../../backend/src/events/center.mjs';
 import { parseDetailPage } from '../../backend/src/events/detail-parser.mjs';
 import { detailPath, detailRoot } from '../../backend/src/events/source.mjs';
 import { LOGO_ROUTE } from '../../backend/src/events/logos.mjs';
+import { heroTerm } from '../../backend/src/events/glossary.mjs';
 import { card, page, response } from '../events-fixture.mjs';
 import { MemoryStorage as Storage } from '../helpers/storage.mjs';
 
@@ -46,7 +47,12 @@ test('detail parser reads infobox, games, inferred pickers, bans, MVP, standings
     match.games[0].bans.map((h) => h.name),
     ['猎空', '安娜']
   );
-  assert.deepEqual(match.games[1].bans[0], { en: 'Shion', name: 'Shion', icon: null });
+  assert.equal(match.games[1].bans[0].name, '死怨');
+  assert.match(match.games[1].bans[0].icon, /^\/media\/icons\/[a-f0-9]+\.webp$/);
+  // Heroes the site does not know keep their English name and no picture.
+  assert.deepEqual(heroTerm('Future Hero'), { en: 'Future Hero', name: 'Future Hero', icon: null });
+  for (const en of ['Shion', 'Domina', 'Mizuki', 'Doctrine'])
+    assert.ok(heroTerm(en).icon, en + ' has a site icon');
   assert.deepEqual(match.games[2].bans, [null, null]);
   assert.deepEqual(match.mvp, ['Proper']);
 
@@ -202,6 +208,14 @@ test('first visit is 202, background parses fill it in, and ready payloads attri
     assert.match(call.init.headers['User-Agent'], /site\.test/);
     assert.equal(call.init.redirect, 'manual');
   }
+
+  // A page stored before a hero was translated is shown with the current translation.
+  const stored = await ctx.storage.get('detailPage:' + SUB);
+  stored.data.matches[0].games[1].bans[0] = { en: 'Shion', name: 'Shion', icon: null };
+  await ctx.storage.put('detailPage:' + SUB, stored);
+  const ban = (await (await ctx.get()).json()).matches[0].games[1].bans[0];
+  assert.equal(ban.name, '死怨');
+  assert.match(ban.icon, /^\/media\/icons\//);
 });
 
 test('unchanged revisions are not parsed again; a new revid triggers one reparse', async () => {

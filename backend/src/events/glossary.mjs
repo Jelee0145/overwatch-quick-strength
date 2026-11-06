@@ -57,7 +57,13 @@ const HERO_NAMES = {
   'Jetpack Cat': '飞天猫',
   Vendetta: '斩仇',
   Sierra: '西拉',
-  'D.Mon': 'D.Mon'
+  'D.Mon': 'D.Mon',
+  // 2026 heroes, matched by role against the site's hero data (Liquipedia categories:
+  // Shion damage, Domina tank, Doctrine and Mizuki support; 瑞稀 reads "Mizuki").
+  Shion: '死怨',
+  Domina: '金驭',
+  Mizuki: '瑞稀',
+  Doctrine: '血律'
 };
 const MAP_NAMES = {
   Busan: '釜山',

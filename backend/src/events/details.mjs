@@ -1,5 +1,6 @@
 import { Fault } from '../security.mjs';
 import { parseDetailPage } from './detail-parser.mjs';
+import { heroTerm, mapTerm } from './glossary.mjs';
 import { nextEventRefresh } from './freshness.mjs';
 import { detailParseApi, detailPath, detailRevisionApi, detailRoot } from './source.mjs';
 
@@ -248,10 +249,21 @@ export class EventDetails {
   }
   async localize(value) {
     const local = await this.center.logos.resolver(),
-      team = (t) => (t ? { ...t, logo: local(t.logo) } : t);
+      team = (t) => (t ? { ...t, logo: local(t.logo) } : t),
+      // Stored pages keep the English names, so newly added hero/map translations apply
+      // to pages parsed before them without waiting for a reparse.
+      game = (g) => ({
+        ...g,
+        map: g.map?.en ? mapTerm(g.map.en, g.map.mode) : g.map,
+        bans: (g.bans || []).map((b) => (b?.en ? heroTerm(b.en) : b))
+      });
     return {
       ...value,
-      matches: value.matches.map((m) => ({ ...m, teams: m.teams.map(team) })),
+      matches: value.matches.map((m) => ({
+        ...m,
+        teams: m.teams.map(team),
+        games: (m.games || []).map(game)
+      })),
       standings: value.standings.map((s) => ({
         ...s,
         rows: s.rows.map((r) => ({ ...r, team: team(r.team) }))
