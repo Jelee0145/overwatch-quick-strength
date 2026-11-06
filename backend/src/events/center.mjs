@@ -32,6 +32,7 @@ export class EventCenter {
         ? 0
         : 2000;
     this.lpLastAt = 0;
+    this.lpSent = 0;
     this.lpTurn = Promise.resolve();
   }
   // Serializes every request to liquipedia.net (parse, query, badges) with wall-clock spacing.
@@ -40,6 +41,7 @@ export class EventCenter {
       const wait = this.lpLastAt + this.lpSpacing - Date.now();
       if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
       this.lpLastAt = Date.now();
+      this.lpSent++;
     });
     this.lpTurn = turn.catch(() => {});
     return turn;
@@ -174,6 +176,7 @@ export class EventCenter {
     return this.pending;
   }
   async alarm() {
+    const sent = this.lpSent;
     try {
       await this.refresh();
     } catch {
@@ -186,7 +189,7 @@ export class EventCenter {
       /* Badge copies are optional; the schedule still renders with placeholders. */
     }
     try {
-      await this.details.work();
+      await this.details.work({ sent: this.lpSent !== sent });
     } catch {
       /* Detail pages keep their last stored copy. */
     }

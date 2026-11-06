@@ -58,7 +58,9 @@ export class EventLogos {
       Array.isArray(match.teams)
         ? {
             ...match,
-            teams: match.teams.map((team) => (team?.logo ? { ...team, logo: local(team.logo) } : team))
+            teams: match.teams.map((team) =>
+              team?.logo ? { ...team, logo: local(team.logo) } : team
+            )
           }
         : match
     );

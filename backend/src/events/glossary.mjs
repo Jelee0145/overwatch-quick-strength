@@ -107,7 +107,8 @@ const MODES = {
 const heroIcon = new Map(),
   mapImage = new Map();
 for (const [guid, hero] of Object.entries(heroes))
-  if (media.heroIcons?.[guid] && !heroIcon.has(hero.name)) heroIcon.set(hero.name, media.heroIcons[guid]);
+  if (media.heroIcons?.[guid] && !heroIcon.has(hero.name))
+    heroIcon.set(hero.name, media.heroIcons[guid]);
 for (const entry of Object.values(media.maps || {}))
   if (entry?.preview && !mapImage.has(entry.name)) mapImage.set(entry.name, entry.preview);
 

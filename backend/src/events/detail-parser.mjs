@@ -81,7 +81,9 @@ function parseGames(popup) {
   for (let i = 1; i < games.length; i++)
     if (games[i].played && games[i - 1].winner !== null) games[i].picker = 1 - games[i - 1].winner;
   for (const row of findAll(popup, 'brkts-popup-veto-row')) {
-    const index = Number((text(find(row, 'brkts-popup-veto-row-indicator')).match(/(\d+)/) || [])[1]);
+    const index = Number(
+      (text(find(row, 'brkts-popup-veto-row-indicator')).match(/(\d+)/) || [])[1]
+    );
     const sides = kids(row).filter((n) => has(n, 'brkts-champion-icon'));
     if (!index || index > games.length || sides.length !== 2) continue;
     games[index - 1].bans = sides.map((side) => {
@@ -142,9 +144,7 @@ function parseStandings(table, heading) {
   return {
     title,
     kind,
-    columns: columns.filter(
-      (c, i) => i > 0 && c && c !== 'Participant' && !/^Round \d+$/i.test(c)
-    ),
+    columns: columns.filter((c, i) => i > 0 && c && c !== 'Participant' && !/^Round \d+$/i.test(c)),
     rounds,
     rows: rows.slice(0, 64).map((row) => {
       const cells = kids(row),
@@ -261,10 +261,13 @@ export function parseDetailPage(html, page) {
       result.info = parseInfo(node);
       return;
     }
-    if (has(node, 'brkts-matchlist-title'))
-      sub = text(node).replace(/s*Shows*Hides*$/i, '');
+    if (has(node, 'brkts-matchlist-title')) sub = text(node).replace(/\s*Show\s*Hide\s*$/i, '');
     if (has(node, 'brkts-popup') && has(node, 'brkts-match-info-popup')) {
-      const match = parseMatch(node, page, [...new Set([heading, sub].filter(Boolean))].join(' · '));
+      const match = parseMatch(
+        node,
+        page,
+        [...new Set([heading, sub].filter(Boolean))].join(' · ')
+      );
       if (match && result.matches.length < 400) result.matches.push(match);
       return;
     }

@@ -1,5 +1,6 @@
 import { Fault } from '../security.mjs';
 import { parseDetailPage } from './detail-parser.mjs';
+import { nextEventRefresh } from './freshness.mjs';
 import { detailParseApi, detailPath, detailRevisionApi, detailRoot } from './source.mjs';
 
 // Event detail pages (standings, map-by-map results, hero bans, rosters) built from
@@ -22,7 +23,10 @@ const PARSE_GAP = 2 * MINUTE,
   MAX_SUBPAGES = 4,
   MAX_PAGE_BYTES = 120 * 1024,
   MAX_PARSE_BYTES = 4 * 1024 * 1024,
-  MAX_QUERY_BYTES = 256 * 1024;
+  MAX_QUERY_BYTES = 256 * 1024,
+  // A detail parse holds the shared 30-second parse gate; keep that much (plus slack) free
+  // before the next schedule refresh so live scores are never delayed by detail pages.
+  SCHEDULE_ROOM = 35 * 1000;
 const PAGE_URL = 'https://liquipedia.net/overwatch/';
 const pageKey = (path) => 'detailPage:' + path;
 
@@ -32,7 +36,10 @@ function activeRoots(matches = [], now) {
     const start = Date.parse(match.startsAt),
       root = match.series === 'owcs' && detailRoot(match.sourceUrl);
     if (!root) continue;
-    if (match.status === 'live' || (Number.isFinite(start) && start > now - DAY && start < now + 2 * DAY))
+    if (
+      match.status === 'live' ||
+      (Number.isFinite(start) && start > now - DAY && start < now + 2 * DAY)
+    )
       roots.add(root);
   }
   return roots;
@@ -41,7 +48,8 @@ function subpagesOf(root, links = []) {
   const found = [];
   for (const link of links) {
     const title = String(link?.['*'] || link?.title || '').replace(/ /g, '_');
-    if ((link?.ns ?? 0) !== 0 || !title.startsWith(root + '/') || /Qualifier/i.test(title)) continue;
+    if ((link?.ns ?? 0) !== 0 || !title.startsWith(root + '/') || /Qualifier/i.test(title))
+      continue;
     try {
       if (!found.includes(detailPath(title))) found.push(title);
     } catch {
@@ -50,7 +58,8 @@ function subpagesOf(root, links = []) {
   }
   return found.slice(0, MAX_SUBPAGES);
 }
-const richer = (a, b) => (b.games.filter((g) => g.played).length > a.games.filter((g) => g.played).length ? b : a);
+const richer = (a, b) =>
+  b.games.filter((g) => g.played).length > a.games.filter((g) => g.played).length ? b : a;
 
 export class EventDetails {
   constructor(center) {
@@ -65,12 +74,17 @@ export class EventDetails {
     return { roots: {}, pages: {}, after: 0, ...(saved || {}) };
   }
   async view(value) {
-    const root = detailPath(value),
+    const path = detailPath(value),
+      root = detailRoot(PAGE_URL + path) || path,
       now = this.center.now(),
       index = await this.index(),
       entry = index.roots[root];
     if (!entry || now - (entry.viewedAt || 0) >= VIEW_WRITE) {
-      index.roots[root] = { addedAt: entry?.addedAt || now, checkedAt: entry?.checkedAt || 0, viewedAt: now };
+      index.roots[root] = {
+        addedAt: entry?.addedAt || now,
+        checkedAt: entry?.checkedAt || 0,
+        viewedAt: now
+      };
       this.prune(index, now, new Set());
       await this.storage.put('detailIndex', index);
     }
@@ -81,14 +95,26 @@ export class EventDetails {
       return {
         state: 'pending',
         root,
-        retryAfter: Math.max(10, Math.ceil((Math.max(index.after, now) - now) / 1000) + 30 * waiting)
+        retryAfter: Math.max(
+          10,
+          Math.ceil((Math.max(index.after, now) - now) / 1000) + 30 * waiting
+        )
       };
     }
     const subs = (first.subpages || []).slice(0, MAX_SUBPAGES),
       rest = await Promise.all(subs.map((path) => this.storage.get(pageKey(path)))),
       pages = [first, ...rest.filter(Boolean)];
     if (rest.some((page) => !page)) this.wanted = true;
-    return this.localize(this.assemble(root, pages, subs, index, now, rest.some((p) => !p)));
+    return this.localize(
+      this.assemble(
+        root,
+        pages,
+        subs,
+        index,
+        now,
+        rest.some((p) => !p)
+      )
+    );
   }
   assemble(root, pages, subs, index, now, partial) {
     const byId = new Map(),
@@ -161,32 +187,49 @@ export class EventDetails {
     for (const path of Object.keys(index.pages)) if (!live.has(path)) delete index.pages[path];
   }
   // One unit of background work per alarm: a revision check or a single page parse.
-  async work() {
+  // Detail work is demand-driven (only roots a visitor opened) and yields to the schedule:
+  // it never sends a request in an alarm that already reached Liquipedia, and never parses
+  // when the parse's 30-second gate would push back an imminent schedule refresh.
+  async work({ sent = false } = {}) {
     const center = this.center,
       now = center.now(),
-      index = await this.index();
+      index = await this.index(),
+      waiting = () =>
+        Object.keys(index.roots).some((r) => index.roots[r].viewedAt && !index.pages[r]);
     this.wanted = false;
-    if (now < index.after || now < ((await this.storage.get('refreshAfter')) || 0)) {
-      this.wanted = Object.keys(index.roots).some((r) => !index.pages[r]);
+    const snapshot = await this.storage.get('snapshot'),
+      upcoming = snapshot ? nextEventRefresh(snapshot.matches, snapshot.updatedAt, now) : now;
+    if (
+      sent ||
+      now < index.after ||
+      now < ((await this.storage.get('refreshAfter')) || 0) ||
+      (await center.queries.hasPending())
+    ) {
+      this.wanted = waiting();
       return;
     }
-    if (await center.queries.hasPending()) return;
-    const active = activeRoots((await this.storage.get('snapshot'))?.matches, now);
-    for (const root of active) index.roots[root] ||= { addedAt: now, checkedAt: 0, viewedAt: 0 };
+    const active = activeRoots(snapshot?.matches, now);
     this.prune(index, now, active);
-    const due = this.nextParse(index, active, now);
+    const due = upcoming - now >= SCHEDULE_ROOM ? this.nextParse(index, active, now) : null;
     if (due) {
       await this.parse(index, due, now);
       this.wanted = !!this.nextParse(index, active, center.now());
-    } else await this.checkRevisions(index, active, now);
+    } else {
+      await this.checkRevisions(index, active, now);
+      this.wanted = waiting() && upcoming - now >= SCHEDULE_ROOM;
+    }
     await this.storage.put('detailIndex', index);
   }
   nextParse(index, active, now) {
     const candidates = [];
-    for (const [root, entry] of Object.entries(index.roots))
+    for (const [root, entry] of Object.entries(index.roots)) {
+      if (!entry.viewedAt) continue;
       for (const path of [root, ...(index.pages[root]?.subpages || [])]) {
         const meta = index.pages[path];
-        if (meta?.failures && now < meta.failedAt + Math.min(6 * HOUR, 10 * MINUTE * 2 ** (meta.failures - 1)))
+        if (
+          meta?.failures &&
+          now < meta.failedAt + Math.min(6 * HOUR, 10 * MINUTE * 2 ** (meta.failures - 1))
+        )
           continue;
         const missing = !meta?.fetchedAt,
           changed = meta?.latest && meta.latest !== meta.revid,
@@ -195,9 +238,10 @@ export class EventDetails {
           candidates.push({
             path,
             root,
-            rank: (missing ? 0 : 2) + (entry.viewedAt ? 0 : 1) + (active.has(root) ? 0 : 1)
+            rank: (missing ? 0 : 2) + (active.has(root) ? 0 : 1)
           });
       }
+    }
     candidates.sort((a, b) => a.rank - b.rank);
     return candidates[0] || null;
   }
@@ -224,11 +268,21 @@ export class EventDetails {
     try {
       const parsed = parseDetailPage(data?.parse?.text?.['*'], path),
         subpages = path === root ? subpagesOf(root, data.parse.links) : undefined,
-        record = { revid: data.parse.revid || null, fetchedAt: this.center.now(), data: parsed, subpages };
+        record = {
+          revid: data.parse.revid || null,
+          fetchedAt: this.center.now(),
+          data: parsed,
+          subpages
+        };
       if (new TextEncoder().encode(JSON.stringify(record)).length > MAX_PAGE_BYTES)
         throw Error('Detail page too large');
       await this.storage.put(pageKey(path), record);
-      Object.assign(meta, { revid: record.revid, fetchedAt: record.fetchedAt, failures: 0, failedAt: 0 });
+      Object.assign(meta, {
+        revid: record.revid,
+        fetchedAt: record.fetchedAt,
+        failures: 0,
+        failedAt: 0
+      });
       if (!meta.latest) meta.latest = record.revid;
       if (subpages) meta.subpages = subpages;
     } catch {
@@ -239,7 +293,9 @@ export class EventDetails {
   }
   async checkRevisions(index, active, now) {
     const roots = Object.entries(index.roots).filter(
-      ([root, entry]) => now - (entry.checkedAt || 0) >= (active.has(root) ? ACTIVE_CHECK : IDLE_CHECK)
+      ([root, entry]) =>
+        entry.viewedAt &&
+        now - (entry.checkedAt || 0) >= (active.has(root) ? ACTIVE_CHECK : IDLE_CHECK)
     );
     const paths = [];
     for (const [root] of roots)
@@ -251,7 +307,8 @@ export class EventDetails {
       const data = await this.query(detailRevisionApi(paths));
       for (const page of data?.query?.pages || []) {
         const path = String(page.title || '').replace(/ /g, '_');
-        if (index.pages[path] && Number.isFinite(page.lastrevid)) index.pages[path].latest = page.lastrevid;
+        if (index.pages[path] && Number.isFinite(page.lastrevid))
+          index.pages[path].latest = page.lastrevid;
       }
       for (const [root] of roots) index.roots[root].checkedAt = now;
       index.after = Math.max(index.after, now + 30000);

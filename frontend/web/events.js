@@ -329,8 +329,19 @@
         ),
         teamLabel(match.teams[1], false)
       );
-      const url = new URL(match.sourceUrl);
-      if (
+      const detail = model.detailHref(match);
+      let url = null;
+      try {
+        url = new URL(match.sourceUrl);
+      } catch {
+        /* No usable source page. */
+      }
+      if (detail) {
+        const link = element('a', 'event-source-link', '赛事详情');
+        link.href = detail;
+        body.append(time, versus, link);
+      } else if (
+        url &&
         url.protocol === 'https:' &&
         url.hostname === 'liquipedia.net' &&
         !url.port &&

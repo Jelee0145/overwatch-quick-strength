@@ -242,11 +242,12 @@
 - `center.mjs`：`source()` 新增 `read` 和 `maxBytes` 参数；新增 `GET /detail?t=` 路由；`alarm()` 调用 `details.work()`；`schedule()` 在 `details.wanted` 为真时 10 秒后再唤醒。
 - `logos.mjs`：新增 `resolver()`，详情页的队标同样改为本站地址。
 
-### 未完成
-1. **现有测试有 2 个失败**：`events-freshness.test.mjs:86`、`events.test.mjs:230`，原因是对上游调用次数的断言（期望 1 次，实际 2 次）。`details.work()` 在 alarm 里根据快照登记活跃赛事并多发了一次请求。建议：只在 `refreshAfter` 之后且距离本次 alarm 的 recent 请求足够远时才工作，或者在测试 env 里关闭（例如 `EVENTS_DETAILS: false`）。不要简单改断言掩盖问题。
-2. 新增测试 `test/events/events-detail.test.mjs`：解析器 fixture（从真实 parse 输出裁剪出一个 popup、一张 swiss 表和一张 teamcard，并注明来源 Liquipedia CC BY-SA）、路径白名单、202 → ready 流程、revid 未变化时不重新解析、lpSlot 间隔、队标转为本站地址、返回中包含 `source` 署名。
-3. `backend/src/api/v1.mjs`：增加 `GET /api/v1/events/detail?t=`，转发到 `https://events.internal/detail?t=`（参考 logos 路由），并同步更新 `contracts/openapi.yaml`。
-4. 前端：新建 `frontend/web/event.html`、`event.js`、`event.css`。页面包含信息卡、标签页（赛程/积分榜/参赛队伍）和对阵抽屉 `#m=<id>`（每局显示地图缩略图、比分、「选图：X（按赛制推算）」、双方 ban），底部署名链接到 `source.pages`。在 `scripts/build-web.mjs` 中参照 events 页面加入构建。`frontend/web/events.js:332` 的「赛事详情 ↗」改为站内链接 `/tools/event.html?t=<detailRoot>#m=<id>`，root 的计算规则与后端 `detailRoot` 保持一致。
-5. 更新 `README.md` 和 `STANDALONE.md` 中的请求频率说明。
-6. 运行 `npm run build`、`npm test`，用本地预览检查手机排版。提交：用户可见部分用 `feat:`，正文写 `Changelog: 赛事中心新增赛事详情页：站内查看积分榜、每局地图比分与禁用英雄、参赛阵容`；第 0 期属于内部改动，不写进更新日志。
-7. **推送到 main 必须先获得用户授权**（推送会触发自动发布）。上线后验收：真实上游的请求间隔（看日志）、能否解析其他赛区（NA、EMEA、Korea）的页面、手机排版。
+### 第 1 期收尾（2026-11-06 完成）
+1. 两个调用次数失败已修复实现：详情改为只处理访客打开过的页面（不再按快照预取活跃赛事）；本轮告警已向 Liquipedia 发过请求（`lpSent` 计数，含赛程、补查、队标）时 `details.work()` 不发请求；距下一次赛程刷新不足 35 秒时不解析，避免 30 秒 parse 闸门推迟比分更新。子页面链接归到所属阶段（`detailRoot`）。
+2. `test/events/events-detail.test.mjs`（fixture 在 `test/events/detail-fixture.mjs`）：解析器、选图方推算、白名单、202 → ready、revid 未变不重解析、闸门与 lpSlot 间隔、队标本站化、`source` 署名、API 路由、列表链接与后端 id/root 一致。
+3. `GET /api/v1/events/detail?t=` 与 `contracts/openapi.yaml`。
+4. 前端 `frontend/web/event.{html,js,css}`，由 `scripts/build-toolkit.mjs` 构建为 `public/tools/event.html`；赛事列表 OWCS 比赛的「赛事详情」改为站内链接（规则在 `events-model.js`）。
+5. README / STANDALONE 请求频率说明已更新。
+
+### 待线上验收
+- 真实上游的请求间隔（日志）、其他赛区（NA、EMEA、Korea 等）页面能否解析、手机排版、从赛程列表 `#m=` 定位到对阵。
