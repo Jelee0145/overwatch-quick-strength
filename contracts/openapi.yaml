@@ -244,6 +244,18 @@ paths:
       responses:
         '200': {description: Badge image bytes}
         '404': {description: No stored badge with this hash}
+  /events/standings:
+    get:
+      summary: Region standings of the OWCS stages in the current schedule
+      description: |
+        Up to eight stages with matches within a week, ordered by region. Each region is
+        `state: ready` with `standings` (at most three tables, 16 rows each; same row shape as
+        /events/detail), or `state: pending` (optionally `stalled: true`) while its page is
+        still being prepared. Reading this counts as a visit to those stage pages. Team logos are
+        same-origin copies or null; content is from Liquipedia under CC BY-SA 3.0.
+      responses:
+        '200': {description: 'regions[] and source attribution'}
+        '503': {description: Event standings unavailable}
   /events/detail:
     get:
       summary: Read one OWCS tournament stage as this site's own event detail page
