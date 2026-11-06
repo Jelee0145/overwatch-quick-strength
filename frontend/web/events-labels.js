@@ -43,6 +43,8 @@ window.EventLabels = (() => {
     Maps: '地图',
     Map: '地图',
     Games: '小局',
+    Game: '小局',
+    GD: '净胜局',
     Points: '积分',
     Pts: '积分',
     'Map Diff': '净胜图',
