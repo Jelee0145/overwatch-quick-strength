@@ -32,10 +32,12 @@ function game(sourceUrl, time, a, b, extra = {}) {
     ...extra
   };
 }
-const phase = (match, sourceMatches, now, official) =>
+// stableSince defaults to "unchanged for a long time"; tests override it to model edits.
+const phase = (match, sourceMatches, now, official, stableSince = now - 60 * MINUTE) =>
   reminderPhase({
     match,
     observedStartsAt: match.startsAt,
+    stableSince,
     verified: true,
     sourceMatches,
     official,
@@ -51,18 +53,21 @@ test('2026-11-06 replay: an unfinished previous match blocks the stale 16:00 tim
     assert.equal(value.reason, 'previous-pending');
     assert.deepEqual(value.previous.teams, ['T1', 'ZANSIDE GAMING']);
   }
-  // Liquipedia rewrote both times at 16:37; the previous match is still running at 3:1.
+  // Liquipedia rewrote both times at 16:37 (observed 16:39); the previous match runs at 3:1.
   const moved = game(KOREA, cst('2026-11-06T16:15'), 'T1', 'ZANSIDE GAMING', { scores: [3, 1] }),
-    later = game(KOREA, cst('2026-11-06T19:00'), 'Cheeseburger', 'Team Falcons');
-  assert.equal(phase(later, [moved, later], cst('2026-11-06T18:20')).reason, 'previous-pending');
+    later = game(KOREA, cst('2026-11-06T19:00'), 'Cheeseburger', 'Team Falcons'),
+    edited = cst('2026-11-06T16:39');
+  assert.equal(
+    phase(later, [moved, later], cst('2026-11-06T18:20'), undefined, edited).reason,
+    'previous-pending'
+  );
   const done = { ...moved, scores: [4, 1], completedSeenAt: cst('2026-11-06T18:40') };
-  const value = phase(later, [done, later], cst('2026-11-06T18:40'));
+  let value = phase(later, [done, later], cst('2026-11-06T18:40'), undefined, edited);
   assert.equal(value.phase, 'pre');
   assert.equal(value.reason, 'previous-completed');
-  assert.equal(
-    phase({ ...later, scores: [1, 0] }, [done, later], cst('2026-11-06T19:20')).phase,
-    'start'
-  );
+  value = phase(later, [done, later], cst('2026-11-06T19:00'), undefined, edited);
+  assert.equal(value.phase, 'start');
+  assert.equal(value.reason, 'scheduled-time');
 });
 
 test('2026-11-01 replay: an early previous finish announces a match listed for later', () => {
@@ -86,28 +91,46 @@ test('2026-11-01 replay: an early previous finish announces a match listed for l
   assert.equal(value.reason, 'official-live');
 });
 
-test('first match uses the listed time and long breaks wait until one hour before', () => {
+test('first match and long breaks notify ten minutes early, then at the stable listed time', () => {
   const ours = game(KOREA, cst('2026-11-07T14:00'), 'ZETA DIVISION', 'Crazy Raccoon');
-  assert.equal(phase(ours, [ours], cst('2026-11-07T13:59')).reason, 'scheduled');
+  assert.equal(phase(ours, [ours], cst('2026-11-07T13:49')).reason, 'scheduled');
+  assert.equal(phase(ours, [ours], cst('2026-11-07T13:50')).reason, 'scheduled-soon');
   assert.equal(phase(ours, [ours], cst('2026-11-07T14:00')).reason, 'scheduled-time');
-  assert.equal(phase(ours, [ours], cst('2026-11-07T20:01')).reason, 'expired');
-  const earlier = game(KOREA, cst('2026-11-07T12:00'), 'A', 'B', {
-      status: 'completed',
-      completedSeenAt: cst('2026-11-07T15:00')
-    }),
-    late = game(KOREA, cst('2026-11-07T19:00'), 'C', 'D');
-  assert.equal(phase(late, [earlier, late], cst('2026-11-07T15:00')).reason, 'scheduled');
-  assert.equal(phase(late, [earlier, late], cst('2026-11-07T18:00')).phase, 'pre');
+  // Changed four minutes ago: hold the start reminder until the new time is stable for ten.
+  const changed = cst('2026-11-07T13:56');
+  assert.equal(phase(ours, [ours], cst('2026-11-07T14:00'), undefined, changed).phase, 'pre');
+  assert.equal(phase(ours, [ours], cst('2026-11-07T14:06'), undefined, changed).phase, 'start');
+  assert.equal(phase(ours, [ours], cst('2026-11-07T14:31')).reason, 'expired');
   assert.equal(
-    previousMatch([earlier, late], game(KOREA, cst('2026-11-08T14:00'), 'E', 'F')),
+    phase({ ...ours, scores: [1, 0] }, [ours], cst('2026-11-07T14:40')).reason,
+    'match-started'
+  );
+  const morning = game(KOREA, cst('2026-11-07T11:00'), 'A', 'B'),
+    evening = game(KOREA, cst('2026-11-07T19:00'), 'C', 'D');
+  assert.equal(
+    phase(evening, [morning, evening], cst('2026-11-07T18:50')).reason,
+    'scheduled-soon'
+  );
+  assert.equal(
+    phase(evening, [morning, evening], cst('2026-11-07T19:00')).reason,
+    'scheduled-time'
+  );
+  const close = game(KOREA, cst('2026-11-07T16:15'), 'A', 'B');
+  assert.equal(
+    phase(evening, [close, evening], cst('2026-11-07T18:50')).reason,
+    'previous-pending'
+  );
+  assert.equal(
+    previousMatch([morning, evening], game(KOREA, cst('2026-11-08T14:00'), 'E', 'F')),
     null
   );
   assert.equal(
-    phase({ ...late, status: 'completed' }, [late], cst('2026-11-07T19:00')).reason,
+    phase({ ...evening, status: 'completed' }, [evening], cst('2026-11-07T19:00')).reason,
     'completed'
   );
   assert.equal(
-    reminderPhase({ match: late, observedStartsAt: late.startsAt, verified: false, now: 0 }).reason,
+    reminderPhase({ match: evening, observedStartsAt: evening.startsAt, verified: false, now: 0 })
+      .reason,
     'unverified'
   );
 });

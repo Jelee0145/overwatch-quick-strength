@@ -213,6 +213,7 @@ export class EventReminders {
             ? reminderPhase({
                 match: entry.match,
                 observedStartsAt: obs?.observedStartsAt,
+                stableSince: obs?.stableSince,
                 verified:
                   !entry.ambiguous &&
                   obs?.result === 'verified' &&

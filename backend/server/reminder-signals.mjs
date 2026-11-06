@@ -5,7 +5,10 @@
 const MINUTE = 60000,
   HOUR = 60 * MINUTE;
 const PREVIOUS_SPAN = 12 * HOUR,
-  PREVIOUS_LEAD = HOUR,
+  LINKED_GAP = 3 * HOUR,
+  PRE_LEAD = 10 * MINUTE,
+  STABLE_FOR = 10 * MINUTE,
+  START_GRACE = 30 * MINUTE,
   SIGNAL_WINDOW = 6 * HOUR,
   OFFICIAL_SPAN = 12 * HOUR;
 const STOP_WORDS = new Set(['team', 'the', 'gaming', 'esports', 'club']);
@@ -98,20 +101,31 @@ export function previousMatch(sourceMatches, match) {
 }
 
 /**
- * Decide what a reminder client may send now.
- * - Previous match on the same page still running: send nothing ('previous-pending').
- * - Previous match finished: send the advance notice ('pre'), at most one hour before the
- *   listed time so a long break between sessions is not announced as "about to start".
- * - No previous match (first of the day): send the advance notice at the listed time.
- * - Official "in progress" (China) or the match's own score/live state: confirm ('start').
+ * Decide what a reminder client may send now ('pre' advance notice, 'start' reminder, 'none').
+ * - Previous match on the same page starts at most three hours earlier ("linked"):
+ *   while it runs nothing is sent; once it finishes the advance notice is sent; the start
+ *   reminder follows at the listed time when the time has been unchanged for ten minutes.
+ * - First match of the day, or after a longer break: advance notice ten minutes before the
+ *   listed time, start reminder at the listed time once it has been unchanged for ten minutes.
+ * - China: NetEase's official "in progress" state confirms the start at once.
+ * - The match's own score is only a late fallback when no other signal fired.
  */
-export function reminderPhase({ match, observedStartsAt, verified, sourceMatches, official, now }) {
+export function reminderPhase({
+  match,
+  observedStartsAt,
+  stableSince,
+  verified,
+  sourceMatches,
+  official,
+  now
+}) {
   const start = Date.parse(observedStartsAt);
   const none = (reason, previous = null) => ({ phase: 'none', reason, previous });
   if (!verified || match?.startsAt !== observedStartsAt || !Number.isFinite(start))
     return none('unverified');
   if (completion(match, official)) return none('completed');
-  const previous = previousMatch(sourceMatches, match),
+  const candidate = previousMatch(sourceMatches, match),
+    previous = candidate && start - Date.parse(candidate.startsAt) <= LINKED_GAP ? candidate : null,
     previousDone = previous ? completion(previous, official) : null;
   const previousView = previous && {
     teams: (previous.teams || []).map((t) => String(t?.name || '待定').slice(0, 60)),
@@ -120,16 +134,25 @@ export function reminderPhase({ match, observedStartsAt, verified, sourceMatches
   };
   const result = (phase, reason) => ({ phase, reason, previous: previousView });
   if (officialFor(official, match)?.status === 'live') return result('start', 'official-live');
-  if (
-    match.status === 'live' ||
-    (match.scores || []).some((score) => Number.isFinite(score) && score > 0)
-  )
-    return result('start', 'match-started');
   if (now - start > SIGNAL_WINDOW) return none('expired', previousView);
-  if (previous && !previousDone) return none('previous-pending', previousView);
+  const stable = Number.isFinite(stableSince) && stableSince + STABLE_FOR <= now;
+  const scored =
+    match.status === 'live' ||
+    (match.scores || []).some((score) => Number.isFinite(score) && score > 0);
+  const onTime = (ready) =>
+    now >= start &&
+    stable &&
+    now - Math.max(start, stableSince + STABLE_FOR, ready || 0) <= START_GRACE;
   if (previous) {
-    if (now >= start - PREVIOUS_LEAD) return result('pre', 'previous-completed');
-    return none('scheduled', previousView);
+    if (!previousDone)
+      return scored ? result('start', 'match-started') : none('previous-pending', previousView);
+    if (onTime(previousDone.at)) return result('start', 'scheduled-time');
+    if (now < start || !stable) return result('pre', 'previous-completed');
+  } else {
+    if (onTime(0)) return result('start', 'scheduled-time');
+    if (now >= start - PRE_LEAD && now < start) return result('pre', 'scheduled-soon');
+    if (now >= start && !stable && !scored) return result('pre', 'scheduled-soon');
   }
-  return now >= start ? result('pre', 'scheduled-time') : none('scheduled');
+  if (scored) return result('start', 'match-started');
+  return now >= start ? none('expired', previousView) : none('scheduled', previousView);
 }

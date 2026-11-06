@@ -52,7 +52,7 @@ def reminder_text(kind, reason, match):
         return f'你预约的 {label} 已到当前公布的开赛时间（{when} 北京时间）。' + watch_line(match)
     if reason == 'previous-completed':
         return f'预告：{label} 的上一场已结束，比赛即将开始（公布时间 {when} 北京时间），请留意。' + watch_line(match)
-    return f'预告：{label} 已到公布的开赛时间（{when} 北京时间），请留意开赛；确认开赛后会再提醒。' + watch_line(match)
+    return f'预告：{label} 预计 {when}（北京时间）开赛，请留意；到开赛时间会再提醒。' + watch_line(match)
 
 
 class EventReminderManager:
@@ -153,7 +153,7 @@ class EventReminderManager:
                                  'watching', item.get('scheduleRevision'), '', 0, 0))
         self.wake.set()
         pending = '目前正在核实赛程。' if item.get('trackingState') == 'unverified' else ''
-        return f'已在当前对话预约 {match_label(match)}（{match_time(match)} 北京时间）。{pending}上一场结束后（当天首场则在公布时间）发预告，确认开赛后再提醒；时间变动会发更正。'
+        return f'已在当前对话预约 {match_label(match)}（{match_time(match)} 北京时间）。{pending}上一场结束后发预告（当天首场或长休赛后为开赛前 10 分钟），到开赛时间再提醒；时间变动会发更正。'
 
     def listing(self, event):
         rows = self.db.execute('SELECT match,state,reason,pre_at,start_at FROM event_reservations WHERE owner=? AND origin=? ORDER BY created',
