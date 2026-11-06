@@ -6,8 +6,6 @@ const MINUTE = 60000,
   HOUR = 60 * MINUTE;
 const PREVIOUS_SPAN = 12 * HOUR,
   LINKED_GAP = 3 * HOUR,
-  PRE_LEAD = 10 * MINUTE,
-  STABLE_FOR = 10 * MINUTE,
   START_GRACE = 30 * MINUTE,
   SIGNAL_WINDOW = 6 * HOUR,
   OFFICIAL_SPAN = 12 * HOUR;
@@ -101,24 +99,17 @@ export function previousMatch(sourceMatches, match) {
 }
 
 /**
- * Decide what a reminder client may send now ('pre' advance notice, 'start' reminder, 'none').
- * - Previous match on the same page starts at most three hours earlier ("linked"):
- *   while it runs nothing is sent; once it finishes the advance notice is sent; the start
- *   reminder follows at the listed time when the time has been unchanged for ten minutes.
- * - First match of the day, or after a longer break: advance notice ten minutes before the
- *   listed time, start reminder at the listed time once it has been unchanged for ten minutes.
- * - China: NetEase's official "in progress" state confirms the start at once.
- * - The match's own score is only a late fallback when no other signal fired.
+ * Decide whether the single reminder for a match may be sent now ('pre') or not ('none').
+ * Liquipedia often corrects times only after a delayed or early match has started, so there
+ * is no separate "match started" message.
+ * - Previous match on the same page starts at most three hours earlier ("linked"): nothing
+ *   while it runs; the reminder goes out as soon as it finishes ('previous-completed').
+ * - First match of the day, or after a longer break: at the listed time ('scheduled-time'),
+ *   at most 30 minutes late.
+ * - Fallbacks when the expected signal never arrives: NetEase "in progress" for China
+ *   ('official-live') or the match's own score ('match-started').
  */
-export function reminderPhase({
-  match,
-  observedStartsAt,
-  stableSince,
-  verified,
-  sourceMatches,
-  official,
-  now
-}) {
+export function reminderPhase({ match, observedStartsAt, verified, sourceMatches, official, now }) {
   const start = Date.parse(observedStartsAt);
   const none = (reason, previous = null) => ({ phase: 'none', reason, previous });
   if (!verified || match?.startsAt !== observedStartsAt || !Number.isFinite(start))
@@ -132,27 +123,13 @@ export function reminderPhase({
     startsAt: previous.startsAt || null,
     completed: !!previousDone
   };
-  const result = (phase, reason) => ({ phase, reason, previous: previousView });
-  if (officialFor(official, match)?.status === 'live') return result('start', 'official-live');
+  const result = (reason) => ({ phase: 'pre', reason, previous: previousView });
   if (now - start > SIGNAL_WINDOW) return none('expired', previousView);
-  const stable = Number.isFinite(stableSince) && stableSince + STABLE_FOR <= now;
-  const scored =
-    match.status === 'live' ||
-    (match.scores || []).some((score) => Number.isFinite(score) && score > 0);
-  const onTime = (ready) =>
-    now >= start &&
-    stable &&
-    now - Math.max(start, stableSince + STABLE_FOR, ready || 0) <= START_GRACE;
-  if (previous) {
-    if (!previousDone)
-      return scored ? result('start', 'match-started') : none('previous-pending', previousView);
-    if (onTime(previousDone.at)) return result('start', 'scheduled-time');
-    if (now < start || !stable) return result('pre', 'previous-completed');
-  } else {
-    if (onTime(0)) return result('start', 'scheduled-time');
-    if (now >= start - PRE_LEAD && now < start) return result('pre', 'scheduled-soon');
-    if (now >= start && !stable && !scored) return result('pre', 'scheduled-soon');
-  }
-  if (scored) return result('start', 'match-started');
-  return now >= start ? none('expired', previousView) : none('scheduled', previousView);
+  if (previousDone) return result('previous-completed');
+  if (!previous && now >= start && now - start <= START_GRACE) return result('scheduled-time');
+  if (officialFor(official, match)?.status === 'live') return result('official-live');
+  if (match.status === 'live' || (match.scores || []).some((x) => Number.isFinite(x) && x > 0))
+    return result('match-started');
+  if (previous) return none('previous-pending', previousView);
+  return now >= start ? none('expired') : none('scheduled');
 }

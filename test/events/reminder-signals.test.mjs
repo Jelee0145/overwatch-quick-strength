@@ -32,19 +32,17 @@ function game(sourceUrl, time, a, b, extra = {}) {
     ...extra
   };
 }
-// stableSince defaults to "unchanged for a long time"; tests override it to model edits.
-const phase = (match, sourceMatches, now, official, stableSince = now - 60 * MINUTE) =>
+const phase = (match, sourceMatches, now, official) =>
   reminderPhase({
     match,
     observedStartsAt: match.startsAt,
-    stableSince,
     verified: true,
     sourceMatches,
     official,
     now
   });
 
-test('2026-11-06 replay: an unfinished previous match blocks the stale 16:00 time', () => {
+test('2026-11-06 replay: one reminder when the previous match ends, never at stale times', () => {
   const previous = game(KOREA, cst('2026-11-06T14:00'), 'T1', 'ZANSIDE GAMING'),
     ours = game(KOREA, cst('2026-11-06T16:00'), 'Cheeseburger', 'Team Falcons');
   for (const now of [cst('2026-11-06T15:50'), cst('2026-11-06T16:00'), cst('2026-11-06T16:30')]) {
@@ -53,24 +51,18 @@ test('2026-11-06 replay: an unfinished previous match blocks the stale 16:00 tim
     assert.equal(value.reason, 'previous-pending');
     assert.deepEqual(value.previous.teams, ['T1', 'ZANSIDE GAMING']);
   }
-  // Liquipedia rewrote both times at 16:37 (observed 16:39); the previous match runs at 3:1.
+  // Rewritten at 16:37 to 16:15 / 19:00; T1 won map five at 18:05 (4:1); CB started 18:30.
   const moved = game(KOREA, cst('2026-11-06T16:15'), 'T1', 'ZANSIDE GAMING', { scores: [3, 1] }),
-    later = game(KOREA, cst('2026-11-06T19:00'), 'Cheeseburger', 'Team Falcons'),
-    edited = cst('2026-11-06T16:39');
-  assert.equal(
-    phase(later, [moved, later], cst('2026-11-06T18:20'), undefined, edited).reason,
-    'previous-pending'
-  );
-  const done = { ...moved, scores: [4, 1], completedSeenAt: cst('2026-11-06T18:40') };
-  let value = phase(later, [done, later], cst('2026-11-06T18:40'), undefined, edited);
+    later = game(KOREA, cst('2026-11-06T19:00'), 'Cheeseburger', 'Team Falcons');
+  assert.equal(phase(later, [moved, later], cst('2026-11-06T18:00')).reason, 'previous-pending');
+  const done = { ...moved, scores: [4, 1], completedSeenAt: cst('2026-11-06T18:06') };
+  const value = phase(later, [done, later], cst('2026-11-06T18:06'));
   assert.equal(value.phase, 'pre');
   assert.equal(value.reason, 'previous-completed');
-  value = phase(later, [done, later], cst('2026-11-06T19:00'), undefined, edited);
-  assert.equal(value.phase, 'start');
-  assert.equal(value.reason, 'scheduled-time');
+  assert.equal(value.previous.completed, true);
 });
 
-test('2026-11-01 replay: an early previous finish announces a match listed for later', () => {
+test('2026-11-01 replay: an early previous finish reminds before a match listed for later', () => {
   const previous = game(CHINA, cst('2026-11-01T17:00'), 'All Gamers', 'Solus Victorem', {
       bestOf: 5,
       scores: [3, 0],
@@ -78,28 +70,28 @@ test('2026-11-01 replay: an early previous finish announces a match listed for l
     }),
     ours = game(CHINA, cst('2026-11-01T19:00'), 'Weibo Gaming', 'JD Gaming');
   assert.equal(phase(ours, [previous, ours], cst('2026-11-01T18:03')).reason, 'previous-completed');
-  const official = [
-    {
-      uuid: 'm1',
-      time: cst('2026-11-01T19:00'),
-      status: 'live',
-      teams: ['Weibo Gaming', 'JD Gaming']
-    }
-  ];
-  const value = phase(ours, [previous, ours], cst('2026-11-01T18:31'), official);
-  assert.equal(value.phase, 'start');
-  assert.equal(value.reason, 'official-live');
+  // NetEase "in progress" is a fallback when the previous match is never marked finished.
+  const running = { ...previous, scores: [2, 0] },
+    official = [
+      {
+        uuid: 'm1',
+        time: cst('2026-11-01T19:00'),
+        status: 'live',
+        teams: ['Weibo Gaming', 'JD Gaming']
+      }
+    ];
+  assert.equal(phase(ours, [running, ours], cst('2026-11-01T18:31')).reason, 'previous-pending');
+  assert.equal(
+    phase(ours, [running, ours], cst('2026-11-01T18:31'), official).reason,
+    'official-live'
+  );
 });
 
-test('first match and long breaks notify ten minutes early, then at the stable listed time', () => {
+test('first match and long breaks remind at the listed time, at most 30 minutes late', () => {
   const ours = game(KOREA, cst('2026-11-07T14:00'), 'ZETA DIVISION', 'Crazy Raccoon');
-  assert.equal(phase(ours, [ours], cst('2026-11-07T13:49')).reason, 'scheduled');
-  assert.equal(phase(ours, [ours], cst('2026-11-07T13:50')).reason, 'scheduled-soon');
+  assert.equal(phase(ours, [ours], cst('2026-11-07T13:59')).reason, 'scheduled');
   assert.equal(phase(ours, [ours], cst('2026-11-07T14:00')).reason, 'scheduled-time');
-  // Changed four minutes ago: hold the start reminder until the new time is stable for ten.
-  const changed = cst('2026-11-07T13:56');
-  assert.equal(phase(ours, [ours], cst('2026-11-07T14:00'), undefined, changed).phase, 'pre');
-  assert.equal(phase(ours, [ours], cst('2026-11-07T14:06'), undefined, changed).phase, 'start');
+  assert.equal(phase(ours, [ours], cst('2026-11-07T14:30')).phase, 'pre');
   assert.equal(phase(ours, [ours], cst('2026-11-07T14:31')).reason, 'expired');
   assert.equal(
     phase({ ...ours, scores: [1, 0] }, [ours], cst('2026-11-07T14:40')).reason,
@@ -107,17 +99,14 @@ test('first match and long breaks notify ten minutes early, then at the stable l
   );
   const morning = game(KOREA, cst('2026-11-07T11:00'), 'A', 'B'),
     evening = game(KOREA, cst('2026-11-07T19:00'), 'C', 'D');
-  assert.equal(
-    phase(evening, [morning, evening], cst('2026-11-07T18:50')).reason,
-    'scheduled-soon'
-  );
+  assert.equal(phase(evening, [morning, evening], cst('2026-11-07T18:50')).reason, 'scheduled');
   assert.equal(
     phase(evening, [morning, evening], cst('2026-11-07T19:00')).reason,
     'scheduled-time'
   );
   const close = game(KOREA, cst('2026-11-07T16:15'), 'A', 'B');
   assert.equal(
-    phase(evening, [close, evening], cst('2026-11-07T18:50')).reason,
+    phase(evening, [close, evening], cst('2026-11-07T19:05')).reason,
     'previous-pending'
   );
   assert.equal(
@@ -265,10 +254,10 @@ test('tracking exposes the combined phase and refreshes China state once per min
     assert.equal(item.reminder.reason, 'previous-completed');
     assert.equal(item.reminder.previous.completed, true);
     now += 2 * MINUTE;
-    officialStatus = 2;
+    officialStatus = 1;
     await service.alarm();
     item = await sync();
-    assert.equal(item.reminder.reason, 'official-live');
+    assert.equal(item.reminder.reason, 'completed', 'official finish closes the reminder');
     assert.equal(item.canNotify, false, 'legacy clients keep the listed-time rule');
   } finally {
     await db.close();

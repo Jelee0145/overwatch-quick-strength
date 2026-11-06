@@ -255,13 +255,12 @@ paths:
       description: >-
         Free and personal accounts can track known OWCS reminder IDs without creating website
         reservations. Schedule observations are shared; Bot chat destinations stay on the client.
-        reminder combines the schedule with the previous match on the same source page (started
-        at most three hours earlier) and, for China, NetEase's official match state: phase none
-        (reason previous-pending while the previous match runs), pre (previous match finished, or
-        ten minutes before the first match after a longer break) or start (listed time reached
-        with the time unchanged for ten minutes and any previous match finished, official
-        in-progress state, or the match's own score as a late fallback).
-        Clients send each phase once and correct when scheduleRevision changes. canNotify keeps the
+        reminder decides the single Bot reminder per match from the previous match on the same
+        source page (started at most three hours earlier) and, for China, NetEase's official
+        match state: phase none (reason previous-pending while the previous match runs) or pre
+        (previous-completed when it finishes; scheduled-time at the listed time for the first
+        match or after a longer break; official-live or match-started as fallbacks).
+        Clients send it once and correct only postponements of more than 30 minutes. canNotify keeps the
         legacy listed-time rule for older clients. Missing or ambiguous events cannot notify.
       requestBody:
         required: true
