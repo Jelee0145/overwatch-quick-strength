@@ -72,3 +72,22 @@ export function archiveFixture() {
     }))
   };
 }
+
+// Baseline hashes compare numbers at 12 significant digits. JavaScript engines may differ in
+// the last bit of Math.pow and similar functions (Node 22 and 24 do for x ** 1.6), which is not
+// a change in analysis behavior; anything coarser than ~1e-12 relative still changes the hash.
+export function stableNumbers(value) {
+  if (typeof value === 'number')
+    return Number.isFinite(value) && !Number.isInteger(value)
+      ? Number(value.toPrecision(12))
+      : value;
+  if (Array.isArray(value)) return value.map(stableNumbers);
+  if (value && typeof value === 'object') {
+    if (typeof value.toJSON === 'function') return stableNumbers(value.toJSON());
+    const out = {};
+    for (const [key, item] of Object.entries(value))
+      if (item !== undefined) out[key] = stableNumbers(item);
+    return out;
+  }
+  return value;
+}

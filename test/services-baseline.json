@@ -1,15 +1,15 @@
 {
-  "description": "Synthetic API analysis, historical analysis and AI payload hashes; includes gameMode/gameModeLabel plus mode-aware substitute flags added 2026-10-20. Prompt-dependent fingerprints checked against the runtime contract",
+  "description": "Synthetic API analysis, historical analysis and AI payload hashes; includes gameMode/gameModeLabel plus mode-aware substitute flags added 2026-10-20. Prompt-dependent fingerprints checked against the runtime contract. Hashes compare numbers at 12 significant digits (stableNumbers) so last-bit Math.pow differences between JavaScript engines do not count; regenerated 2026-11-06 from outputs that matched the previous exact hashes on Node 24",
   "cases": [
     {
       "options": {},
-      "hash": "9ee4a425fecfea77b3e6823b625a5a1b0970f7128eb00bfa0e0fadbd086bae39"
+      "hash": "a701bbe6e4087ce73e58d1d5030d66d4319fc1ce77984a3872a34c81398084b5"
     },
     {
       "options": {
         "statisticsRange": "5"
       },
-      "hash": "fefcdcd726f7a27391d0d4a9a0de25ddb59438131ceeca17c22a599766cdbd0d"
+      "hash": "b9f95da7aa88cd8b5e26871a81dd7bf95df3df952b8023a9cf2345b3e5dad8a9"
     },
     {
       "options": {
@@ -18,7 +18,7 @@
         "strategy": "role",
         "estimate": false
       },
-      "hash": "93c5d2af66fb0d0b4ec604816d73880ab73b17e09dc6eda39eb4d16b079acaa0"
+      "hash": "990d37c2e9f3123e611ee8b650e755d19b8774a9c21ab46b0a9778074c913619"
     },
     {
       "options": {
@@ -26,11 +26,11 @@
         "side": "T",
         "strategy": "highest"
       },
-      "hash": "8feff5eacff3ac330d4147d3ca67c5297e603e11cd31d941e105ded55c2f0a59"
+      "hash": "e3363396d5466f8200cd60da088dce3b24ea779a2ff88d802b56b7205f02101e"
     }
   ],
   "empty": "1b5778c357fdcb55e862ef4694d628f8b3aee045f2da11cd670cb92f73ceb379",
-  "history": "c1229c6cbb0c0b24cd59f0ce06129c887301ad6ca3e54fbd55bb5b3c2dfbc134",
-  "historySummary": "4b6059830f669ad7c1b5d6a94450a868f3d5c9c5caef0b56772a676de7ef30e9",
-  "reviewPayload": "f5f9be5b7d004bce9f79904647e9749e3adf2af97cdea00d3e40bbf2c930dec8"
+  "history": "cc1e0a4e34cd6bcd1c430ae91815ab54f8ec119dd960c869053f1514382e1651",
+  "historySummary": "d3ff5ca2a119a2004717f6ff224301369c33068f4c919d04ed9ef925fb00b56a",
+  "reviewPayload": "c75b00e75aaf1fd4c3035a7cef1a41a9c8f4054f15bffca1c8c7b9d20f81cf02"
 }

@@ -15,12 +15,14 @@ import { prepareReview, MODEL } from '../../backend/src/adapters/review.mjs';
 import { prompt, version } from '../../backend/src/prompt.mjs';
 import { digest, canonical } from '../../backend/src/security.mjs';
 import { service } from '../query-fixture.mjs';
-import { analysisFixture, archiveFixture } from '../services-fixture.mjs';
+import { analysisFixture, archiveFixture, stableNumbers } from '../services-fixture.mjs';
 
 const baseline = JSON.parse(
   await readFile(new URL('../services-baseline.json', import.meta.url), 'utf8')
 );
 const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// Baseline hashes ignore last-bit floating-point differences between engines.
+const stable = (value) => hash(stableNumbers(value));
 const json = (value) => JSON.parse(JSON.stringify(value));
 function freeze(value) {
   if (value && typeof value === 'object') {
@@ -34,10 +36,10 @@ test('shared analysis preserves pre-refactor Bot output and AI payload/fingerpri
   const raw = freeze(analysisFixture()),
     before = hash(raw);
   for (const item of baseline.cases)
-    assert.equal(hash(analyzeResult(raw, item.options)), item.hash, JSON.stringify(item.options));
-  assert.equal(hash(analyzeResult({ matches: [] })), baseline.empty);
+    assert.equal(stable(analyzeResult(raw, item.options)), item.hash, JSON.stringify(item.options));
+  assert.equal(stable(analyzeResult({ matches: [] })), baseline.empty);
   const review = await prepareReview(raw, 'fixture-4');
-  assert.equal(hash(review.payload), baseline.reviewPayload);
+  assert.equal(stable(review.payload), baseline.reviewPayload);
   assert.equal(
     review.fingerprint,
     await digest(
@@ -94,7 +96,7 @@ test('review baseline accepts both LF and CRLF checkouts while fingerprints bind
       'data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64')
     );
     const review = await runtime.prepareReview(raw, 'fixture-4');
-    assert.equal(hash(review.payload), baseline.reviewPayload);
+    assert.equal(stable(review.payload), baseline.reviewPayload);
     assert.equal(
       review.fingerprint,
       await digest(
@@ -165,14 +167,14 @@ test('quick-play pools split 5v5 and 6v6; substitutes follow the mode roster siz
 test('history analysis preserves original per-batch evidence and frozen personal predictions', () => {
   const archive = freeze(archiveFixture()),
     history = analysisService.analyzeHistory(archive);
-  assert.equal(hash(history), baseline.history);
+  assert.equal(stable(history), baseline.history);
   const summary = analysisService.summarize(
     history.raw,
     history.matches,
     {},
     { records: history.personalRecords, excluded: history.personalExcluded }
   );
-  assert.equal(hash(canonical(summary)), baseline.historySummary);
+  assert.equal(hash(canonical(stableNumbers(summary))), baseline.historySummary);
   const before = hash(history),
     altered = structuredClone(history.raw);
   altered.matches.forEach((m) => m.players.forEach((p) => (p.res.rows = [])));
