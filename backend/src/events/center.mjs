@@ -59,6 +59,17 @@ export class EventCenter {
         ? logoResponse(saved)
         : json({ error: '队标不存在' }, 404, { 'Cache-Control': 'no-store' });
     }
+    if (path === '/standings') {
+      if (request.method !== 'GET') return json({ error: '请求方法错误' }, 405);
+      try {
+        return json(await this.details.standings(), 200, { 'Cache-Control': 'private, no-store' });
+      } catch (error) {
+        const fault = detailError(error);
+        return json({ error: fault.message }, fault.status || 503, { 'Cache-Control': 'no-store' });
+      } finally {
+        await this.schedule();
+      }
+    }
     if (path === '/detail') {
       if (request.method !== 'GET') return json({ error: '请求方法错误' }, 405);
       try {
@@ -206,7 +217,10 @@ export class EventCenter {
         : this.logos.pending()
           ? this.now() + 5000
           : this.details.wanted
-            ? this.now() + 10000
+            ? Math.min(
+                nextEventRefresh(saved.matches, saved.updatedAt, this.now()),
+                Math.max(this.now() + 1000, this.details.after)
+              )
             : nextEventRefresh(saved.matches, saved.updatedAt, this.now());
     await this.storage.setAlarm(Math.max(target, next));
   }

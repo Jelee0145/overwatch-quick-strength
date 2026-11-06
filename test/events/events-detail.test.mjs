@@ -5,7 +5,7 @@ import { EventCenter } from '../../backend/src/events/center.mjs';
 import { parseDetailPage } from '../../backend/src/events/detail-parser.mjs';
 import { detailPath, detailRoot } from '../../backend/src/events/source.mjs';
 import { LOGO_ROUTE } from '../../backend/src/events/logos.mjs';
-import { page, response } from '../events-fixture.mjs';
+import { card, page, response } from '../events-fixture.mjs';
 import { MemoryStorage as Storage } from '../helpers/storage.mjs';
 
 import { BADGE, ROOT, SUB, rootHtml, subHtml } from './detail-fixture.mjs';
@@ -254,23 +254,63 @@ test('detail work never shares an alarm with another Liquipedia request or delay
   await ctx.center.alarm();
   assert.deepEqual(ctx.parses(), [ROOT]);
 
-  // With a one-minute live cadence the 30-second parse gate would push back the next score
-  // refresh, so detail parses yield entirely.
+  // On a one-minute live cadence detail parses use the slot between two schedule
+  // refreshes: the first visit is filled within minutes and no refresh slips by more than
+  // the three-second slack. The clock follows the alarms the center sets, like a server.
   const live = setup(),
-    soon = Math.floor((live.center.now() + 30 * 60000) / 1000);
+    soon = Math.floor((live.center.now() + 30 * 60000) / 1000),
+    refreshes = [];
   live.center.env.EVENTS_FETCH = ((inner) => async (url, init) => {
     if (new URL(url).searchParams.get('page')) return inner(url, init);
-    live.calls.push({ action: 'schedule' });
-    const { card } = await import('../events-fixture.mjs');
+    refreshes.push(live.center.now());
     return response(page(card({ timestamp: String(soon) }), ''));
   })(live.center.env.EVENTS_FETCH);
   await live.center.alarm();
-  await live.get();
-  for (let i = 0; i < 6; i++) {
-    live.advance(30000);
+  assert.equal(await live.storage.getAlarm(), live.center.now() + 60000);
+  assert.equal((await live.get()).status, 202);
+  const first = live.center.now();
+  while (live.center.now() < first + 10 * 60000) {
+    live.advance(Math.max(1, (await live.storage.getAlarm()) - live.center.now()));
     await live.center.alarm();
   }
-  assert.equal(live.parses().length, 0);
+  assert.deepEqual(live.parses().slice(0, 2), [ROOT, SUB]);
+  assert.equal((await live.get()).status, 200);
+  for (let i = 1; i < refreshes.length; i++)
+    assert.ok(refreshes[i] - refreshes[i - 1] <= 60000 + 3000, 'schedule refresh delayed');
+  assert.ok(refreshes.length >= 9);
+});
+
+test('a stage page that keeps failing is reported as stalled instead of pending forever', async () => {
+  const ctx = setup();
+  ctx.center.env.EVENTS_FETCH = ((inner) => async (url, init) =>
+    new URL(url).searchParams.get('page')
+      ? Response.json({ parse: { text: { '*': null }, revid: 1, links: [] } })
+      : inner(url, init))(ctx.center.env.EVENTS_FETCH);
+  await ctx.center.alarm();
+  assert.equal((await (await ctx.get()).json()).stalled, undefined);
+  for (let i = 0; i < 40 && !(await (await ctx.get()).json()).stalled; i++) {
+    ctx.advance(Math.max(5 * 60000, (await ctx.storage.getAlarm()) - ctx.center.now()));
+    await ctx.center.alarm();
+  }
+  const body = await (await ctx.get()).json();
+  assert.equal(body.state, 'pending');
+  assert.equal(body.stalled, true);
+});
+
+test('a visit registered while a parse is in flight is not lost when the parse saves', async () => {
+  const ctx = setup(),
+    OTHER = 'Overwatch_Champions_Series/2026/China/Stage_3';
+  let visit;
+  ctx.center.env.EVENTS_FETCH = ((inner) => async (url, init) => {
+    if (new URL(url).searchParams.get('page') === ROOT) visit ||= ctx.get(OTHER);
+    return inner(url, init);
+  })(ctx.center.env.EVENTS_FETCH);
+  await ctx.center.alarm();
+  await ctx.get();
+  ctx.advance(31000);
+  await ctx.center.alarm();
+  await visit;
+  assert.ok((await ctx.storage.get('detailIndex')).roots[OTHER]);
 });
 
 test('every Liquipedia request waits its two-second slot', async () => {
@@ -345,4 +385,51 @@ test('events list links to the in-site detail page with the same root and match 
     model.detailHref({ series: 'other', sourceUrl: 'https://liquipedia.net/overwatch/' + ROOT }),
     null
   );
+});
+
+test('region standings list the schedule stages, register them for parsing and fill in', async () => {
+  const ctx = setup();
+  ctx.center.env.EVENTS_FETCH = ((inner) => async (url, init) => {
+    if (new URL(url).searchParams.get('page')) return inner(url, init);
+    const now = Math.floor(ctx.center.now() / 1000);
+    return response(
+      page(
+        card({ path: SUB, timestamp: String(now + 3 * 3600) }) +
+          card({
+            path: 'Overwatch_Champions_Series/2026/China/Stage_3',
+            name: 'OWCS China Stage 3',
+            timestamp: String(now + 5 * 3600)
+          }) +
+          card({ path: 'Some_Other_Cup/2026', name: 'Other', timestamp: String(now + 3600) }),
+        ''
+      )
+    );
+  })(ctx.center.env.EVENTS_FETCH);
+  await ctx.center.alarm();
+  const read = async () =>
+    (await ctx.center.fetch(new Request('https://events.internal/standings'))).json();
+  let value = await read();
+  assert.deepEqual(
+    value.regions.map((r) => [r.region, r.root, r.state]),
+    [
+      ['中国', 'Overwatch_Champions_Series/2026/China/Stage_3', 'pending'],
+      ['韩国', ROOT, 'pending']
+    ]
+  );
+  assert.equal(value.source.license, 'CC BY-SA 3.0');
+  // Stage pages are parsed before subpages, one per free parse slot.
+  for (let i = 0; i < 6; i++) {
+    ctx.advance(Math.max(31000, (await ctx.storage.getAlarm()) - ctx.center.now()));
+    await ctx.center.alarm();
+  }
+  assert.deepEqual(ctx.parses().slice(0, 2).sort(), [
+    ROOT,
+    'Overwatch_Champions_Series/2026/China/Stage_3'
+  ]);
+  value = await read();
+  const korea = value.regions.find((r) => r.root === ROOT);
+  assert.equal(korea.state, 'ready');
+  assert.equal(korea.standings[0].kind, 'swiss');
+  assert.equal(korea.standings[0].rows[0].team.name, 'Crazy Raccoon');
+  assert.equal(korea.source, 'https://liquipedia.net/overwatch/' + ROOT);
 });

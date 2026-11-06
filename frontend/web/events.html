@@ -6,6 +6,8 @@
 <main class="toolkit-main events-main">
 <a class="back-link" href="/">← 返回工具箱</a>
 <section class="events-heading"><div><h1>赛事中心</h1></div><button id="eventsRefresh" type="button">刷新赛程</button></section>
+<div class="events-layout">
+<div class="events-primary">
 <section class="events-reminders" aria-labelledby="eventsRemindersHeading">
 <div class="events-reminders-heading"><div><h2 id="eventsRemindersHeading">我的预约</h2><p id="eventsRemindersStatus" role="status">读取中…</p></div><button id="eventsEnableNotifications" type="button" disabled>启用本机通知</button></div>
 <p id="eventsRemindersError" class="events-notice" role="alert" hidden></p>
@@ -23,5 +25,12 @@
 <p id="eventsNotice" class="events-notice" role="status" hidden></p>
 <div class="events-summary"><span id="eventsCount" aria-live="polite"></span><span id="eventsUpdated"></span></div>
 <section id="eventsList" class="events-list" aria-label="比赛列表" aria-busy="true"><p class="events-empty">正在获取赛程…</p></section>
+</div>
+<aside id="eventsStandings" class="events-standings" aria-labelledby="eventsStandingsHeading">
+<h2 id="eventsStandingsHeading">赛区积分</h2>
+<div id="eventsStandingsRegions" class="events-standings-regions" role="tablist" aria-label="赛区" hidden></div>
+<div id="eventsStandingsBody" class="events-standings-body" aria-live="polite" aria-busy="true"><p class="events-standings-empty">读取中…</p></div>
+</aside>
+</div>
 <footer class="events-source"><a href="https://liquipedia.net/overwatch/Liquipedia:Matches" target="_blank" rel="noopener noreferrer">Liquipedia</a><a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0</a></footer>
 </main>{{CHANGELOG}}</body></html>

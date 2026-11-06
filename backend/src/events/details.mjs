@@ -24,11 +24,23 @@ const PARSE_GAP = 2 * MINUTE,
   MAX_PAGE_BYTES = 120 * 1024,
   MAX_PARSE_BYTES = 4 * 1024 * 1024,
   MAX_QUERY_BYTES = 256 * 1024,
-  // A detail parse holds the shared 30-second parse gate; keep that much (plus slack) free
-  // before the next schedule refresh so live scores are never delayed by detail pages.
-  SCHEDULE_ROOM = 35 * 1000;
+  // A detail parse holds the shared 30-second parse gate. It may start only when the next
+  // schedule refresh is at least that far away (less a few seconds of alarm jitter), so a
+  // one-minute live cadence still leaves the slot between two refreshes for detail pages
+  // while scores are delayed by at most the slack.
+  PARSE_GATE = 30 * 1000,
+  SCHEDULE_SLACK = 3 * 1000,
+  SCHEDULE_ROOM = PARSE_GATE - SCHEDULE_SLACK,
+  // After this many failed parses of a stage page, visitors are told instead of waiting.
+  STALLED_AFTER = 3,
+  MAX_STANDING_ROOTS = 8,
+  STANDING_ROWS = 16;
 const PAGE_URL = 'https://liquipedia.net/overwatch/';
 const pageKey = (path) => 'detailPage:' + path;
+const REGIONS = ['中国', '韩国', '日本', '太平洋', '亚洲', '北美', 'EMEA', '国际赛'];
+const regionOrder = (region) =>
+  REGIONS.includes(region) ? REGIONS.indexOf(region) : REGIONS.length;
+const retryDelay = (failures) => Math.min(6 * HOUR, 10 * MINUTE * 2 ** (failures - 1));
 
 function activeRoots(matches = [], now) {
   const roots = new Set();
@@ -65,6 +77,8 @@ export class EventDetails {
   constructor(center) {
     this.center = center;
     this.wanted = false;
+    // Earliest time the next detail parse may run; schedule() wakes no earlier than this.
+    this.after = 0;
   }
   get storage() {
     return this.center.storage;
@@ -86,18 +100,25 @@ export class EventDetails {
         viewedAt: now
       };
       this.prune(index, now, new Set());
-      await this.storage.put('detailIndex', index);
+      await this.save(index);
     }
     const first = await this.storage.get(pageKey(root));
     if (!first) {
-      this.wanted = true;
-      const waiting = Object.keys(index.roots).filter((r) => !index.pages[r]).length;
+      const meta = index.pages[root];
+      // A page in failure backoff waits for its retry time instead of waking the alarm.
+      this.wanted ||= !meta?.failures || now >= meta.failedAt + retryDelay(meta.failures);
+      this.after = Math.max(this.after, index.after || 0);
+      const waiting = Object.keys(index.roots).filter(
+        (r) => index.roots[r].viewedAt && !index.pages[r]?.fetchedAt
+      ).length;
       return {
         state: 'pending',
         root,
-        retryAfter: Math.max(
-          10,
-          Math.ceil((Math.max(index.after, now) - now) / 1000) + 30 * waiting
+        // Repeated failures are reported rather than shown as an endless "preparing".
+        ...((meta?.failures || 0) >= STALLED_AFTER && { stalled: true }),
+        retryAfter: Math.min(
+          300,
+          Math.max(10, Math.ceil((Math.max(index.after, now) - now) / 1000) + 60 * waiting)
         )
       };
     }
@@ -115,6 +136,68 @@ export class EventDetails {
         rest.some((p) => !p)
       )
     );
+  }
+  // Region standings for the events home page: the OWCS stages in the current schedule.
+  // Reading them counts as a visit, so those stage pages are parsed like any opened page.
+  async standings() {
+    const now = this.center.now(),
+      snapshot = await this.storage.get('snapshot'),
+      stages = new Map();
+    for (const match of snapshot?.matches || []) {
+      const root = (match.series || 'owcs') === 'owcs' && detailRoot(match.sourceUrl),
+        start = Date.parse(match.startsAt);
+      if (!root) continue;
+      const distance =
+        match.status === 'live' ? 0 : Number.isFinite(start) ? Math.abs(start - now) : Infinity;
+      const known = stages.get(root);
+      if (!known || distance < known.distance)
+        stages.set(root, {
+          root,
+          region: String(match.region || ''),
+          tournament: String(match.tournament || ''),
+          distance
+        });
+    }
+    const picked = [...stages.values()]
+      .filter((stage) => stage.distance < 7 * DAY)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, MAX_STANDING_ROOTS)
+      .sort(
+        (a, b) => regionOrder(a.region) - regionOrder(b.region) || a.root.localeCompare(b.root)
+      );
+    const regions = [];
+    for (const stage of picked) {
+      let value;
+      try {
+        value = await this.view(stage.root);
+      } catch {
+        continue;
+      }
+      const base = { root: stage.root, region: stage.region, tournament: stage.tournament };
+      if (value.state !== 'ready') {
+        regions.push({ ...base, state: 'pending', ...(value.stalled && { stalled: true }) });
+        continue;
+      }
+      regions.push({
+        ...base,
+        state: 'ready',
+        title: value.info?.title || '',
+        updatedAt: value.updatedAt,
+        partial: value.partial,
+        standings: value.standings
+          .slice(0, 3)
+          .map((table) => ({ ...table, rows: table.rows.slice(0, STANDING_ROWS) })),
+        source: value.source.url
+      });
+    }
+    return {
+      regions,
+      source: {
+        name: 'Liquipedia',
+        license: 'CC BY-SA 3.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/'
+      }
+    };
   }
   assemble(root, pages, subs, index, now, partial) {
     const byId = new Map(),
@@ -188,24 +271,23 @@ export class EventDetails {
   }
   // One unit of background work per alarm: a revision check or a single page parse.
   // Detail work is demand-driven (only roots a visitor opened) and yields to the schedule:
-  // it never sends a request in an alarm that already reached Liquipedia, and never parses
-  // when the parse's 30-second gate would push back an imminent schedule refresh.
+  // it never sends a request in an alarm that already reached Liquipedia, and parses only
+  // when its 30-second gate leaves the next schedule refresh (nearly) on time.
   async work({ sent = false } = {}) {
     const center = this.center,
       now = center.now(),
       index = await this.index(),
       waiting = () =>
-        Object.keys(index.roots).some((r) => index.roots[r].viewedAt && !index.pages[r]);
+        Object.entries(index.roots).some(
+          ([root, entry]) => entry.viewedAt && !index.pages[root]?.fetchedAt
+        );
     this.wanted = false;
     const snapshot = await this.storage.get('snapshot'),
-      upcoming = snapshot ? nextEventRefresh(snapshot.matches, snapshot.updatedAt, now) : now;
-    if (
-      sent ||
-      now < index.after ||
-      now < ((await this.storage.get('refreshAfter')) || 0) ||
-      (await center.queries.hasPending())
-    ) {
-      this.wanted = waiting();
+      upcoming = snapshot ? nextEventRefresh(snapshot.matches, snapshot.updatedAt, now) : now,
+      gate = (await this.storage.get('refreshAfter')) || 0;
+    this.after = Math.max(index.after || 0, gate);
+    if (sent || now < this.after || (await center.queries.hasPending())) {
+      this.wanted = waiting() || !!this.nextParse(index, activeRoots(snapshot?.matches, now), now);
       return;
     }
     const active = activeRoots(snapshot?.matches, now);
@@ -213,10 +295,24 @@ export class EventDetails {
     const due = upcoming - now >= SCHEDULE_ROOM ? this.nextParse(index, active, now) : null;
     if (due) {
       await this.parse(index, due, now);
+      this.after = index.after;
       this.wanted = !!this.nextParse(index, active, center.now());
     } else {
       await this.checkRevisions(index, active, now);
-      this.wanted = waiting() && upcoming - now >= SCHEDULE_ROOM;
+      this.after = Math.max(this.after, index.after || 0);
+      // Blocked only by an imminent schedule refresh: try again in the next free slot.
+      this.wanted = !!this.nextParse(index, active, now);
+    }
+    await this.save(index);
+  }
+  // Visitors can register a page while a parse is in flight; keep their newer entries.
+  async save(index) {
+    const latest = await this.storage.get('detailIndex');
+    for (const [root, entry] of Object.entries(latest?.roots || {})) {
+      const mine = index.roots[root];
+      if (!mine) {
+        if (Object.keys(index.roots).length < MAX_ROOTS) index.roots[root] = entry;
+      } else if ((entry.viewedAt || 0) > (mine.viewedAt || 0)) mine.viewedAt = entry.viewedAt;
     }
     await this.storage.put('detailIndex', index);
   }
@@ -226,11 +322,7 @@ export class EventDetails {
       if (!entry.viewedAt) continue;
       for (const path of [root, ...(index.pages[root]?.subpages || [])]) {
         const meta = index.pages[path];
-        if (
-          meta?.failures &&
-          now < meta.failedAt + Math.min(6 * HOUR, 10 * MINUTE * 2 ** (meta.failures - 1))
-        )
-          continue;
+        if (meta?.failures && now < meta.failedAt + retryDelay(meta.failures)) continue;
         const missing = !meta?.fetchedAt,
           changed = meta?.latest && meta.latest !== meta.revid,
           stale = active.has(root) && now - (meta?.fetchedAt || 0) > ACTIVE_REPARSE;
@@ -238,7 +330,8 @@ export class EventDetails {
           candidates.push({
             path,
             root,
-            rank: (missing ? 0 : 2) + (active.has(root) ? 0 : 1)
+            // Missing stage pages first (they unlock the page), then subpages, then refreshes.
+            rank: (missing ? 0 : 4) + (path === root ? 0 : 2) + (active.has(root) ? 0 : 1)
           });
       }
     }

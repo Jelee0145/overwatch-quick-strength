@@ -222,6 +222,15 @@ const routes = [
     }
   },
   {
+    match: (path) => path === '/api/v1/events/standings',
+    async handle({ request, env }) {
+      requireMethod(request, 'GET');
+      return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch(
+        'https://events.internal/standings'
+      );
+    }
+  },
+  {
     match: (path) => path === '/api/v1/events/detail',
     async handle({ request, env, url }) {
       requireMethod(request, 'GET');

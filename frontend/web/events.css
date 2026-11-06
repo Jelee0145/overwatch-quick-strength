@@ -33,3 +33,43 @@
 .event-versus{width:100%;max-width:720px;flex:none;grid-template-columns:minmax(0,1fr) 70px minmax(0,1fr)}
 .event-source-link{position:absolute;right:20px;top:50%;transform:translateY(-50%)}
 @media(max-width:760px), (max-height:500px) and (pointer:coarse){.event-match-body{min-height:112px;padding:16px 12px;gap:10px}.event-versus{grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr)}.event-source-link{right:12px;top:auto;bottom:10px;transform:none}.event-time{padding-bottom:0}.event-status{margin-top:3px}}
+
+/* Region standings beside the match list. */
+.events-page:not(.event-page) .events-main{max-width:1440px}
+.events-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
+.events-primary{min-width:0}
+.events-standings{position:sticky;top:16px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:16px 16px 18px;max-height:calc(100vh - 32px);overflow-y:auto}
+.events-standings>h2{font-size:15px;margin:0 0 12px}
+.events-standings-regions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.events-standings-regions button{font-size:12px;padding:5px 11px;border-radius:14px;background:transparent}
+.events-standings-regions button[aria-selected=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+.events-standings-stage{display:block;font-size:13px;font-weight:600;margin-bottom:10px;overflow-wrap:anywhere}
+.events-standings-stage:hover,.events-standings-more:hover{color:var(--orange)}
+.events-standings-table{margin-bottom:12px}
+.events-standings-table h3{font-size:11px;font-weight:500;color:var(--muted);margin:0 0 6px}
+.events-standings-table table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.events-standings-table th{font-size:10px;font-weight:500;color:var(--muted);text-align:center;padding:6px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
+.events-standings-table td{text-align:center;padding:6px 4px;border-top:1px solid #f1f1f0;white-space:nowrap}
+.events-standings-table .is-team{text-align:left;width:100%}
+.events-standings-table .is-place{font-weight:700;width:26px}
+.events-standings-table tr.is-up .is-place,.events-standings-table tr.is-stayup .is-place{box-shadow:inset 3px 0 #3c9a5f}
+.events-standings-table tr.is-down .is-place{box-shadow:inset 3px 0 #c9584a}
+.events-standings-team{display:flex;align-items:center;gap:7px;min-width:0}
+.events-standings-team .event-logo-slot{width:26px;height:26px;border-radius:5px}
+.events-standings-team .event-logo{width:24px;height:24px}
+.events-standings-name{overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.events-standings-empty{font-size:12px;color:var(--muted);line-height:1.7;margin:4px 0}
+.events-standings-more{display:inline-block;font-size:12px;color:#a65b20;margin-top:2px}
+@media(max-width:1100px){
+.events-layout{display:flex;flex-direction:column;align-items:stretch;gap:0}
+.events-primary{display:contents}
+.events-primary>*{order:2}
+.events-primary>.events-reminders{order:0}
+.events-standings{order:1;position:static;max-height:none;margin-bottom:24px}
+}
+@media(max-width:760px), (max-height:500px) and (pointer:coarse){
+.events-standings{padding:14px}
+.events-standings-regions button{min-height:36px;font-size:13px}
+.events-standings-name{max-width:none}
+.events-standings-table tbody tr:nth-child(n+9){display:none}
+}

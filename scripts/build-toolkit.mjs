@@ -148,7 +148,11 @@ export async function buildToolkit({
         : page === 'events'
           ? null
           : page === 'event'
-            ? [common, await readFile(path.join(base, 'frontend/web/event.js'), 'utf8')].join('\n')
+            ? [
+                common,
+                await readFile(path.join(base, 'frontend/web/events-labels.js'), 'utf8'),
+                await readFile(path.join(base, 'frontend/web/event.js'), 'utf8')
+              ].join('\n')
             : common;
     const eventsCSS =
       page !== 'draw'
@@ -174,6 +178,8 @@ export async function buildToolkit({
           [
             await readFile(path.join(base, 'frontend/web/events-model.js'), 'utf8'),
             await readFile(path.join(base, 'frontend/web/events.js'), 'utf8'),
+            await readFile(path.join(base, 'frontend/web/events-labels.js'), 'utf8'),
+            await readFile(path.join(base, 'frontend/web/events-standings.js'), 'utf8'),
             await readFile(path.join(base, 'frontend/web/mobile-shell.js'), 'utf8')
           ].join('\n')
         ),
