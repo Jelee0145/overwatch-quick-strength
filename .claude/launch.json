@@ -4,26 +4,46 @@
     {
       "name": "query-control-preview",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/preview-query-control.mjs"],
+      "runtimeArgs": [
+        "scripts/preview-query-control.mjs"
+      ],
       "port": 8792
     },
     {
       "name": "unified-backend-preview",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/preview-unified.mjs"],
+      "runtimeArgs": [
+        "scripts/diagnostics/preview-unified.mjs"
+      ],
       "port": 8791
     },
     {
       "name": "owqs-local",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/wrangler.mjs", "dev", "--local", "--port", "8787"],
+      "runtimeArgs": [
+        "scripts/wrangler.mjs",
+        "dev",
+        "--local",
+        "--port",
+        "8787"
+      ],
       "port": 8787
     },
     {
       "name": "events-reminders-preview",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/diagnostics/preview-events-reminders.mjs"],
+      "runtimeArgs": [
+        "scripts/diagnostics/preview-events-reminders.mjs"
+      ],
       "port": 8790
+    },
+    {
+      "name": "local-demo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/diagnostics/preview-demo.mjs"
+      ],
+      "port": 8793
     }
   ]
 }
