@@ -2,9 +2,45 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Fault } from '../src/security.mjs';
 import { broadcastsFor } from '../src/events/broadcasts.mjs';
 import { validateSubscription } from './web-push.mjs';
+import { fetchOfficialCn } from '../src/events/official-cn.mjs';
+import { completion, pairingKey, reminderPhase } from './reminder-signals.mjs';
 
 const MINUTE = 60000,
   DAY = 86400000;
+const OFFICIAL_INTERVAL = MINUTE,
+  OFFICIAL_RETRY = 5 * MINUTE;
+const isChina = (match) =>
+  match?.region === '中国' || /\/China(?:\/|#|$)/.test(match?.sourceUrl || '');
+// First observation of an already-finished match records 0: its completion time is unknown,
+// so it can never claim that the following match is "about to start".
+function carryCompletion(previous, done, hadSnapshot, now) {
+  if (!done) return undefined;
+  if (!previous) return hadSnapshot ? now : 0;
+  return previous.completedSeenAt ?? now;
+}
+function sourceSnapshot(old, matches, source, now) {
+  const before = new Map((old?.matches || []).map((m) => [pairingKey(m), m]));
+  return {
+    at: now,
+    matches: matches
+      .filter((m) => m?.sourceUrl === source)
+      .slice(0, 200)
+      .map((m) => {
+        const view = {
+          id: m.id,
+          startsAt: m.startsAt || null,
+          status: m.status,
+          teams: (m.teams || []).map((t) => ({ name: t?.name, shortName: t?.shortName })),
+          scores: m.scores || [],
+          bestOf: m.bestOf ?? null,
+          region: m.region,
+          sourceUrl: m.sourceUrl
+        };
+        const seen = carryCompletion(before.get(pairingKey(m)), !!completion(view), !!old, now);
+        return seen === undefined ? view : { ...view, completedSeenAt: seen };
+      })
+  };
+}
 const retainNotices = (notices, now) =>
   notices.filter((n) => Number.isFinite(n.createdAt) && now - n.createdAt < DAY).slice(-100);
 function pushFailure(error, now) {
@@ -172,7 +208,20 @@ export class EventReminders {
             now >= start &&
             now - start <= 10 * MINUTE &&
             obs.stableSince + 10 * MINUTE <= now &&
-            now - obs.verifiedAt <= 3 * MINUTE
+            now - obs.verifiedAt <= 3 * MINUTE,
+          reminder: entry
+            ? reminderPhase({
+                match: entry.match,
+                observedStartsAt: obs?.observedStartsAt,
+                verified:
+                  !entry.ambiguous &&
+                  obs?.result === 'verified' &&
+                  now - obs.verifiedAt <= 3 * MINUTE,
+                sourceMatches: state.sources?.[entry.match.sourceUrl]?.matches,
+                official: state.official?.matches,
+                now
+              })
+            : { phase: 'none', reason: 'missing', previous: null }
         };
       });
       await this.save(state);
@@ -372,6 +421,39 @@ export class EventReminders {
       };
     });
   }
+  // NetEase's China hub only supplies match state; one shared request covers every account.
+  async refreshOfficial(state, ids, now) {
+    const fetchImpl = this.env.OFFICIAL_CN_FETCH;
+    if (typeof fetchImpl !== 'function') return;
+    const due = [...ids].some((id) => {
+      const match = state.catalog[id]?.match,
+        start = Date.parse(match?.startsAt);
+      return isChina(match) && start - now <= 90 * MINUTE && now - start <= 6 * 60 * MINUTE;
+    });
+    const official = (state.official ||= { at: 0, retryAt: 0, matches: [] });
+    if (!due || now - official.at < OFFICIAL_INTERVAL || now < official.retryAt) return;
+    try {
+      const matches = await fetchOfficialCn(fetchImpl, {
+        identity: this.env.EVENTS_CONTACT || this.env.PUBLIC_ORIGIN
+      });
+      const before = new Map(official.matches.map((m) => [m.uuid, m])),
+        hadSnapshot = official.at > 0;
+      official.matches = matches.slice(0, 500).map((m) => {
+        const seen = carryCompletion(
+          before.get(m.uuid),
+          m.status === 'completed',
+          hadSnapshot,
+          now
+        );
+        return seen === undefined ? m : { ...m, completedSeenAt: seen };
+      });
+      official.at = now;
+      official.retryAt = 0;
+    } catch {
+      official.retryAt = now + OFFICIAL_RETRY;
+      console.warn(JSON.stringify({ event: 'event_official_cn_failed', at: now }));
+    }
+  }
   alarm() {
     return this.exclusive(async () => {
       const state = await this.state(),
@@ -447,6 +529,13 @@ export class EventReminders {
               }
               entry.tracking = obs;
             }
+            state.sources ||= {};
+            state.sources[source] = sourceSnapshot(
+              state.sources[source],
+              data.matches,
+              source,
+              now
+            );
             state.checked[source] = now;
             delete state.sourceRetry[source];
           } else if (response.status === 429) {
@@ -475,6 +564,7 @@ export class EventReminders {
           /* Preserve reservations and retry after the shared source backoff. */
         }
       }
+      await this.refreshOfficial(state, ids, now);
       for (const account of Object.values(state.users)) {
         account.notices = retainNotices(account.notices, now);
         for (const r of Object.values(account.reservations)) {
@@ -578,6 +668,11 @@ export class EventReminders {
               now - (v.lastSeenAt || now) > 14 * DAY))
         )
           delete state.catalog[id];
+      const liveSources = new Set(
+        [...retained].map((id) => state.catalog[id]?.match.sourceUrl).filter(Boolean)
+      );
+      for (const [source, value] of Object.entries(state.sources || {}))
+        if (!liveSources.has(source) && now - value.at > DAY) delete state.sources[source];
       await this.save(state);
     });
   }

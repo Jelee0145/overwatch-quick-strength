@@ -107,3 +107,79 @@ class ReminderTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(api.UserError):
             await self.manager.reserve(self.event, 1)
         self.assertIn('没有', self.manager.listing(self.event))
+
+
+def at(hours):
+    moment = reminders.datetime.now(reminders.timezone.utc) + reminders.timedelta(hours=hours)
+    return {**match(), 'startsAt': moment.strftime('%Y-%m-%dT%H:%M:%SZ')}
+
+
+class TwoStageReminderTests(ReminderTests):
+    def phase(self, phase, reason, **extra):
+        extra.setdefault('match', at(1))
+        self.current.update(reminder={'phase': phase, 'reason': reason, 'previous': None}, canNotify=False, **extra)
+
+    async def test_waits_for_previous_then_sends_notice_and_start_once(self):
+        await self.manager.reserve(self.event, 1)
+        self.phase('none', 'previous-pending')
+        await self.manager.sync()
+        self.plugin.notify.assert_not_awaited()
+        self.assertIn('等待上一场结束', self.manager.listing(self.event))
+        self.phase('pre', 'previous-completed')
+        await self.manager.sync()
+        await self.manager.sync()
+        self.plugin.notify.assert_awaited_once()
+        self.assertIn('上一场已结束', self.plugin.notify.await_args.args[1])
+        self.assertIn('已预告', self.manager.listing(self.event))
+        self.phase('start', 'official-live')
+        await self.manager.sync()
+        await self.manager.sync()
+        self.assertEqual(self.plugin.notify.await_count, 2)
+        self.assertIn('官方赛程显示比赛进行中', self.plugin.notify.await_args.args[1])
+        self.assertIn('已提醒开赛', self.manager.listing(self.event))
+        self.phase('pre', 'previous-completed')
+        await self.manager.sync()
+        self.assertEqual(self.plugin.notify.await_count, 2)
+
+    async def test_postponement_after_notice_sends_correction_and_rearms(self):
+        await self.manager.reserve(self.event, 1)
+        self.phase('pre', 'scheduled-time')
+        await self.manager.sync()
+        future = {**match(), 'startsAt': '2099-01-01T11:00:00Z'}
+        self.phase('none', 'previous-pending', match=future, scheduleRevision=2)
+        await self.manager.sync()
+        self.assertEqual(self.plugin.notify.await_count, 2)
+        self.assertIn('更正', self.plugin.notify.await_args.args[1])
+        self.assertIn('2099-01-01 19:00', self.plugin.notify.await_args.args[1])
+        self.phase('pre', 'previous-completed', match=future, scheduleRevision=2)
+        await self.manager.sync()
+        self.assertEqual(self.plugin.notify.await_count, 3)
+        self.assertIn('预告', self.plugin.notify.await_args.args[1])
+
+    async def test_late_correction_for_started_match_is_silent_and_corrections_are_capped(self):
+        await self.manager.reserve(self.event, 1)
+        self.phase('start', 'match-started', match=at(-1))
+        await self.manager.sync()
+        self.phase('start', 'match-started', match=at(-0.5), scheduleRevision=2)
+        await self.manager.sync()
+        self.assertEqual(self.plugin.notify.await_count, 1)
+        for revision in range(3, 8):
+            future = {**match(), 'startsAt': f'2099-01-0{revision}T11:00:00Z'}
+            self.phase('pre', 'previous-completed', match=future, scheduleRevision=revision)
+            await self.manager.sync()
+        texts = [call.args[1] for call in self.plugin.notify.await_args_list]
+        self.assertEqual(sum('更正' in text for text in texts), 3)
+
+    async def test_legacy_sent_rows_resume_tracking_and_finish_after_six_hours(self):
+        await self.manager.reserve(self.event, 1)
+        with self.store.db:
+            self.store.db.execute("UPDATE event_reservations SET state='sent'")
+            for column in ('pre_at', 'start_at', 'notified_revision', 'corrections'):
+                self.store.db.execute(f'ALTER TABLE event_reservations DROP COLUMN {column}')
+        self.manager = reminders.EventReminderManager(self.plugin)
+        self.assertIn('已提醒开赛', self.manager.listing(self.event))
+        self.phase('start', 'scheduled-time')
+        await self.manager.sync()
+        self.plugin.notify.assert_not_awaited()
+        self.assertIn('已提醒', self.manager.listing(self.event))
+        self.assertNotIn('跟踪中', self.manager.listing(self.event))

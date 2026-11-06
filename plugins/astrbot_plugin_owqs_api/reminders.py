@@ -8,6 +8,12 @@ from datetime import datetime, timedelta, timezone
 from .api_client import UserError, owner_key
 
 DAY = 86400
+FINISH_AFTER = 6 * 3600
+MAX_CORRECTIONS = 3
+COLUMNS = (('pre_at', 'REAL NOT NULL DEFAULT 0'), ('start_at', 'REAL NOT NULL DEFAULT 0'),
+           ('notified_revision', 'INTEGER NOT NULL DEFAULT 0'), ('corrections', 'INTEGER NOT NULL DEFAULT 0'))
+WAITING = {'unverified': '等待赛程核实', 'missing': '赛程暂缺', 'ambiguous': '对阵存在歧义',
+           'previous-pending': '等待上一场结束', 'expired': '未取得开赛信号，继续跟踪改期'}
 
 
 def match_label(match):
@@ -21,6 +27,32 @@ def match_time(match):
         return datetime.fromisoformat(match['startsAt'].replace('Z', '+00:00')).astimezone(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M')
     except (KeyError, ValueError, TypeError, AttributeError):
         return '时间待定'
+
+
+def starts_at(match):
+    try:
+        return datetime.fromisoformat(match['startsAt'].replace('Z', '+00:00')).timestamp()
+    except (KeyError, ValueError, TypeError, AttributeError, OverflowError, OSError):
+        return None
+
+
+def watch_line(match):
+    url = next((b.get('url') for b in (match.get('broadcasts') or []) if b.get('url')), '')
+    return '\n观看：' + str(url) if url else ''
+
+
+def reminder_text(kind, reason, match):
+    label, when = match_label(match), match_time(match)
+    if kind == 'correction':
+        return f'更正：{label} 的开赛时间已改为 {when}（北京时间），之后会按新进度再提醒。'
+    if kind == 'start':
+        detail = {'official-live': '官方赛程显示比赛进行中', 'match-started': '赛程已出现本场比分'}.get(reason)
+        if detail:
+            return f'开赛提醒：{label} 已开赛（{detail}）。' + watch_line(match)
+        return f'你预约的 {label} 已到当前公布的开赛时间（{when} 北京时间）。' + watch_line(match)
+    if reason == 'previous-completed':
+        return f'预告：{label} 的上一场已结束，比赛即将开始（公布时间 {when} 北京时间），请留意。' + watch_line(match)
+    return f'预告：{label} 已到公布的开赛时间（{when} 北京时间），请留意开赛；确认开赛后会再提醒。' + watch_line(match)
 
 
 class EventReminderManager:
@@ -41,6 +73,14 @@ class EventReminderManager:
                 revision INTEGER, reason TEXT NOT NULL DEFAULT '', attempts INTEGER NOT NULL DEFAULT 0,
                 retry_at REAL NOT NULL DEFAULT 0, PRIMARY KEY(owner, origin, match_id));
         ''')
+        existing = {row[1] for row in self.db.execute('PRAGMA table_info(event_reservations)')}
+        with self.db:
+            for name, kind in COLUMNS:
+                if name not in existing:
+                    self.db.execute(f'ALTER TABLE event_reservations ADD COLUMN {name} {kind}')
+            if 'pre_at' not in existing:
+                # Former one-shot reminders keep following the match so a later postponement is corrected.
+                self.db.execute("UPDATE event_reservations SET state='watching',start_at=?,notified_revision=COALESCE(revision,0) WHERE state='sent'", (time.time(),))
 
     def start(self):
         if self.task is None or self.task.done():
@@ -108,23 +148,26 @@ class EventReminderManager:
                 raise UserError('这场比赛暂时无法确认或不支持预约，请刷新赛程后重试')
             match = item.get('match') or match
             with self.db:
-                self.db.execute('INSERT OR REPLACE INTO event_reservations VALUES(?,?,?,?,?,?,?,?,?,?)',
+                self.db.execute('INSERT OR REPLACE INTO event_reservations(owner,origin,match_id,match,created,state,revision,reason,attempts,retry_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
                                 (owner, origin, match_id, json.dumps(match, ensure_ascii=False), time.time(),
                                  'watching', item.get('scheduleRevision'), '', 0, 0))
         self.wake.set()
         pending = '目前正在核实赛程。' if item.get('trackingState') == 'unverified' else ''
-        return f'已在当前对话预约 {match_label(match)}（{match_time(match)} 北京时间）。{pending}开赛时间稳定十分钟后按最新公布时间提醒；若时间变动会自动跟随。'
+        return f'已在当前对话预约 {match_label(match)}（{match_time(match)} 北京时间）。{pending}上一场结束后（当天首场则在公布时间）发预告，确认开赛后再提醒；时间变动会发更正。'
 
     def listing(self, event):
-        rows = self.db.execute('SELECT match,state,reason FROM event_reservations WHERE owner=? AND origin=? ORDER BY created',
+        rows = self.db.execute('SELECT match,state,reason,pre_at,start_at FROM event_reservations WHERE owner=? AND origin=? ORDER BY created',
                                (owner_key(event), event.unified_msg_origin)).fetchall()
         if not rows:
             return '当前对话没有赛事提醒预约。'
         labels = {'watching': '跟踪中', 'sent': '已提醒', 'completed': '比赛已结束', 'expired': '已过期'}
         lines = ['当前对话的赛事提醒：']
-        for index, (payload, state, reason) in enumerate(rows, 1):
+        for index, (payload, state, reason, pre_at, start_at) in enumerate(rows, 1):
             match = json.loads(payload)
-            lines.append(f'{index}. {match_label(match)} · {match_time(match)} · {labels.get(state, state)}' + (f'（{reason}）' if reason else ''))
+            label = labels.get(state, state)
+            if state == 'watching' and (start_at or pre_at):
+                label = '已提醒开赛' if start_at else '已预告'
+            lines.append(f'{index}. {match_label(match)} · {match_time(match)} · {label}' + (f'（{reason}）' if reason else ''))
         return '\n'.join(lines)
 
     async def cancel(self, event, index):
@@ -171,7 +214,7 @@ class EventReminderManager:
                         start = None
                     if start is None and created < now - 60 * DAY:
                         self.db.execute("UPDATE event_reservations SET state='expired',reason='赛事时间长期待定' WHERE owner=? AND origin=? AND match_id=?", (owner, origin, match_id))
-            rows = self.db.execute("SELECT owner,origin,match_id,match,attempts,retry_at FROM event_reservations WHERE state='watching' ORDER BY created").fetchall()
+            rows = self.db.execute("SELECT owner,origin,match_id,match,attempts,retry_at,pre_at,start_at,notified_revision,corrections FROM event_reservations WHERE state='watching' ORDER BY created").fetchall()
             groups = {}
             for row in rows:
                 try:
@@ -195,28 +238,63 @@ class EventReminderManager:
                         for row in group:
                             self.db.execute("UPDATE event_reservations SET reason='赛程同步暂不可用' WHERE owner=? AND origin=? AND match_id=?", row[:3])
                     continue
-                for owner, origin, match_id, payload, attempts, retry_at in group:
-                    item = values.get(match_id)
-                    if not item:
-                        continue
-                    status = item.get('trackingState', 'unverified')
-                    match = item.get('match') or json.loads(payload)
-                    reason = {'unverified': '等待赛程核实', 'missing': '赛程暂缺', 'ambiguous': '对阵存在歧义'}.get(status, '')
-                    if status == 'expired':
-                        reason = '已错过本次提醒窗口，继续跟踪改期'
-                    state = 'completed' if status == 'completed' else 'watching'
-                    with self.db:
-                        self.db.execute('UPDATE event_reservations SET match=?,revision=?,state=?,reason=? WHERE owner=? AND origin=? AND match_id=?',
-                                        (json.dumps(match, ensure_ascii=False), item.get('scheduleRevision'), state, reason, owner, origin, match_id))
-                    if state != 'watching' or not item.get('canNotify') or now < retry_at:
-                        continue
-                    url = next((b.get('url') for b in (match.get('broadcasts') or []) if b.get('url')), '')
-                    message = f'你预约的 {match_label(match)} 已到当前公布的开赛时间（{match_time(match)} 北京时间）。'
-                    if url:
-                        message += '\n观看：' + str(url)
-                    sent = await self.plugin.notify(origin, message)
-                    with self.db:
-                        if sent:
-                            self.db.execute("UPDATE event_reservations SET state='sent',reason='' WHERE owner=? AND origin=? AND match_id=? AND state='watching'", (owner, origin, match_id))
-                        else:
-                            self.db.execute("UPDATE event_reservations SET attempts=?,retry_at=?,reason='发送失败，稍后重试' WHERE owner=? AND origin=? AND match_id=? AND state='watching'", (attempts + 1, now + min(120, 15 * (2 ** min(attempts, 3))), owner, origin, match_id))
+                for row in group:
+                    await self.advance(row, values.get(row[2]), now)
+
+    async def advance(self, row, item, now):
+        owner, origin, match_id, payload, attempts, retry_at, pre_at, start_at, notified, corrections = row
+        key = (owner, origin, match_id)
+        stored = json.loads(payload)
+        if not item:
+            start = starts_at(stored)
+            if start_at and start is not None and now - start > FINISH_AFTER:
+                with self.db:
+                    self.db.execute("UPDATE event_reservations SET state='sent',reason='' WHERE owner=? AND origin=? AND match_id=?", key)
+            return
+        status = item.get('trackingState', 'unverified')
+        match = item.get('match') or stored
+        revision = item.get('scheduleRevision') or 0
+        reminder = item.get('reminder')
+        if not isinstance(reminder, dict):
+            # Servers before two-stage reminders only expose canNotify at the listed time.
+            ready = bool(item.get('canNotify'))
+            reminder = {'phase': 'start' if ready else 'none', 'reason': 'scheduled-time' if ready else status}
+        phase, reason = reminder.get('phase'), reminder.get('reason')
+        state = 'completed' if status == 'completed' or reason == 'completed' else 'watching'
+        start = starts_at(match)
+        if state == 'watching' and start_at and start is not None and now - start > FINISH_AFTER:
+            state = 'sent'
+        wait = WAITING.get(reason, WAITING.get(status, '')) if state == 'watching' else ''
+        with self.db:
+            self.db.execute('UPDATE event_reservations SET match=?,revision=?,state=?,reason=? WHERE owner=? AND origin=? AND match_id=?',
+                            (json.dumps(match, ensure_ascii=False), revision, state, wait, *key))
+        if state != 'watching' or now < retry_at:
+            return
+        kind = None
+        if (pre_at or start_at) and revision > notified:
+            if start is None or start <= now:
+                # A late correction for a match that has already started needs no message.
+                with self.db:
+                    self.db.execute('UPDATE event_reservations SET notified_revision=? WHERE owner=? AND origin=? AND match_id=?', (revision, *key))
+                return
+            if corrections >= MAX_CORRECTIONS:
+                with self.db:
+                    self.db.execute('UPDATE event_reservations SET pre_at=0,start_at=0,notified_revision=? WHERE owner=? AND origin=? AND match_id=?', (revision, *key))
+                return
+            kind = 'correction'
+        elif phase == 'start' and not start_at:
+            kind = 'start'
+        elif phase == 'pre' and not pre_at and not start_at:
+            kind = 'pre'
+        if not kind:
+            return
+        sent = await self.plugin.notify(origin, reminder_text(kind, reason, match))
+        with self.db:
+            if not sent:
+                self.db.execute("UPDATE event_reservations SET attempts=?,retry_at=?,reason='发送失败，稍后重试' WHERE owner=? AND origin=? AND match_id=? AND state='watching'",
+                                (attempts + 1, now + min(120, 15 * (2 ** min(attempts, 3))), *key))
+            elif kind == 'correction':
+                self.db.execute("UPDATE event_reservations SET pre_at=0,start_at=0,notified_revision=?,corrections=corrections+1,attempts=0,retry_at=0 WHERE owner=? AND origin=? AND match_id=? AND state='watching'", (revision, *key))
+            else:
+                column = 'start_at' if kind == 'start' else 'pre_at'
+                self.db.execute(f"UPDATE event_reservations SET {column}=?,notified_revision=?,attempts=0,retry_at=0,reason='' WHERE owner=? AND origin=? AND match_id=? AND state='watching'", (now, revision, *key))

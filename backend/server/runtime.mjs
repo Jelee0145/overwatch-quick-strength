@@ -19,6 +19,7 @@ export function createRuntime(
     upstreamFetch = fetch,
     eventsFetch = fetch,
     logoFetch,
+    officialFetch,
     pushSender,
     ratePerSecond,
     upstreamRates = {}
@@ -35,6 +36,8 @@ export function createRuntime(
     EVENTS_FETCH: eventsFetch,
     // Badge downloads follow a mocked events source only when a test opts in explicitly.
     EVENTS_LOGO_FETCH: logoFetch ?? (eventsFetch === fetch ? fetch : undefined),
+    // China official match state follows the same opt-in rule as badges in tests.
+    OFFICIAL_CN_FETCH: officialFetch ?? (eventsFetch === fetch ? fetch : undefined),
     UPSTREAM_SCHEDULER: scheduler,
     UPSTREAM_FETCH: pacedFetch(upstreamFetch, { scheduler })
   };

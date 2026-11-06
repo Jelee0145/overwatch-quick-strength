@@ -25,10 +25,25 @@
 ## 回归检查
 
 ```sh
-node --test test/reminder-scheduler.test.mjs test/event-reminders.test.mjs test/event-reminders-ui.test.mjs test/web-push.test.mjs
+node --test test/events/reminder-scheduler.test.mjs test/events/event-reminders.test.mjs test/events/event-reminders-ui.test.mjs test/events/web-push.test.mjs test/events/reminder-signals.test.mjs
 npm run build
 npm test
 npm run check
 ```
 
 真实设备验收应分别检查：打开前台页面、后台标签页恢复、关闭页面、临时网络失败后恢复。只有推送服务接受记录不能取代关页后的设备显示验收。
+## Bot 两段式提醒（2026-11-06）
+
+浏览器推送暂缓后，赛事提醒以 AstrBot 插件为准。Liquipedia 常在一个比赛日已经延误后才改时间。2026-11-06 那天直到 16:37 才把 16:00 改到 19:00，因此“公布时间稳定十分钟”不能证明比赛即将开始。`backend/server/reminder-signals.mjs` 为每场跟踪比赛给出 `reminder` 判定，规则如下：
+
+- 同一 Liquipedia 赛事页面里，12 小时内开赛时间更早的最近一场就是“上一场”。上一场没结束时不提醒（`previous-pending`）。
+- 满足以下任一条件即视为结束：Liquipedia 标记已结束；BO 比分已决出；网易官方状态为已结束。上一场结束后发预告，最早在公布时间前一小时。首次观测时上一场已结束的，记录的结束时间为 0（时间未知）。
+- 当天首场在公布时间发预告。
+- 网易官方状态为“进行中”（只限中国赛区），或本场出现比分，即发开赛提醒。
+- 公布时间之后 6 小时仍无信号，视为过期。
+
+网易接口 `webapi.blizzard.cn/ow-game-center-server-release-app` 是 ow.blizzard.cn/owcs 页面自用的未公开接口，只给计划时间：11-01 实际 18:30 开赛的比赛，接口仍写 19:00。所以它只提供比赛状态，开赛时间仍以 Liquipedia 为准。只有存在中国赛区跟踪、且在开赛前 90 分钟至开赛后 6 小时之间时才请求，全站每分钟最多一次，失败退避 5 分钟。“进行中”状态是否实时翻转，需要在真实比赛日验收。
+
+插件按阶段各发一次。`scheduleRevision` 变化且新时间尚未到达时发更正，每场最多 3 次。已开赛后的迟到修正不发消息。旧版插件中已提醒（`sent`）的记录，迁移后继续跟踪。
+
+回归：`node --test test/events/reminder-signals.test.mjs`（含 11-06、11-01 的回放），以及 `python -m unittest test.api_plugin.test_reminders`（本机用 uv 安装的 CPython）。

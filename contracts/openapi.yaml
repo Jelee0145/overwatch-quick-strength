@@ -255,8 +255,12 @@ paths:
       description: >-
         Free and personal accounts can track known OWCS reminder IDs without creating website
         reservations. Schedule observations are shared; Bot chat destinations stay on the client.
-        canNotify requires an unchanged schedule for ten minutes, a fresh verification, and the
-        current published start time to have arrived. Missing or ambiguous events cannot notify.
+        reminder combines the schedule with the previous match on the same source page and, for
+        China, NetEase's official match state: phase none (reason previous-pending while the
+        previous match runs), pre (previous match finished, or the listed time of the first
+        match arrived) or start (official in-progress state, or the match's own score/live state).
+        Clients send each phase once and correct when scheduleRevision changes. canNotify keeps the
+        legacy listed-time rule for older clients. Missing or ambiguous events cannot notify.
       requestBody:
         required: true
         content:
