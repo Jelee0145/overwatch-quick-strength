@@ -213,6 +213,15 @@ const routes = [
     }
   },
   {
+    match: (path) => /^\/api\/v1\/events\/logos\/([a-f0-9]{64})$/.exec(path),
+    async handle({ request, env }, logo) {
+      requireMethod(request, 'GET');
+      return env.EVENTS.get(env.EVENTS.idFromName('global')).fetch(
+        'https://events.internal/logo/' + logo[1]
+      );
+    }
+  },
+  {
     match: (path) => path === '/api/v1/events' || path === '/api/v1/events/refresh',
     async handle({ request, env, url, path, auth }) {
       const refresh = path.endsWith('/refresh');

@@ -5,6 +5,7 @@ import { eventApi, eventQuery, trackedEventApi, EVENT_SOURCE_VERSION } from './s
 import { EventQueries } from './queries.mjs';
 import { eventRefreshInterval, nextEventRefresh } from './freshness.mjs';
 import { Fault } from '../security.mjs';
+import { EventLogos, logoResponse } from './logos.mjs';
 export const EVENTS_API = eventApi();
 const SOURCE_VERSION = EVENT_SOURCE_VERSION;
 const HOUR = 60 * 60 * 1000,
@@ -19,6 +20,7 @@ export class EventCenter {
     this.pending = null;
     this.sourceBusy = null;
     this.queries = new EventQueries(this);
+    this.logos = new EventLogos(this);
   }
   now() {
     return Date.now();
@@ -26,6 +28,13 @@ export class EventCenter {
   async fetch(request) {
     const url = new URL(request.url),
       path = url.pathname;
+    if (path.startsWith('/logo/')) {
+      if (request.method !== 'GET') return json({ error: '请求方法错误' }, 405);
+      const saved = await this.logos.read(path.slice('/logo/'.length));
+      return saved
+        ? logoResponse(saved)
+        : json({ error: '队标不存在' }, 404, { 'Cache-Control': 'no-store' });
+    }
     if (path === '/track' && request.method === 'POST') {
       try {
         const source = url.searchParams.get('source'),
@@ -33,10 +42,12 @@ export class EventCenter {
           value = await this.source(api, { series: 'owcs' }, { priority: 'track' });
         if (value.counts.scheduled >= 200 || value.counts.completed >= 200)
           throw Error('Incomplete tracked tournament');
-        return json({
-          matches: value.matches.filter((m) => m.sourceUrl === source),
-          updatedAt: this.now()
-        });
+        return json(
+          await this.logos.localize({
+            matches: value.matches.filter((m) => m.sourceUrl === source),
+            updatedAt: this.now()
+          })
+        );
       } catch (error) {
         if (Number.isFinite(error.retryAfter) && error.retryAfter > 0)
           return json({ error: '赛事来源繁忙，请稍后重试' }, 429, {
@@ -69,6 +80,7 @@ export class EventCenter {
           await this.queries.work();
           value = await this.queries.read(key);
         }
+        value = await this.logos.localize(value);
         return json(value, value.state === 'pending' ? 202 : 200, {
           'Cache-Control': 'private, no-store',
           ...(value.state === 'pending' ? { 'Retry-After': String(value.retryAfter) } : {})
@@ -89,7 +101,7 @@ export class EventCenter {
     }
     if (path === '/refresh' && request.method === 'POST') {
       try {
-        const value = await this.refresh(true);
+        const value = await this.logos.localize(await this.refresh(true));
         return json(value, 200, { 'Cache-Control': 'private, no-store' });
       } catch {
         return json({ error: '赛程更新失败，请稍后重试' }, 503, { 'Cache-Control': 'no-store' });
@@ -99,7 +111,7 @@ export class EventCenter {
     }
     if (request.method !== 'GET') return json({ error: '请求方法错误' }, 405);
     try {
-      const value = await this.read();
+      const value = await this.logos.localize(await this.read());
       return json(value, 200, { 'Cache-Control': 'private, no-store' });
     } catch {
       return json({ error: '赛程暂未就绪，请稍后再来' }, 503, { 'Cache-Control': 'no-store' });
@@ -130,6 +142,11 @@ export class EventCenter {
       /* A sync failure preserves the last good snapshot. */
     }
     if (!(await this.recentDue())) await this.queries.work();
+    try {
+      await this.logos.sync((await this.storage.get('snapshot'))?.matches);
+    } catch {
+      /* Badge copies are optional; the schedule still renders with placeholders. */
+    }
     await this.schedule();
   }
   async schedule() {
@@ -140,7 +157,9 @@ export class EventCenter {
     const target =
       due || (await this.queries.hasPending())
         ? this.now() + 1000
-        : nextEventRefresh(saved.matches, saved.updatedAt, this.now());
+        : this.logos.pending()
+          ? this.now() + 5000
+          : nextEventRefresh(saved.matches, saved.updatedAt, this.now());
     await this.storage.setAlarm(Math.max(target, next));
   }
   async recentDue(now = this.now()) {

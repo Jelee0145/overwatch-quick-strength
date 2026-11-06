@@ -18,6 +18,7 @@ export function createRuntime(
     assets,
     upstreamFetch = fetch,
     eventsFetch = fetch,
+    logoFetch,
     pushSender,
     ratePerSecond,
     upstreamRates = {}
@@ -32,6 +33,8 @@ export function createRuntime(
     ...config,
     ASSETS: assets,
     EVENTS_FETCH: eventsFetch,
+    // Badge downloads follow a mocked events source only when a test opts in explicitly.
+    EVENTS_LOGO_FETCH: logoFetch ?? (eventsFetch === fetch ? fetch : undefined),
     UPSTREAM_SCHEDULER: scheduler,
     UPSTREAM_FETCH: pacedFetch(upstreamFetch, { scheduler })
   };

@@ -231,6 +231,19 @@ paths:
       description: 'Query filters: from/to (Beijing YYYY-MM-DD, at most 366 days), region, tournament, team, status, limit, series, paginate. Pending results are not empty schedules.'
       responses:
         '200': {description: Event results or pending backfill state/retryAfter}
+  /events/logos/{hash}:
+    get:
+      summary: Same-origin copy of a Liquipedia team badge referenced by an event's teams[].logo
+      description: |
+        Event payloads return teams[].logo as this path, or null when no verified copy exists yet.
+        The server downloads each badge once after a schedule sync (PNG/JPEG/GIF/WebP, at most
+        64 KiB, magic bytes checked) and addresses it by the SHA-256 of its bytes, so responses
+        are private, immutable for a year. Unknown hashes are 404.
+      parameters:
+        - {name: hash, in: path, required: true, schema: {type: string, pattern: '^[a-f0-9]{64}$'}}
+      responses:
+        '200': {description: Badge image bytes}
+        '404': {description: No stored badge with this hash}
   /events/refresh:
     post:
       summary: Request centrally limited event refresh using the same query filters

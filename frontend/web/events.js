@@ -147,30 +147,25 @@
       name = element('span', 'event-team-name', team.name),
       badge = element('span', 'event-logo-slot');
     badge.setAttribute('aria-hidden', 'true');
-    try {
-      const url = new URL(team.logo);
-      if (
-        url.protocol === 'https:' &&
-        url.hostname === 'liquipedia.net' &&
-        !url.port &&
-        !url.username &&
-        !url.password &&
-        url.pathname.startsWith('/commons/images/') &&
-        /\.(png|svg|webp|jpe?g|gif)$/i.test(url.pathname)
-      ) {
-        const image = element('img', 'event-logo');
-        image.alt = '';
-        image.width = 32;
-        image.height = 32;
-        image.loading = 'lazy';
-        image.decoding = 'async';
-        image.referrerPolicy = 'no-referrer';
-        image.onerror = () => image.remove();
-        image.src = url.href;
-        badge.append(image);
-      }
-    } catch {
-      /* A missing or invalid badge keeps a neutral placeholder beside the name. */
+    // Badges are same-origin copies kept by the server; anything else keeps the placeholder.
+    if (
+      typeof team.logo === 'string' &&
+      /^\/api\/v1\/events\/logos\/[a-f0-9]{64}$/.test(team.logo)
+    ) {
+      const image = element('img', 'event-logo');
+      image.alt = '';
+      image.width = 32;
+      image.height = 32;
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      let retried = false;
+      image.onerror = () => {
+        if (retried) return image.remove();
+        retried = true;
+        setTimeout(() => (image.src = team.logo + '?retry=1'), 1500);
+      };
+      image.src = team.logo;
+      badge.append(image);
     }
     label.append(...(left ? [name, badge] : [badge, name]));
     return label;
