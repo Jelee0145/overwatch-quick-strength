@@ -2,7 +2,12 @@
 :root{
   --ink:#2b2f36;--muted:#7d838d;--line:#ebe6df;--paper:#faf7f2;--accent:#f58220;--orange:#f58220;--green:#cc6412;
   --accent-deep:#d96a0b;--accent-soft:#fff1e2;--surface:#fff;--glass:rgba(250,247,242,.78);
-  --radius:14px;--radius-sm:9px;--ease:cubic-bezier(.22,.8,.24,1);--spring:cubic-bezier(.34,1.4,.5,1);
+  --radius:14px;--radius-sm:9px;
+  /* Motion tokens. ease-out for anything entering or answering the user, ease-in-out for on-screen movement,
+     drawer for sheets. --spring keeps a barely-there overshoot; a data tool should feel crisp, not bouncy. */
+  --ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--ease-drawer:cubic-bezier(.32,.72,0,1);
+  --ease:var(--ease-out);--spring:cubic-bezier(.34,1.18,.64,1);
+  --dur-press:140ms;--dur-hover:200ms;--dur-pop:220ms;--dur-exit:150ms;--dur-sheet:380ms;
   --shadow-1:0 1px 2px rgba(60,40,20,.04),0 4px 14px rgba(60,40,20,.05);
   --shadow-2:0 2px 4px rgba(60,40,20,.04),0 14px 34px rgba(60,40,20,.09);
   --shadow-glow:0 10px 30px rgba(245,130,32,.28);
@@ -27,23 +32,35 @@ header,.toolkit-header{
   position:sticky;top:0;z-index:30;background:var(--glass);
   -webkit-backdrop-filter:blur(16px) saturate(1.5);backdrop-filter:blur(16px) saturate(1.5);
   box-shadow:0 0 0 100vmax var(--glass);clip-path:inset(0 -100vmax 0 -100vmax);
-  border-bottom:0;transition:box-shadow .3s var(--ease);
+  border-bottom:0;transition:box-shadow .3s ease;
 }
 header::after,.toolkit-header::after{content:"";position:absolute;left:-100vmax;right:-100vmax;bottom:0;height:1px;background:var(--line);opacity:.9}
 body.is-scrolled header::after,body.is-scrolled .toolkit-header::after{background:#e2d8cb;box-shadow:0 1px 14px rgba(60,40,20,.12)}
-.brand,.toolkit-brand{color:var(--ink);transition:transform .35s var(--ease)}
-.brand .mark,.toolkit-brand .mark{transition:transform .5s var(--spring);filter:drop-shadow(0 4px 6px rgba(200,100,20,.22))}
-.brand:hover .mark,.toolkit-brand:hover .mark{transform:rotate(-8deg) scale(1.08)}
+/* One page frame for every desktop page: header and content share a width and gutter, so the logo,
+   headings and cards line up on the same left edge everywhere. The mobile shell keeps its own padding.
+   :not(#page-frame) only raises specificity above the page-specific main rules it replaces. */
+:root{--page-max:1440px;--page-gutter:clamp(20px,4vw,48px)}
+/* Same condition as the shell, inverted: wide screens that are not a landscape phone. */
+@media(min-width:761px) and (min-height:501px),(min-width:761px) and (pointer:fine){
+  body>header:not(#page-frame),body>main:not(#page-frame){
+    box-sizing:border-box;width:100%;max-width:var(--page-max);margin-inline:auto;padding-inline:var(--page-gutter);
+  }
+}
+.brand,.toolkit-brand{color:var(--ink)}
+.brand .mark,.toolkit-brand .mark{transition:transform .4s var(--spring);filter:drop-shadow(0 4px 6px rgba(200,100,20,.22))}
 .toolkit-account button,.cloud-user button{background:transparent;border-color:transparent;color:#5d636d;border-radius:999px;padding:7px 13px}
-.toolkit-account button:hover:not(:disabled),.cloud-user button:hover:not(:disabled){background:var(--accent-soft);color:var(--accent-deep);border-color:transparent}
 
-/* Buttons */
+/* Buttons: no hover lift (seen dozens of times a day); a quick scale on press so every click is acknowledged. */
 button{
   border-radius:10px;border-color:var(--line);background:var(--surface);
-  transition:transform .2s var(--ease),box-shadow .25s var(--ease),background .2s,border-color .2s,color .2s;
+  transition:transform var(--dur-press) var(--ease-out),box-shadow var(--dur-hover) ease,background-color var(--dur-hover) ease,border-color var(--dur-hover) ease,color var(--dur-hover) ease;
 }
-button:hover:not(:disabled){background:#fffaf4;border-color:#f0c9a2;box-shadow:var(--shadow-1);transform:translateY(-1px)}
-button:active:not(:disabled){transform:translateY(0) scale(.98);box-shadow:none}
+button:active:not(:disabled){transform:scale(.97);box-shadow:none}
+@media(hover:hover) and (pointer:fine){
+  .brand:hover .mark,.toolkit-brand:hover .mark{transform:rotate(-6deg) scale(1.05)}
+  button:hover:not(:disabled){background-color:#fffaf4;border-color:#f0c9a2;box-shadow:var(--shadow-1)}
+  .toolkit-account button:hover:not(:disabled),.cloud-user button:hover:not(:disabled){background:var(--accent-soft);color:var(--accent-deep);border-color:transparent;box-shadow:none}
+}
 button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
 .primary,.draw-button,.events-filter-actions button:first-child,.changelog-dialog #changelogAcknowledge{
   background:linear-gradient(180deg,#ff9440,#f27a14);border-color:#e8740f;color:#fff;
@@ -57,7 +74,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var
   content:"";position:absolute;top:0;bottom:0;width:60%;left:-80%;
   background:linear-gradient(100deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-18deg);pointer-events:none;
 }
-.motion .primary:hover::after,.motion .draw-button:hover::after{animation:sheen .9s var(--ease)}
+@media(hover:hover) and (pointer:fine){.motion .primary:hover::after,.motion .draw-button:hover::after{animation:sheen .7s var(--ease-in-out)}}
 .dark-btn{background:linear-gradient(180deg,#434850,#2f3339);border-color:#2f3339;color:#fff}
 .dark-btn:hover:not(:disabled){background:linear-gradient(180deg,#50555e,#383d44);border-color:#383d44}
 .draw-button{box-shadow:0 5px 0 #c46215,0 14px 24px rgba(245,130,32,.25)}
@@ -66,7 +83,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var
 /* Inputs */
 input:not([type=checkbox]),select,textarea,.events-filters input,.events-filters select{
   border-radius:10px;border-color:var(--line);background:#fffdfa;
-  transition:border-color .2s,box-shadow .25s var(--ease),background .2s;
+  transition:border-color var(--dur-hover) ease,box-shadow var(--dur-hover) var(--ease-out),background-color var(--dur-hover) ease;
 }
 input:not([type=checkbox]):hover,select:hover{border-color:#e2d6c8}
 input:not([type=checkbox]):focus,select:focus,textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 4px rgba(245,130,32,.16);background:#fff}
@@ -80,8 +97,9 @@ aside{background:linear-gradient(180deg,#fff,#fffcf8);padding:24px}
 .section-head{letter-spacing:.3px}
 .tabs{background:#f3ede5;border-radius:11px}
 .tabs button.active{border-radius:8px;box-shadow:0 2px 8px rgba(60,40,20,.1)}
-.drop{border-color:#e8c9a8;background:linear-gradient(180deg,#fffaf3,#fff4e6);border-radius:12px;transition:all .25s var(--ease)}
-.drop:hover,.drop.drag{border-color:var(--accent);background:#fff1df;transform:translateY(-1px)}
+.drop{border-color:#e8c9a8;background:linear-gradient(180deg,#fffaf3,#fff4e6);border-radius:12px;transition:border-color var(--dur-hover) ease,background-color var(--dur-hover) ease,transform var(--dur-pop) var(--ease-out)}
+.drop.drag{border-color:var(--accent);background:#fff1df;transform:scale(1.01)}
+@media(hover:hover) and (pointer:fine){.drop:hover{border-color:var(--accent);background:#fff1df}}
 .upload{color:var(--accent)}
 .status{color:var(--accent-deep)}
 
@@ -91,28 +109,35 @@ aside{background:linear-gradient(180deg,#fff,#fffcf8);padding:24px}
   letter-spacing:-.6px;font-weight:760;
 }
 .intro h1 em{background:none;-webkit-text-fill-color:currentColor;color:var(--accent-deep)}
-.back-link,.analysis-back-link{display:inline-flex;align-items:center;gap:4px;transition:color .2s,transform .3s var(--ease)}
-.back-link:hover,.analysis-back-link:hover{transform:translateX(-4px);color:var(--accent-deep)}
+.back-link,.analysis-back-link{display:inline-flex;align-items:center;gap:4px;transition:color var(--dur-hover) ease,transform var(--dur-pop) var(--ease-out)}
+.back-link:active,.analysis-back-link:active{transform:translateX(-2px)}
 
 /* Hub tool cards */
 .tool-grid{gap:24px}
 .tool-entry{
   border-radius:18px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow-1);position:relative;isolation:isolate;
-  transition:transform .45s var(--ease),box-shadow .45s var(--ease),border-color .3s;
+  transition:transform .3s var(--ease-out),box-shadow .3s var(--ease-out),border-color var(--dur-hover) ease;
   --mx:50%;--my:0%;
 }
+.tool-entry:active{transform:scale(.985);transition-duration:var(--dur-press)}
 .tool-entry::before{
-  content:"";position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:inherit;opacity:0;transition:opacity .35s;
+  content:"";position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:inherit;opacity:0;transition:opacity .3s ease;
   background:radial-gradient(420px circle at var(--mx) var(--my),rgba(255,170,90,.22),transparent 55%);
 }
-.tool-entry:hover{transform:translateY(-8px);box-shadow:var(--shadow-2),0 0 0 1px rgba(245,130,32,.35);border-color:rgba(245,130,32,.45)}
-.tool-entry:hover::before{opacity:1}
-.cover-art img{transition:transform .9s var(--ease)}
-.tool-entry:hover .cover-art img{transform:scale(1.07)}
+.cover-art img{transition:transform .6s var(--ease-out)}
 .tool-art::after{content:"";position:absolute;inset:auto 0 0;height:45%;background:linear-gradient(180deg,transparent,rgba(30,20,10,.18));pointer-events:none}
-.tool-copy h2{transition:color .25s}
-.tool-copy h2 span{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--accent-soft);font-size:17px;color:var(--accent-deep);transition:transform .45s var(--spring),background .25s,color .25s}
-.tool-entry:hover .tool-copy h2 span{transform:translate(3px,-3px) rotate(0);background:var(--accent);color:#fff}
+.tool-copy h2{transition:color var(--dur-hover) ease}
+/* Neutralise toolkit.css's ungated hover lifts; mouse users get them back below, touch users never see sticky hovers. */
+.tool-entry:hover:not(:active),.draw-button:hover:not(:disabled):not(:active){transform:none}
+.tool-copy h2 span{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--accent-soft);font-size:17px;color:var(--accent-deep);transition:transform .3s var(--spring),background-color var(--dur-hover) ease,color var(--dur-hover) ease}
+@media(hover:hover) and (pointer:fine){
+  .back-link:hover,.analysis-back-link:hover{transform:translateX(-3px);color:var(--accent-deep)}
+  .tool-entry:hover{transform:translateY(-4px);box-shadow:var(--shadow-2),0 0 0 1px rgba(245,130,32,.35);border-color:rgba(245,130,32,.45)}
+  .tool-entry:hover:active{transform:translateY(-4px) scale(.985)}
+  .tool-entry:hover::before{opacity:1}
+  .tool-entry:hover .cover-art img{transform:scale(1.04)}
+  .tool-entry:hover .tool-copy h2 span{transform:translate(2px,-2px);background:var(--accent);color:#fff}
+}
 
 /* Chart canvas */
 .canvas-wrap{border-radius:var(--radius);border-color:#2b3745;background:#18212c;box-shadow:var(--shadow-2)}
@@ -123,84 +148,159 @@ aside{background:linear-gradient(180deg,#fff,#fffcf8);padding:24px}
 .table-wrap{overflow:auto}
 th{background:#faf6f0;letter-spacing:.3px}
 th:first-child{background:#faf6f0}
-tbody tr{transition:background .2s}
-tbody tr:hover td{background:#fff7ec}
-.hero-cell img{border-radius:9px;box-shadow:0 2px 6px rgba(60,40,20,.14);transition:transform .35s var(--spring)}
-tbody tr:hover .hero-cell img{transform:scale(1.12) rotate(-2deg)}
-.grade{border-radius:8px;transition:transform .3s var(--spring)}
-button.grade:hover{transform:scale(1.08);filter:none}
+/* Rows are scanned constantly: colour only, no moving portraits. */
+tbody td{transition:background-color .12s ease}
+.hero-cell img{border-radius:9px;box-shadow:0 2px 6px rgba(60,40,20,.14)}
+.grade{border-radius:8px;transition:transform var(--dur-press) var(--ease-out)}
+button.grade:active:not(:disabled){transform:scale(.94)}
 
 /* Events */
-.event-match{transition:transform .35s var(--ease),box-shadow .35s var(--ease),border-color .25s}
-.event-match:hover{transform:translateY(-3px);box-shadow:var(--shadow-2);border-color:#f1d2b2}
+.event-match{transition:transform .25s var(--ease-out),box-shadow .25s var(--ease-out),border-color var(--dur-hover) ease}
 .event-meta{background:#fcf9f4;border-bottom-color:#f3ece3}
 .event-region{border-radius:999px;padding:3px 9px}
-.event-logo-slot{border-radius:10px;background:#f6f1ea;transition:transform .35s var(--spring)}
-.event-match:hover .event-logo-slot{transform:scale(1.08)}
-.events-tabs button{transition:color .2s}
-.events-tabs button[aria-pressed=true]:after{height:3px;border-radius:3px 3px 0 0;animation:grow-x .4s var(--ease) both;transform-origin:left}
-.mode-switch button[aria-pressed=true]:after{border-radius:3px 3px 0 0;animation:grow-x .4s var(--ease) both;transform-origin:left}
+.event-logo-slot{border-radius:10px;background:#f6f1ea;transition:transform .25s var(--ease-out)}
+.events-tabs button{transition:color var(--dur-hover) ease}
+.events-tabs button[aria-pressed=true]:after{height:3px;border-radius:3px 3px 0 0;animation:grow-x var(--dur-pop) var(--ease-out) both;transform-origin:center}
+.mode-switch button[aria-pressed=true]:after{border-radius:3px 3px 0 0;animation:grow-x var(--dur-pop) var(--ease-out) both;transform-origin:center}
+@media(hover:hover) and (pointer:fine){
+  tbody tr:hover td{background:#fff7ec}
+  button.grade:hover{filter:none;box-shadow:0 0 0 2px rgba(245,130,32,.25)}
+  .event-match:hover{transform:translateY(-2px);box-shadow:var(--shadow-2);border-color:#f1d2b2}
+  .event-match:hover .event-logo-slot{transform:scale(1.04)}
+}
 .events-day-heading{letter-spacing:.2px}
+
+/* Schedule rows: one compact line per match, so a screen shows a whole evening instead of two cards.
+   time | stage + teams | details, stream, reserve. When the match has an in-site detail page the whole
+   row opens it (stretched link); stream links and the reserve button sit above that layer. */
+#eventsList .event-match{
+  position:relative;display:grid;grid-template-columns:76px minmax(0,1fr) auto;
+  grid-template-areas:"time meta link" "time versus actions";column-gap:20px;row-gap:8px;align-items:center;
+  padding:12px 18px;margin-bottom:8px;border-radius:12px;
+}
+#eventsList .event-match-body{display:contents}
+#eventsList .event-meta{grid-area:meta;min-width:0;padding:0;gap:8px;background:none;border:0}
+#eventsList .event-tournament{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#eventsList .event-format{margin-left:0;color:#a3a8ae}
+#eventsList .event-time{grid-area:time;width:auto;padding:0;text-align:left}
+#eventsList .event-time time{font-size:20px}
+#eventsList .event-status{margin-top:2px}
+#eventsList .event-versus{grid-area:versus;width:100%;max-width:620px;grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr)}
+#eventsList .event-source-link{grid-area:link;position:static;transform:none;justify-self:end;padding:0;font-size:11px}
+#eventsList .event-source-link::after{content:"";position:absolute;inset:0;border-radius:inherit;z-index:0}
+#eventsList .event-source-link:not([href^="/"])::after{content:none}
+#eventsList .event-match:has(.event-source-link[href^="/"]){cursor:pointer}
+#eventsList .event-match:has(.event-source-link[href^="/"]:active){transform:scale(.995);transition-duration:var(--dur-press)}
+#eventsList .event-actions{grid-area:actions;position:relative;z-index:1;padding:0;gap:12px;flex-wrap:nowrap}
+#eventsList .event-reserve{padding:6px 14px}
+@media(max-width:760px),(max-height:500px) and (pointer:coarse){
+  /* Time joins the top line so both team names get the full width of the card. */
+  #eventsList .event-match{
+    grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"time meta link" "versus versus versus" "actions actions actions";
+    column-gap:10px;row-gap:10px;padding:12px;
+  }
+  #eventsList .event-time{display:flex;align-items:baseline;gap:6px}
+  #eventsList .event-time time{font-size:16px}
+  #eventsList .event-status{margin-top:0}
+  #eventsList .event-versus{max-width:none;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);gap:6px}
+  #eventsList .event-actions{justify-content:flex-end}
+  #eventsList .event-actions:empty{display:none}
+  #eventsList .event-reserve{min-height:36px}
+}
+
+/* Reservations: with nothing reserved the card is one quiet line, not the first thing on the page. */
+.events-reminders:has(.events-reservation-empty){padding-block:12px}
+.events-reminders:has(.events-reservation-empty) .events-reservations{display:none}
+.events-reminders:has(.events-reservation-empty) .events-reminders-heading h2{font-size:14px}
+/* Filters apply as they change; the submit button is redundant (Enter still submits). */
+#eventsApply{display:none}
+#eventsClear[hidden]{display:none}
+@media(max-width:760px),(max-height:500px) and (pointer:coarse){
+  /* Phones: schedule first; regional standings follow the list. */
+  .events-standings{order:3;margin:8px 0 24px}
+  .mobile-header-action.is-quiet,.mobile-header-action.is-quiet:hover{
+    background:transparent;border-color:transparent;box-shadow:none;color:var(--accent-deep);padding-inline:12px;text-shadow:none;
+  }
+}
 
 /* Draw stage */
 .draw-stage{border-radius:20px;box-shadow:0 24px 50px -20px rgba(24,32,44,.55),0 0 0 1px rgba(245,130,32,.08);
   background-image:radial-gradient(ellipse at 50% 110%,rgba(245,130,32,.22),transparent 62%),radial-gradient(ellipse at 50% -20%,rgba(255,255,255,.06),transparent 60%)}
-.role-switch button{transition:all .25s var(--spring)}
+.role-switch button{transition:transform var(--dur-press) var(--ease-out),background-color var(--dur-hover) ease,color var(--dur-hover) ease,box-shadow var(--dur-hover) ease}
 .role-switch button[aria-pressed=true]{box-shadow:0 6px 14px rgba(43,47,54,.25)}
 .draw-result strong{background:linear-gradient(120deg,var(--accent-deep),#f5a14d);-webkit-background-clip:text;background-clip:text;color:transparent}
 
 /* Dialogs */
 dialog{border-radius:18px!important;box-shadow:0 30px 80px -20px rgba(30,20,10,.45)!important}
-.motion dialog[open]{animation:dialog-in .45s var(--spring) both}
 dialog::backdrop{background:rgba(30,24,18,.42)!important;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+/* Dialogs enter with transitions (interruptible) and also animate out: display/overlay stay alive for the exit,
+   so every existing dialog.close() call gets a fade without JS changes. Exit is faster than entry. Browsers
+   without allow-discrete simply close instantly, as before. */
+.motion dialog{
+  transition:opacity var(--dur-pop) var(--ease-out),transform var(--dur-pop) var(--ease-out),
+    overlay var(--dur-pop) allow-discrete,display var(--dur-pop) allow-discrete;
+}
+.motion dialog:not([open]){opacity:0;transform:translateY(6px) scale(.97);transition-duration:var(--dur-exit)}
+.motion dialog::backdrop{transition:opacity var(--dur-pop) ease,overlay var(--dur-pop) allow-discrete,display var(--dur-pop) allow-discrete}
+.motion dialog:not([open])::backdrop{opacity:0;transition-duration:var(--dur-exit)}
+@starting-style{
+  .motion dialog[open]{opacity:0;transform:translateY(6px) scale(.97)}
+  .motion dialog[open]::backdrop{opacity:0}
+}
+/* Edge-anchored panels slide from their edge; the fullscreen chart only fades. */
+.motion .event-drawer{transition-duration:var(--dur-sheet);transition-timing-function:var(--ease-drawer)}
+.motion .event-drawer:not([open]){transform:translateX(100%);transition-duration:.22s}
+.motion .mobile-chart-dialog,.motion .mobile-chart-dialog:not([open]){transform:none}
+@starting-style{
+  .motion .event-drawer[open]{transform:translateX(100%)}
+  .motion .mobile-chart-dialog[open]{transform:none}
+}
 
 /* Auth + admin */
 .auth-shell{border-top:0;border-radius:20px;box-shadow:var(--shadow-2);position:relative;overflow:hidden}
 .auth-shell::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,#ffb066,var(--accent),#e0680e)}
-.admin-row{transition:transform .25s var(--ease),box-shadow .25s}
-.admin-row:hover{transform:translateY(-2px);box-shadow:var(--shadow-2)}
+.admin-row{transition:transform .25s var(--ease-out),box-shadow .25s var(--ease-out)}
+@media(hover:hover) and (pointer:fine){.admin-row:hover{transform:translateY(-2px);box-shadow:var(--shadow-2)}}
 
-/* Entrance motion: starts once the session check has revealed the page */
-@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
-@keyframes rise-sm{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* Entrance motion: starts once the session check has revealed the page. Short travel, quick settle, tight stagger;
+   nothing blocks input while it plays. */
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes rise-sm{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @keyframes fade-in{from{opacity:0}to{opacity:1}}
-@keyframes grow-x{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-@keyframes dialog-in{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes grow-x{from{opacity:0;transform:scaleX(.35)}to{opacity:1;transform:scaleX(1)}}
 @keyframes sheen{to{left:130%}}
 @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(245,130,32,.45)}100%{box-shadow:0 0 0 9px rgba(245,130,32,0)}}
-@keyframes float-y{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 body.motion:not(.cloud-pending) .hub-intro,
 body.motion:not(.cloud-pending) .intro,
 body.motion:not(.cloud-pending) .draw-heading,
 body.motion:not(.cloud-pending) .events-heading,
 body.motion:not(.cloud-pending) .analysis-back-link,
-body.motion:not(.cloud-pending) .back-link{animation:rise .7s var(--ease) both}
-body.motion:not(.cloud-pending) .tool-entry{animation:rise .8s var(--ease) both}
-body.motion:not(.cloud-pending) .tool-entry:nth-child(2){animation-delay:.09s}
-body.motion:not(.cloud-pending) .tool-entry:nth-child(3){animation-delay:.18s}
-body.motion:not(.cloud-pending) .workspace>aside{animation:rise .8s var(--ease) .08s both}
-body.motion:not(.cloud-pending) .results{animation:rise .8s var(--ease) .16s both}
+body.motion:not(.cloud-pending) .back-link{animation:rise .45s var(--ease-out) both}
+body.motion:not(.cloud-pending) .tool-entry{animation:rise .5s var(--ease-out) both}
+body.motion:not(.cloud-pending) .tool-entry:nth-child(2){animation-delay:.06s}
+body.motion:not(.cloud-pending) .tool-entry:nth-child(3){animation-delay:.12s}
+body.motion:not(.cloud-pending) .workspace>aside{animation:rise .5s var(--ease-out) .05s both}
+body.motion:not(.cloud-pending) .results{animation:rise .5s var(--ease-out) .1s both}
 body.motion:not(.cloud-pending) .mode-switch,
 body.motion:not(.cloud-pending) .draw-stage,
 body.motion:not(.cloud-pending) .draw-controls,
 body.motion:not(.cloud-pending) .events-reminders,
 body.motion:not(.cloud-pending) .events-tabs,
-body.motion:not(.cloud-pending) .events-filters{animation:rise .75s var(--ease) both}
-body.motion:not(.cloud-pending) .draw-stage,body.motion:not(.cloud-pending) .events-reminders{animation-delay:.08s}
-body.motion:not(.cloud-pending) .draw-controls,body.motion:not(.cloud-pending) .events-tabs{animation-delay:.15s}
-body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
-.motion .auth-shell{animation:rise .8s var(--ease) both}
+body.motion:not(.cloud-pending) .events-filters{animation:rise .45s var(--ease-out) both}
+body.motion:not(.cloud-pending) .draw-stage,body.motion:not(.cloud-pending) .events-reminders{animation-delay:.05s}
+body.motion:not(.cloud-pending) .draw-controls,body.motion:not(.cloud-pending) .events-tabs{animation-delay:.1s}
+body.motion:not(.cloud-pending) .events-filters{animation-delay:.14s}
+.motion .auth-shell{animation:rise .5s var(--ease-out) both}
 /* Entrance animations are tied to elements, not to a global switch: motion.js adds .enter once to nodes inserted at load
    or right after a user action, so unrelated clicks and background re-renders never replay anything. */
-.enter.event-match,.enter.events-day,.enter.events-reservation{animation:rise-sm .55s var(--ease) both}
-.enter.event-match:nth-child(2){animation-delay:.05s}.enter.event-match:nth-child(3){animation-delay:.1s}.enter.event-match:nth-child(4){animation-delay:.15s}.enter.event-match:nth-child(n+5){animation-delay:.2s}
-#players>tr.enter{animation:rise-sm .45s var(--ease) both}
-#players>tr.enter:nth-child(2){animation-delay:.04s}#players>tr.enter:nth-child(3){animation-delay:.08s}#players>tr.enter:nth-child(4){animation-delay:.12s}#players>tr.enter:nth-child(5){animation-delay:.16s}#players>tr.enter:nth-child(n+6){animation-delay:.2s}
-.motion .ai-review:not([hidden]),.motion .estimate-detail:not([hidden]),.motion .performance-panel:not([hidden]){animation:rise-sm .5s var(--ease) both}
-.enter.empty-state{animation:rise-sm .5s var(--ease) both}
+.enter.event-match,.enter.events-day,.enter.events-reservation{animation:rise-sm .35s var(--ease-out) both}
+.enter.event-match:nth-child(2){animation-delay:.04s}.enter.event-match:nth-child(3){animation-delay:.08s}.enter.event-match:nth-child(4){animation-delay:.12s}.enter.event-match:nth-child(n+5){animation-delay:.16s}
+#players>tr.enter{animation:rise-sm .3s var(--ease-out) both}
+#players>tr.enter:nth-child(2){animation-delay:.03s}#players>tr.enter:nth-child(3){animation-delay:.06s}#players>tr.enter:nth-child(4){animation-delay:.09s}#players>tr.enter:nth-child(5){animation-delay:.12s}#players>tr.enter:nth-child(n+6){animation-delay:.15s}
+.motion .ai-review:not([hidden]),.motion .estimate-detail:not([hidden]),.motion .performance-panel:not([hidden]){animation:rise-sm .3s var(--ease-out) both}
+.enter.empty-state{animation:rise-sm .35s var(--ease-out) both}
 .motion .live-dot,.motion .local i{animation:pulse-ring 2s ease-out infinite}
-.motion .empty-state strong{animation:float-y 4s ease-in-out infinite}
-#chart>svg.enter{animation:fade-in .6s ease both}
+#chart>svg.enter{animation:fade-in .3s ease both}
 
 /* Fine hairline loading shimmer for status text */
 .status[role=status]:empty{display:none}
@@ -211,14 +311,7 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
   aside{padding:20px}
   .toolkit-account button,.cloud-user button{padding:7px 10px}
 }
-@media(hover:none){
-  .tool-entry:hover,.event-match:hover,.admin-row:hover{transform:none}
-  button:hover:not(:disabled){transform:none}
-}
-@media(prefers-reduced-motion:reduce){
-  html{scroll-behavior:auto}
-  *,*::before,*::after{animation:none!important;transition:none!important}
-}
+
 
 
 /* ===== Mobile shell =====
@@ -232,7 +325,7 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
   }
   .mobile-app>header{
     position:relative;box-shadow:none;clip-path:none;background:var(--glass);border-bottom:0;
-    -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);transition:box-shadow .3s var(--ease);
+    -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);transition:box-shadow .3s ease;
   }
   .mobile-app>header::after{left:0;right:0}
   body.is-scrolled.mobile-app>header{box-shadow:0 10px 22px -16px rgba(60,40,20,.35)}
@@ -240,7 +333,7 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
     border-radius:999px;min-height:38px;padding:7px 18px;font-weight:700;
     background:linear-gradient(180deg,#ff9440,#f27a14);border-color:#e8740f;box-shadow:0 6px 14px rgba(245,130,32,.3);
   }
-  .mobile-app button{border-radius:12px;transition:transform .15s var(--ease),background .2s,box-shadow .2s}
+  .mobile-app button{border-radius:12px;transition:transform var(--dur-press) var(--ease-out),background-color var(--dur-hover) ease,box-shadow var(--dur-hover) ease}
   .mobile-app button:active:not(:disabled){transform:scale(.96)}
 
   /* Bottom tab bar */
@@ -249,13 +342,13 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
     -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);box-shadow:0 -10px 24px -18px rgba(60,40,20,.28);
   }
   .mobile-bottom-nav::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--line)}
-  .mobile-bottom-nav a{position:relative;transition:color .25s,transform .3s var(--spring);-webkit-tap-highlight-color:transparent}
-  .mobile-bottom-nav a:active{transform:scale(.9)}
-  .mobile-bottom-nav svg{transition:transform .4s var(--spring)}
+  .mobile-bottom-nav a{position:relative;transition:color var(--dur-hover) ease,transform var(--dur-press) var(--ease-out);-webkit-tap-highlight-color:transparent}
+  .mobile-bottom-nav a:active{transform:scale(.94)}
+  .mobile-bottom-nav svg{transition:transform .3s var(--spring)}
   .mobile-bottom-nav [aria-current=page]{color:var(--accent-deep)}
-  .mobile-bottom-nav [aria-current=page] svg{transform:translateY(-2px) scale(1.1)}
+  .mobile-bottom-nav [aria-current=page] svg{transform:translateY(-1px) scale(1.06)}
   .mobile-bottom-nav [aria-current=page]::before{content:"";position:absolute;top:-5px;left:50%;width:26px;height:3px;margin-left:-13px;border-radius:0 0 4px 4px;background:linear-gradient(90deg,#ffb066,var(--accent))}
-  .motion .mobile-bottom-nav [aria-current=page]::before{animation:grow-x .45s var(--ease) both}
+  .motion .mobile-bottom-nav [aria-current=page]::before{animation:grow-x var(--dur-pop) var(--ease-out) both}
 
   /* One sheet language: drawer from the left, everything else rises from the bottom with a grab handle */
   .mobile-drawer{border-radius:0 22px 22px 0!important}
@@ -271,10 +364,12 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
   .mobile-content-dialog .mobile-modal-head::before,.mobile-hero-dialog .mobile-modal-head::before{
     content:"";position:absolute;top:8px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:4px;background:#ddd3c7;
   }
-  .motion .mobile-drawer[open]{animation:drawer-in .4s var(--ease) both}
-  .motion .mobile-content-dialog[open],.motion .mobile-hero-dialog[open]{animation:sheet-up .45s var(--ease) both}
-  .mobile-content-dialog.is-dragging,.mobile-hero-dialog.is-dragging{animation:none!important;transition:none}
-  .mobile-content-dialog.is-closing,.mobile-hero-dialog.is-closing{transform:translateY(100%);transition:transform .25s var(--ease)}
+  /* Sheets travel their full height on the iOS drawer curve; closing (button, backdrop or drag) reverses the same path. */
+  .motion .mobile-drawer,.motion .mobile-content-dialog,.motion .mobile-hero-dialog{transition-duration:var(--dur-sheet);transition-timing-function:var(--ease-drawer)}
+  .motion .mobile-drawer:not([open]){transform:translateX(-100%);opacity:1;transition-duration:.24s}
+  .motion .mobile-content-dialog:not([open]),.motion .mobile-hero-dialog:not([open]){transform:translateY(100%);opacity:1;transition-duration:.24s}
+  .mobile-content-dialog.is-dragging,.mobile-hero-dialog.is-dragging{animation:none!important;transition:none!important}
+  .mobile-content-dialog.is-closing,.mobile-hero-dialog.is-closing{transform:translateY(100%);transition:transform .24s var(--ease-drawer)}
 
   /* Analysis: one segmented dock under the chart (prev | zoom | export | next) instead of three separate rows */
   .mobile-analysis #chartZoom{display:none}
@@ -299,28 +394,32 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
   .mobile-evidence-actions{grid-row:6;display:grid!important;grid-template-columns:1fr;gap:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-1)}
   .mobile-evidence-actions button{display:flex;align-items:center;justify-content:space-between;border:0;border-radius:0;background:transparent;box-shadow:none;text-align:left;padding:13px 16px;font-size:14px;min-height:50px}
   .mobile-evidence-actions button+button{border-top:1px solid #f1ebe3}
-  .mobile-evidence-actions button::after{content:"›";font-size:20px;color:#c4b7a8;transition:transform .25s var(--ease)}
+  .mobile-evidence-actions button::after{content:"›";font-size:20px;color:#c4b7a8;transition:transform var(--dur-press) var(--ease-out)}
   .mobile-evidence-actions button:active::after{transform:translateX(3px)}
 
   /* Tabs and pages */
   .mobile-analysis-tabs{background:var(--glass);border-bottom:1px solid var(--line);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
   .mobile-analysis-tabs button{transition:color .25s}
   .mobile-analysis-tabs [aria-selected=true]{color:var(--accent-deep)}
-  .motion .mobile-analysis-tabs [aria-selected=true]::after{animation:grow-x .35s var(--ease) both}
-  .motion .mobile-page-active{animation:page-in .38s var(--ease) both}
+  .motion .mobile-analysis-tabs [aria-selected=true]::after{animation:grow-x var(--dur-pop) var(--ease-out) both}
+  .motion .mobile-page-active{animation:page-in .24s var(--ease-out) both}
   .motion .mobile-page-active.from-left{animation-name:page-in-left}
   .mobile-match-bar{border-radius:14px;border-color:var(--line);box-shadow:var(--shadow-1)}
-  .mobile-player-row{transition:background .2s}
+  .mobile-player-row{transition:background-color .12s ease}
   .mobile-player-row:active{background:#fff4e6}
   .mobile-home .tool-entry,.mobile-analysis .canvas-wrap{border-radius:18px}
   .mobile-home .tool-entry:active{transform:scale(.985);box-shadow:var(--shadow-2)}
   .mobile-app>main{scroll-behavior:smooth}
   .mobile-events .events-heading>button{display:none}
 }
-@keyframes drawer-in{from{transform:translateX(-24px);opacity:0}to{transform:none;opacity:1}}
-@keyframes sheet-up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
-@keyframes page-in{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
-@keyframes page-in-left{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+@media(max-width:760px),(max-height:500px) and (pointer:coarse){
+  @starting-style{
+    .motion .mobile-drawer[open]{transform:translateX(-100%);opacity:1}
+    .motion .mobile-content-dialog[open],.motion .mobile-hero-dialog[open]{transform:translateY(100%);opacity:1}
+  }
+}
+@keyframes page-in{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+@keyframes page-in-left{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
 /* The filter toggle only exists for the mobile shell; desktop filters are always visible */
 .mobile-filter-toggle{display:none}
 @media(max-width:760px),(max-height:500px) and (pointer:coarse){
@@ -330,10 +429,10 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
   .mobile-events .events-reminders-heading p{margin:2px 0 0}
   .mobile-events .events-reservation-empty{display:none}
   .mobile-events .events-filters{display:none}
-  .mobile-events.filters-open .events-filters{display:grid;animation:rise-sm .35s var(--ease) both}
+  .mobile-events.filters-open .events-filters{display:grid;animation:rise-sm .24s var(--ease-out) both}
   .mobile-events .events-tabs{position:relative}
   .mobile-app .mobile-filter-toggle{margin-left:auto;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 14px;font-size:13px;background:#fff;border-radius:999px!important}
-  .mobile-filter-toggle svg{width:16px;height:16px;transition:transform .3s var(--ease)}
+  .mobile-filter-toggle svg{width:16px;height:16px;transition:transform var(--dur-pop) var(--ease-out)}
   .mobile-filter-toggle[aria-expanded=true]{background:var(--accent-soft);border-color:#f0c9a2;color:var(--accent-deep)}
   .mobile-filter-toggle[aria-expanded=true] svg{transform:rotate(180deg)}
   .mobile-filter-toggle b{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:#fff;font-size:11px;font-weight:700}
@@ -355,4 +454,32 @@ body.motion:not(.cloud-pending) .events-filters{animation-delay:.2s}
   body:not(.mobile-analysis) .results>.timeline-navigation{grid-row:2;grid-column:2;justify-content:center;gap:18px;margin-top:10px}
   body:not(.mobile-analysis) .result-toolbar>.actions{grid-row:2;grid-column:3;display:flex;gap:8px}
   body:not(.mobile-analysis) .result-toolbar>*{margin-top:10px}
+  /* The settings panel is short and the results are long: keep it beside the reader while they scroll. */
+  body:not(.mobile-analysis) .workspace>aside{position:sticky;top:106px;max-height:calc(100vh - 122px);overflow:auto}
+}
+
+/* Player table: scanned row by row, so rows stay compact and white. The team reads from a coloured
+   leading edge and one divider between the sides instead of tinting every cell. */
+#players tr,#players tr:has(.team-label.enemy){--team-row:var(--surface);--team-hover:#fff7ec;--team-edge:var(--accent)}
+#players tr:has(.team-label.enemy){--team-edge:#8a96a6}
+#players tr>td:first-child{box-shadow:inset 3px 0 0 var(--team-edge)}
+#players tr:not(:has(.team-label.enemy))+tr:has(.team-label.enemy)>td{border-top:2px solid #e4ddd3}
+#players .team-label{color:var(--accent-deep);background:var(--accent-soft)}
+#players .team-label.enemy{color:#4f5b6b;background:#eef1f5}
+#players td,thead th{padding:9px 10px}
+#players .hero-cell{gap:8px}
+#players .hero-cell img{width:30px;height:30px}
+#players .grade{padding:4px 8px;font-size:15px}
+@media(hover:hover) and (pointer:fine){#players tr:hover>td{background:var(--team-hover)}}
+
+/* Reduced motion means gentler, not none: movement goes, opacity fades that explain state changes stay. */
+@media(prefers-reduced-motion:reduce){
+  html,.mobile-app>main{scroll-behavior:auto!important}
+  @keyframes rise{from{opacity:0}to{opacity:1}}
+  @keyframes rise-sm{from{opacity:0}to{opacity:1}}
+  @keyframes grow-x{from{opacity:0}to{opacity:1}}
+  @keyframes page-in{from{opacity:0}to{opacity:1}}
+  @keyframes page-in-left{from{opacity:0}to{opacity:1}}
+  .motion .live-dot,.motion .local i,.motion .primary::after,.motion .draw-button::after{animation:none!important}
+  *,*::before,*::after{transition-property:opacity,background-color,border-color,color,box-shadow,overlay,display!important}
 }

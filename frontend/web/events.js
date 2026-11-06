@@ -530,8 +530,23 @@
     queryTimer = null;
     refresh(false);
   };
+  // Filters apply as they change, so reset is only offered while something differs from the defaults.
+  const syncClear = () => {
+    const f = filters();
+    $('eventsClear').hidden = !(
+      f.series !== 'owcs' ||
+      f.from ||
+      f.to ||
+      f.tournament ||
+      f.region ||
+      f.team.trim()
+    );
+  };
   $('eventsFilters').addEventListener('input', render);
   $('eventsFilters').addEventListener('change', render);
+  $('eventsFilters').addEventListener('input', syncClear);
+  $('eventsFilters').addEventListener('change', syncClear);
+  syncClear();
   for (const id of ['eventsSeries', 'eventsFrom', 'eventsTo'])
     $(id).addEventListener('change', queryChanged);
   $('eventsSeries').addEventListener('change', () => {
@@ -539,6 +554,7 @@
   });
   $('eventsClear').onclick = () => {
     $('eventsFilters').reset();
+    syncClear();
     queryChanged();
     render();
   };

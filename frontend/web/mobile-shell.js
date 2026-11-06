@@ -43,6 +43,8 @@
   action.className = 'mobile-header-action';
   action.textContent = analysis ? '查询' : draw ? '抽取记录' : events ? '刷新' : '';
   action.hidden = (!analysis && !draw && !events) || eventDetail;
+  // The schedule refreshes itself; on events the header action is a quiet text button, not the main CTA.
+  if (events) action.classList.add('is-quiet');
   header.append(action);
   const nav = document.createElement('nav');
   nav.className = 'mobile-bottom-nav';
@@ -225,25 +227,41 @@
         ? document.getElementById('eventsRefresh')?.click()
         : document.getElementById('historyOpen')?.click();
   // Bottom sheets close by dragging the header down, like the native pattern the grab handle suggests.
+  // A quick flick is enough (velocity), dragging upward meets growing resistance instead of a wall, and the
+  // release either springs back or continues into the CSS exit transition from wherever the finger let go.
+  const exitTransition = window.CSS?.supports?.('transition-behavior', 'allow-discrete');
   function dragToClose(dialog) {
     let start = null;
     dialog.addEventListener('pointerdown', (e) => {
-      if (!media.matches || !e.target.closest('.mobile-modal-head') || e.target.closest('button'))
+      if (
+        start ||
+        !media.matches ||
+        !e.target.closest('.mobile-modal-head') ||
+        e.target.closest('button')
+      )
         return;
-      start = { y: e.clientY, id: e.pointerId };
+      start = { y: e.clientY, id: e.pointerId, t: performance.now() };
       dialog.setPointerCapture?.(e.pointerId);
       dialog.classList.add('is-dragging');
     });
     dialog.addEventListener('pointermove', (e) => {
       if (!start || e.pointerId !== start.id) return;
-      dialog.style.transform = `translateY(${Math.max(0, e.clientY - start.y)}px)`;
+      const dy = e.clientY - start.y;
+      const offset = dy >= 0 ? dy : -Math.sqrt(-dy) * 2;
+      dialog.style.transform = `translateY(${offset}px)`;
     });
     const end = (e) => {
       if (!start || e.pointerId !== start.id) return;
       const dy = e.clientY - start.y;
+      const velocity = dy / Math.max(1, performance.now() - start.t);
       start = null;
       dialog.classList.remove('is-dragging');
-      if (dy > 90) {
+      if (dy > 90 || (dy > 12 && velocity > 0.11)) {
+        if (exitTransition) {
+          dialog.style.transform = '';
+          dialog.close();
+          return;
+        }
         dialog.classList.add('is-closing');
         dialog.style.transform = '';
         setTimeout(() => {
@@ -262,6 +280,19 @@
       restore();
     }
   });
+  // The build appends the ICP footer to <body>; in the shell that slot sits between the scrolling
+  // <main> and the tab bar, where it would stay on screen and eat space. Inside the shell it moves to
+  // the end of the scroll content, and returns to <body> when the desktop layout comes back.
+  const placeIcp = () => {
+    const footer = document.querySelector('footer.icp-footer'),
+      main = document.querySelector('body>main');
+    if (!footer || !main) return;
+    if (media.matches) main.append(footer);
+    else if (footer.parentElement !== document.body) nav.before(footer);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', placeIcp);
+  else placeIcp();
+  media.addEventListener('change', placeIcp);
   const fitKeyboard = () => {
     const field = document.activeElement,
       editing = field?.matches('input,textarea,select'),
