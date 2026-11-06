@@ -38,7 +38,8 @@
 .events-page:not(.event-page) .events-main{max-width:1440px}
 .events-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
 .events-primary{min-width:0}
-.events-standings{position:sticky;top:16px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:16px 16px 18px;max-height:calc(100vh - 32px);overflow-y:auto}
+/* Stick below the 90px sticky site header, not under it. */
+.events-standings{position:sticky;top:106px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:16px 16px 18px;max-height:calc(100vh - 122px);overflow-y:auto}
 .events-standings>h2{font-size:15px;margin:0 0 12px}
 .events-standings-regions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .events-standings-regions button{font-size:12px;padding:5px 11px;border-radius:14px;background:transparent}
