@@ -117,7 +117,7 @@ export async function buildToolkit({
       (id) => '<img loading="lazy" src="' + heroes.find((h) => h.id === id).portrait + '" alt="">'
     )
     .join('');
-  for (const page of ['toolkit', 'draw', 'events']) {
+  for (const page of ['toolkit', 'draw', 'events', 'event']) {
     let html = brandPage(await readFile(path.join(base, 'frontend/web', page + '.html'), 'utf8'))
       .replaceAll('{{SITE_MARK}}', logo)
       .replaceAll('{{OW_MARK}}', owMark)
@@ -147,16 +147,21 @@ export async function buildToolkit({
           ].join('\n')
         : page === 'events'
           ? null
-          : common;
+          : page === 'event'
+            ? [common, await readFile(path.join(base, 'frontend/web/event.js'), 'utf8')].join('\n')
+            : common;
     const eventsCSS =
       page !== 'draw'
         ? '<link rel="stylesheet" href="' +
           (await staticFile(
             (await readFile(path.join(base, 'frontend/web/events.css'), 'utf8')) +
               '\n' +
+              (page === 'event'
+                ? (await readFile(path.join(base, 'frontend/web/event.css'), 'utf8')) + '\n'
+                : '') +
               (await readFile(path.join(base, 'frontend/web/theme.css'), 'utf8')),
             'css',
-            'events'
+            page === 'event' ? 'event' : 'events'
           )) +
           '">'
         : '';

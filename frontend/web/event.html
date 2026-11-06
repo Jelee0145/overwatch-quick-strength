@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>赛事详情 · 守望工具箱</title></head>
+<body class="toolkit events-page event-page cloud-pending">
+<header class="toolkit-header"><a class="toolkit-brand" href="/">{{SITE_MARK}}<span>守望工具箱</span></a><div class="toolkit-account"><span id="cloudIdentity">连接账号…</span><button id="apiKeyOpen" type="button">API</button><button id="changelogOpen" type="button">更新日志</button><button id="cloudLogout" type="button">退出</button></div></header>
+<p id="sessionError" class="session-error" role="alert" hidden></p>
+<main class="toolkit-main events-main event-main">
+<a class="back-link" href="/tools/events">← 返回赛事中心</a>
+<section class="event-heading"><h1 id="eventTitle">赛事详情</h1><p id="eventSubtitle"></p></section>
+<dl id="eventInfo" class="event-info" hidden></dl>
+<p id="eventNotice" class="events-notice" role="status" hidden></p>
+<div id="eventTabs" class="events-tabs" role="tablist" aria-label="赛事内容" hidden><button type="button" role="tab" id="eventTab-schedule" data-tab="schedule" aria-controls="eventSchedule" aria-selected="true" aria-pressed="true">赛程</button><button type="button" role="tab" id="eventTab-standings" data-tab="standings" aria-controls="eventStandings" aria-selected="false" aria-pressed="false">积分榜</button><button type="button" role="tab" id="eventTab-teams" data-tab="teams" aria-controls="eventTeams" aria-selected="false" aria-pressed="false">参赛队伍</button><span>北京时间</span></div>
+<section id="eventSchedule" class="event-panel" role="tabpanel" aria-labelledby="eventTab-schedule" aria-busy="true"><p class="events-empty">正在读取…</p></section>
+<section id="eventStandings" class="event-panel" role="tabpanel" aria-labelledby="eventTab-standings" hidden></section>
+<section id="eventTeams" class="event-panel" role="tabpanel" aria-labelledby="eventTab-teams" hidden></section>
+<footer id="eventSource" class="events-source event-source"></footer>
+</main>
+<dialog id="eventDrawer" class="event-drawer" aria-labelledby="eventDrawerTitle"><div class="event-drawer-head"><h2 id="eventDrawerTitle">对阵详情</h2><button id="eventDrawerClose" type="button" aria-label="关闭">×</button></div><div id="eventDrawerBody" class="event-drawer-body"></div></dialog>
+{{CHANGELOG}}</body></html>

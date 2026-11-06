@@ -2,7 +2,9 @@
 (() => {
   const analysis = !!document.getElementById('chart'),
     draw = !!document.getElementById('drawStage'),
-    events = document.body.classList.contains('events-page');
+    events = document.body.classList.contains('events-page'),
+    // The event detail page shares the events styling but has no refresh button or filters.
+    eventDetail = document.body.classList.contains('event-page');
   if (!analysis && !document.body.classList.contains('toolkit')) return;
   const media = matchMedia('(max-width:760px), (max-height:500px) and (pointer:coarse)'),
     esc = (value) =>
@@ -40,7 +42,7 @@
   action.type = 'button';
   action.className = 'mobile-header-action';
   action.textContent = analysis ? '查询' : draw ? '抽取记录' : events ? '刷新' : '';
-  action.hidden = !analysis && !draw && !events;
+  action.hidden = (!analysis && !draw && !events) || eventDetail;
   header.append(action);
   const nav = document.createElement('nav');
   nav.className = 'mobile-bottom-nav';
@@ -271,7 +273,7 @@
   window.visualViewport?.addEventListener('resize', fitKeyboard);
   document.addEventListener('focusin', fitKeyboard);
   document.addEventListener('focusout', () => requestAnimationFrame(fitKeyboard));
-  if (events) {
+  if (events && !eventDetail) {
     const form = document.getElementById('eventsFilters'),
       bar = document.querySelector('.events-tabs'),
       toggle = document.createElement('button');

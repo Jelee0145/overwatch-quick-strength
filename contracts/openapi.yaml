@@ -244,6 +244,26 @@ paths:
       responses:
         '200': {description: Badge image bytes}
         '404': {description: No stored badge with this hash}
+  /events/detail:
+    get:
+      summary: Read one OWCS tournament stage as this site's own event detail page
+      description: |
+        `t` is a Liquipedia page path under `Overwatch_Champions_Series/` (subpages such as
+        `/Regular_Season` roll up to their stage). Visitors only read stored copies: the first
+        request for an uncached page returns 202 with `retryAfter` (and a Retry-After header)
+        while a background job parses it through Liquipedia's API. Ready payloads carry `info`,
+        `stages`, `matches` (per-map `map`, `scores`, `winner`, inferred `picker` - null for map 1,
+        otherwise the previous map's loser - `bans` and `mvp`), `standings`, `participants`,
+        `updatedAt`, `partial` and `source` (Liquipedia page URLs, CC BY-SA 3.0 attribution).
+        Team logos are same-origin `/api/v1/events/logos/{hash}` paths or null; hero and map
+        images are this site's own `/media` assets.
+      parameters:
+        - {name: t, in: query, required: true, schema: {type: string, maxLength: 160}}
+      responses:
+        '200': {description: 'Event detail (state ready)'}
+        '202': {description: 'state pending, root and retryAfter seconds'}
+        '400': {description: Page path outside the allowlist}
+        '503': {description: Event details unavailable}
   /events/refresh:
     post:
       summary: Request centrally limited event refresh using the same query filters

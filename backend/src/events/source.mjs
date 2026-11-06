@@ -128,3 +128,60 @@ export function splitEventRange(range) {
     { ...range, from: date(mid + DAY) }
   ];
 }
+
+// Event detail pages: one OWCS tournament (stage) page and its subpages, fetched only
+// through api.php. The allowlist keeps the endpoint from proxying arbitrary wiki pages.
+const DETAIL_PATH = /^Overwatch_Champions_Series\/[A-Za-z0-9_\-]+(?:\/[A-Za-z0-9_\-]+){0,4}$/;
+const SUBPAGES =
+  /\/(?:Regular_Season|Playoffs|Regional_Playoffs|Group_Stage|Main_Event|Swiss_Stage|Knockout_Stage|Play-?Ins?|Playoff)$/i;
+export function detailPath(value) {
+  const path = String(value || '').trim();
+  if (path.length > 160 || !DETAIL_PATH.test(path)) throw new Fault('赛事页面无效');
+  return path;
+}
+/** The tournament page a ticker match belongs to (subpages roll up to their stage). */
+export function detailRoot(sourceUrl) {
+  let url;
+  try {
+    url = new URL(sourceUrl);
+  } catch {
+    return null;
+  }
+  if (url.origin !== 'https://liquipedia.net' || !url.pathname.startsWith('/overwatch/'))
+    return null;
+  const path = decodeURIComponent(url.pathname.slice('/overwatch/'.length)).replace(SUBPAGES, '');
+  try {
+    return detailPath(path);
+  } catch {
+    return null;
+  }
+}
+export function detailParseApi(path) {
+  return (
+    EVENT_SOURCE +
+    '?' +
+    new URLSearchParams({
+      action: 'parse',
+      page: detailPath(path),
+      prop: 'text|links|revid',
+      redirects: '1',
+      disabletoc: '1',
+      disableeditsection: '1',
+      disablelimitreport: '1',
+      format: 'json'
+    })
+  );
+}
+export function detailRevisionApi(paths) {
+  return (
+    EVENT_SOURCE +
+    '?' +
+    new URLSearchParams({
+      action: 'query',
+      prop: 'info',
+      titles: paths.map(detailPath).join('|'),
+      format: 'json',
+      formatversion: '2'
+    })
+  );
+}

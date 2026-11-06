@@ -6,6 +6,7 @@ import { EventQueries } from './queries.mjs';
 import { eventRefreshInterval, nextEventRefresh } from './freshness.mjs';
 import { Fault } from '../security.mjs';
 import { EventLogos, logoResponse } from './logos.mjs';
+import { EventDetails, detailError } from './details.mjs';
 export const EVENTS_API = eventApi();
 const SOURCE_VERSION = EVENT_SOURCE_VERSION;
 const HOUR = 60 * 60 * 1000,
@@ -21,6 +22,29 @@ export class EventCenter {
     this.sourceBusy = null;
     this.queries = new EventQueries(this);
     this.logos = new EventLogos(this);
+    this.details = new EventDetails(this);
+    // Liquipedia: "Rate limit all HTTP requests to no more than 1 request per 2 seconds."
+    // Spacing guards the real network; injected test fetchers default to no wall-clock wait.
+    const mocked = typeof env.EVENTS_FETCH === 'function' && env.EVENTS_FETCH !== globalThis.fetch;
+    this.lpSpacing = Number.isFinite(env.EVENTS_LP_SPACING_MS)
+      ? env.EVENTS_LP_SPACING_MS
+      : mocked
+        ? 0
+        : 2000;
+    this.lpLastAt = 0;
+    this.lpSent = 0;
+    this.lpTurn = Promise.resolve();
+  }
+  // Serializes every request to liquipedia.net (parse, query, badges) with wall-clock spacing.
+  lpSlot() {
+    const turn = this.lpTurn.then(async () => {
+      const wait = this.lpLastAt + this.lpSpacing - Date.now();
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+      this.lpLastAt = Date.now();
+      this.lpSent++;
+    });
+    this.lpTurn = turn.catch(() => {});
+    return turn;
   }
   now() {
     return Date.now();
@@ -34,6 +58,21 @@ export class EventCenter {
       return saved
         ? logoResponse(saved)
         : json({ error: '队标不存在' }, 404, { 'Cache-Control': 'no-store' });
+    }
+    if (path === '/detail') {
+      if (request.method !== 'GET') return json({ error: '请求方法错误' }, 405);
+      try {
+        const value = await this.details.view(url.searchParams.get('t'));
+        return json(value, value.state === 'pending' ? 202 : 200, {
+          'Cache-Control': 'private, no-store',
+          ...(value.state === 'pending' ? { 'Retry-After': String(value.retryAfter) } : {})
+        });
+      } catch (error) {
+        const fault = detailError(error);
+        return json({ error: fault.message }, fault.status || 503, { 'Cache-Control': 'no-store' });
+      } finally {
+        await this.schedule();
+      }
     }
     if (path === '/track' && request.method === 'POST') {
       try {
@@ -137,6 +176,7 @@ export class EventCenter {
     return this.pending;
   }
   async alarm() {
+    const sent = this.lpSent;
     try {
       await this.refresh();
     } catch {
@@ -147,6 +187,11 @@ export class EventCenter {
       await this.logos.sync((await this.storage.get('snapshot'))?.matches);
     } catch {
       /* Badge copies are optional; the schedule still renders with placeholders. */
+    }
+    try {
+      await this.details.work({ sent: this.lpSent !== sent });
+    } catch {
+      /* Detail pages keep their last stored copy. */
     }
     await this.schedule();
   }
@@ -160,7 +205,9 @@ export class EventCenter {
         ? this.now() + 1000
         : this.logos.pending()
           ? this.now() + 5000
-          : nextEventRefresh(saved.matches, saved.updatedAt, this.now());
+          : this.details.wanted
+            ? this.now() + 10000
+            : nextEventRefresh(saved.matches, saved.updatedAt, this.now());
     await this.storage.setAlarm(Math.max(target, next));
   }
   async recentDue(now = this.now()) {
@@ -222,7 +269,15 @@ export class EventCenter {
       };
     return value;
   }
-  async source(api, options = { series: 'owcs' }, { priority = 'backfill' } = {}) {
+  async source(
+    api,
+    options = { series: 'owcs' },
+    {
+      priority = 'backfill',
+      maxBytes = MAX_BYTES,
+      read = (data) => parseEventBatch(data.parse?.text?.['*'], options)
+    } = {}
+  ) {
     const cooldown = (seconds) =>
       Object.assign(Error('Event source cooldown'), { retryAfter: seconds });
     if (this.sourceBusy) throw cooldown(1);
@@ -248,6 +303,7 @@ export class EventCenter {
       await this.storage.put('refreshAfter', Math.max(next, this.now() + 30000));
       await this.storage.put('sourceStartedAt', this.now());
       started = true;
+      await this.lpSlot();
       const controller = new AbortController();
       timer = setTimeout(() => controller.abort(), 10000);
       const identity = this.env.EVENTS_CONTACT || this.env.PUBLIC_ORIGIN;
@@ -271,7 +327,7 @@ export class EventCenter {
           await this.storage.put('refreshAfter', until);
         throw Error('Upstream unavailable');
       }
-      if (Number(response.headers.get('Content-Length')) > MAX_BYTES)
+      if (Number(response.headers.get('Content-Length')) > maxBytes)
         throw Error('Response too large');
       if (!response.headers.get('Content-Type')?.includes('application/json'))
         throw Error('Unexpected response');
@@ -283,7 +339,7 @@ export class EventCenter {
           const { done, value } = await reader.read();
           if (done) break;
           size += value.byteLength;
-          if (size > MAX_BYTES) throw Error('Response too large');
+          if (size > maxBytes) throw Error('Response too large');
           chunks.push(value);
         }
       } finally {
@@ -296,7 +352,7 @@ export class EventCenter {
         offset += part.length;
       }
       const data = JSON.parse(new TextDecoder().decode(bytes));
-      const parsed = parseEventBatch(data.parse?.text?.['*'], options);
+      const parsed = read(data);
       await this.storage.put('sourceFailedAt', null);
       return parsed;
     } catch (error) {
