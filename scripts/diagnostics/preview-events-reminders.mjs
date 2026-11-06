@@ -172,6 +172,69 @@ function events(url, refresh = false) {
   };
 }
 
+// Fictional region standings (no badges) so the side panel can be previewed offline.
+function standings() {
+  const rows = (list, statuses) =>
+    list.map(([shortName, stats], i) => ({
+      place: [1, 1, 3, 3, 5, 5, 7, 7][i] ?? i + 1,
+      status: statuses[i] || '',
+      team: { name: shortName + ' Esports', shortName, logo: null },
+      stats
+    }));
+  const swiss = rows(
+    [
+      ['WBG', ['2 - 0', '6 - 1']],
+      ['JDG', ['2 - 0', '6 - 2']],
+      ['SV', ['2 - 1', '7 - 6']],
+      ['AG', ['2 - 1', '8 - 7']],
+      ['OUG', ['2 - 2', '10 - 8']],
+      ['HNG', ['2 - 2', '9 - 6']],
+      ['SSE', ['0 - 3', '2 - 9']],
+      ['BF', ['0 - 3', '0 - 9']]
+    ],
+    ['up', 'up', 'up', 'up', 'up', 'up', 'down', 'down']
+  );
+  const robin = rows(
+    [
+      ['OUG', ['5 - 0', '15 - 5']],
+      ['AG', ['4 - 1', '13 - 6']],
+      ['WBG', ['3 - 2', '13 - 8']],
+      ['HNG', ['1 - 4', '7 - 13']],
+      ['SV', ['1 - 4', '5 - 13']]
+    ],
+    ['up', 'up', 'up', 'down', 'down']
+  );
+  const region = (name, path, state = 'ready') => ({
+    root: 'Overwatch_Champions_Series/2026/' + path,
+    region: name,
+    title: 'Overwatch Champions Series 2026 - ' + path.replace(/_/g, ' '),
+    tournament: 'OWCS ' + path.replace(/_/g, ' ').replace(/\//g, ' ') + ' - Regional Playoffs',
+    state,
+    partial: false,
+    standings:
+      state === 'ready'
+        ? [
+            { title: 'Swiss Standings', kind: 'swiss', columns: ['Match', 'Game'], rows: swiss },
+            {
+              title: 'Round Robin Standings',
+              kind: 'group',
+              columns: ['Match', 'Game'],
+              rows: robin
+            }
+          ]
+        : []
+  });
+  return {
+    regions: [
+      region('中国', 'China/Stage_3'),
+      region('韩国', 'Asia/Stage_3/Korea'),
+      region('太平洋', 'Asia/Stage_3/Pacific'),
+      region('亚洲', 'Asia/Stage_3', 'pending'),
+      region('北美', 'NA/Stage_3'),
+      region('EMEA', 'EMEA/Stage_3')
+    ]
+  };
+}
 function sendJson(response, status, value) {
   const body = JSON.stringify(value);
   response.writeHead(status, {
@@ -239,6 +302,9 @@ const server = http.createServer(async (request, response) => {
 
     const requestOrigin = `http://${requestHost}`;
     const url = new URL(request.url, requestOrigin);
+    // The web client calls the versioned API; this preview serves the same routes unversioned.
+    if (url.pathname.startsWith('/api/v1/'))
+      url.pathname = '/api/' + url.pathname.slice('/api/v1/'.length);
     if (url.origin !== requestOrigin) return sendError(response, 421, '请求来源不受支持');
 
     // Mutations must be same-origin JSON, matching the production worker gate.
@@ -271,6 +337,9 @@ const server = http.createServer(async (request, response) => {
 
     if (url.pathname === '/api/events' && request.method === 'GET') {
       return sendJson(response, 200, events(url));
+    }
+    if (url.pathname === '/api/events/standings' && request.method === 'GET') {
+      return sendJson(response, 200, standings());
     }
     if (url.pathname === '/api/events/refresh') {
       if (request.method !== 'POST') return sendError(response, 405, '请求方法错误');

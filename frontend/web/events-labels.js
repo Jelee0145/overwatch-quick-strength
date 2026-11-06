@@ -26,13 +26,15 @@ window.EventLabels = (() => {
     [/\bStage (\d+)\b/gi, '第 $1 阶段'],
     [/\bSingle[- ]Elimination\b/gi, '单败淘汰'],
     [/\bDouble[- ]Elimination\b/gi, '双败淘汰'],
-    [/\bRound[- ]Robin\b/gi, '循环赛'],
+    [/\bRound[- ]Robin(?: Stage| Standings)?\b/gi, '循环赛'],
     [/\bBracket\b/gi, '对阵'],
     [/\bOnline\b/gi, '线上'],
     [/\bOffline\b/gi, '线下'],
     [/\bHybrid\b/gi, '线上+线下'],
     [/\bInvited\b/gi, '受邀'],
     [/\bQualified\b/gi, '晋级'],
+    // Last, so "Swiss/Round Robin Standings" collapse to the format name first.
+    [/\bStandings\b/gi, '积分榜'],
     [/\bTBA\b/g, '待定'],
     [/\bTBD\b/g, '待定']
   ];

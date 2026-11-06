@@ -45,6 +45,8 @@
     cell.append(slot, name);
     return cell;
   }
+  // "2 - 0" reads as three tokens in a narrow column; "2–0" stays one figure.
+  const stat = (value) => String(value ?? '').replace(/^\s*(\d+)\s*-\s*(\d+)\s*$/, '$1–$2');
   const detailLink = (root, hash = '') =>
     '/tools/event.html?' + new URLSearchParams({ t: root }) + hash;
   function table(data) {
@@ -53,7 +55,7 @@
       head = element('tr'),
       columns = data.columns.slice(0, 2);
     if (data.title) wrap.append(element('h3', '', labels.zh(data.title)));
-    head.append(element('th', '', '#'), element('th', 'is-team', '队伍'));
+    head.append(element('th', 'is-place', '#'), element('th', 'is-team', '队伍'));
     for (const column of columns)
       head.append(element('th', '', labels.COLUMNS[column] || labels.zh(column)));
     const thead = element('thead'),
@@ -61,11 +63,16 @@
     thead.append(head);
     for (const row of data.rows) {
       const tr = element('tr', row.status ? 'is-' + row.status.replace(/[^a-z]/g, '') : ''),
-        place = element('td', 'is-place', row.place ?? '');
+        place = element('td', 'is-place');
+      place.append(element('span', 'events-standings-place', row.place ?? '–'));
       if (labels.STATUS[row.status]) place.title = labels.STATUS[row.status];
       const name = element('td', 'is-team');
       name.append(team(row.team));
-      tr.append(place, name, ...columns.map((_, i) => element('td', '', row.stats[i] ?? '')));
+      tr.append(
+        place,
+        name,
+        ...columns.map((_, i) => element('td', 'is-stat', stat(row.stats[i])))
+      );
       tbody.append(tr);
     }
     grid.append(thead, tbody);
@@ -105,7 +112,7 @@
       heading = element(
         'a',
         'events-standings-stage',
-        region.tournament || labels.zh(region.title)
+        labels.zh(region.tournament || region.title)
       );
     heading.href = detailLink(region.root);
     body.append(heading);

@@ -34,33 +34,51 @@
 .event-source-link{position:absolute;right:20px;top:50%;transform:translateY(-50%)}
 @media(max-width:760px), (max-height:500px) and (pointer:coarse){.event-match-body{min-height:112px;padding:16px 12px;gap:10px}.event-versus{grid-template-columns:minmax(0,1fr) 46px minmax(0,1fr)}.event-source-link{right:12px;top:auto;bottom:10px;transform:none}.event-time{padding-bottom:0}.event-status{margin-top:3px}}
 
-/* Region standings beside the match list. */
+/* Region standings beside the match list: a calm card with room to breathe. */
 .events-page:not(.event-page) .events-main{max-width:1440px}
-.events-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}
+.events-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:32px;align-items:start}
 .events-primary{min-width:0}
 /* Stick below the 90px sticky site header, not under it. */
-.events-standings{position:sticky;top:106px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:16px 16px 18px;max-height:calc(100vh - 122px);overflow-y:auto}
-.events-standings>h2{font-size:15px;margin:0 0 12px}
-.events-standings-regions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
-.events-standings-regions button{font-size:12px;padding:5px 11px;border-radius:14px;background:transparent}
-.events-standings-regions button[aria-selected=true]{background:var(--ink);border-color:var(--ink);color:#fff}
-.events-standings-stage{display:block;font-size:13px;font-weight:600;margin-bottom:10px;overflow-wrap:anywhere}
-.events-standings-stage:hover,.events-standings-more:hover{color:var(--orange)}
-.events-standings-table{margin-bottom:12px}
-.events-standings-table h3{font-size:11px;font-weight:500;color:var(--muted);margin:0 0 6px}
-.events-standings-table table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
-.events-standings-table th{font-size:10px;font-weight:500;color:var(--muted);text-align:center;padding:6px 4px;border-bottom:1px solid var(--line);white-space:nowrap}
-.events-standings-table td{text-align:center;padding:6px 4px;border-top:1px solid #f1f1f0;white-space:nowrap}
-.events-standings-table .is-team{text-align:left;width:100%}
-.events-standings-table .is-place{font-weight:700;width:26px}
-.events-standings-table tr.is-up .is-place,.events-standings-table tr.is-stayup .is-place{box-shadow:inset 3px 0 #3c9a5f}
-.events-standings-table tr.is-down .is-place{box-shadow:inset 3px 0 #c9584a}
-.events-standings-team{display:flex;align-items:center;gap:7px;min-width:0}
-.events-standings-team .event-logo-slot{width:26px;height:26px;border-radius:5px}
+.events-standings{position:sticky;top:106px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:20px 20px 16px;max-height:calc(100vh - 122px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#e4ded5 transparent;box-shadow:0 1px 2px #2b2f360a,0 8px 24px -12px #2b2f3614}
+.events-standings>h2{font-size:16px;letter-spacing:-.2px;margin:0 0 14px}
+/* One-line segmented control; scrolls sideways instead of wrapping into two rows. */
+.events-standings-regions{display:flex;gap:2px;padding:3px;margin:0 0 18px;border-radius:10px;background:#f5f2ed;overflow-x:auto;scrollbar-width:none}
+.events-standings-regions::-webkit-scrollbar{display:none}
+.events-standings-regions button{flex:1 0 auto;font-size:12px;line-height:1;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);white-space:nowrap;box-shadow:none;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease,transform .16s ease-out}
+.events-standings-regions button:active{transform:scale(.97)}
+.events-standings-regions button[aria-selected=true]{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px #2b2f361f,0 0 0 1px #2b2f360d}
+@media(hover:hover) and (pointer:fine){.events-standings-regions button:not([aria-selected=true]):hover{color:var(--ink)}}
+.events-standings-stage{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;font-weight:600;line-height:1.45;margin:0 0 16px;color:var(--ink);overflow-wrap:anywhere;text-decoration:none}
+.events-standings-stage:after{content:"›";flex:none;font-size:18px;font-weight:400;color:var(--muted);transition:transform .2s ease-out,color .2s ease}
+@media(hover:hover) and (pointer:fine){.events-standings-stage:hover,.events-standings-stage:hover:after{color:var(--orange)}.events-standings-stage:hover:after{transform:translateX(2px)}}
+.events-standings-table+.events-standings-table{margin-top:22px}
+.events-standings-table h3{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--ink);margin:0 0 8px}
+.events-standings-table h3:before{content:"";width:3px;height:12px;border-radius:2px;background:var(--orange)}
+.events-standings-table table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;font-variant-numeric:tabular-nums}
+.events-standings .events-standings-table th{font-size:11px;font-weight:500;color:var(--muted);text-align:right;padding:0 8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;background:transparent;letter-spacing:0}
+.events-standings-table td{text-align:right;padding:9px 8px;border-bottom:1px solid #f3f0eb;white-space:nowrap;color:#4a4f57}
+.events-standings-table tbody tr:last-child td{border-bottom:0}
+.events-standings-table th:first-child,.events-standings-table td:first-child{padding-left:4px}
+.events-standings-table th:last-child,.events-standings-table td:last-child{padding-right:4px}
+.events-standings-table .is-team{text-align:left;width:100%;padding-left:4px;color:var(--ink)}
+.events-standings .events-standings-table th.is-place{text-align:center}
+.events-standings .events-standings-table th.is-team{text-align:left}
+/* Rank as a small badge: green for advancing, red for eliminated, neutral otherwise. */
+.events-standings-table td.is-place{width:26px;text-align:center}
+.events-standings-place{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:6px;font-size:12px;font-weight:600;color:var(--muted);background:#f5f2ed}
+.events-standings-table tr.is-up .events-standings-place,.events-standings-table tr.is-stayup .events-standings-place{color:#2f7d4c;background:#e8f4ec}
+.events-standings-table tr.is-down .events-standings-place{color:#b4473a;background:#fbecea}
+.events-standings-table td.is-stat{min-width:44px;font-weight:500}
+.events-standings-table td.is-stat:last-child{color:var(--muted);font-weight:400}
+@media(hover:hover) and (pointer:fine){.events-standings-table tbody tr:hover td{background:#fcfaf7}}
+.events-standings-team{display:flex;align-items:center;gap:10px;min-width:0}
+.events-standings-team .event-logo-slot{width:26px;height:26px;border-radius:6px;background:transparent}
 .events-standings-team .event-logo{width:24px;height:24px}
-.events-standings-name{overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.events-standings-name{overflow:hidden;text-overflow:ellipsis;max-width:180px;font-weight:500}
 .events-standings-empty{font-size:12px;color:var(--muted);line-height:1.7;margin:4px 0}
-.events-standings-more{display:inline-block;font-size:12px;color:#a65b20;margin-top:2px}
+.events-standings-more{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:18px;padding:10px 0 2px;border-top:1px solid var(--line);font-size:12px;color:#a65b20;text-decoration:none;transition:color .2s ease}
+@media(hover:hover) and (pointer:fine){.events-standings-more:hover{color:var(--orange)}}
+@media(prefers-reduced-motion:reduce){.events-standings-regions button,.events-standings-stage:after{transition:none}.events-standings-regions button:active{transform:none}}
 @media(max-width:1100px){
 .events-layout{display:flex;flex-direction:column;align-items:stretch;gap:0}
 .events-primary{display:contents}
@@ -69,8 +87,8 @@
 .events-standings{order:1;position:static;max-height:none;margin-bottom:24px}
 }
 @media(max-width:760px), (max-height:500px) and (pointer:coarse){
-.events-standings{padding:14px}
-.events-standings-regions button{min-height:36px;font-size:13px}
+.events-standings{padding:16px 14px 12px;border-radius:12px}
+.events-standings-regions button{min-height:36px;font-size:13px;padding:0 9px}
 .events-standings-name{max-width:none}
 .events-standings-table tbody tr:nth-child(n+9){display:none}
 }
