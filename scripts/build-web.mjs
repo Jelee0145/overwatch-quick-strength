@@ -8,6 +8,7 @@ import { buildToolkit } from './build-toolkit.mjs';
 import { buildAssetPreload } from './build/build-asset-preload.mjs';
 import { buildApiCapture } from './build-api-capture.mjs';
 import { rewriteCopy, cleanDecorativeEnglish } from './build/ui-copy.mjs';
+import { withIcp } from './build/icp.mjs';
 
 // Build the browser product. App modules are concatenated in dependency order; the
 // server-facing chart and algorithm stay single-source in source/.
@@ -264,7 +265,7 @@ export async function buildWeb({ base, capture = false } = {}) {
     .replace('{{API_KEY}}', apiKey)
     .replace('{{HEAD_ASSETS}}', headAssets);
   await mkdir(path.join(base, 'public/tools'), { recursive: true });
-  await writeFile(path.join(base, 'public/tools/strength.html'), html);
+  await writeFile(path.join(base, 'public/tools/strength.html'), withIcp(html));
 
   if (capture) await buildApiCapture({ base, html, app: rewriteCopy(app), css });
   await buildToolkit({
@@ -296,7 +297,7 @@ export async function buildWeb({ base, capture = false } = {}) {
       );
     await writeFile(
       path.join(base, 'public', page + '.html'),
-      rewriteCopy(cleanDecorativeEnglish(content))
+      withIcp(rewriteCopy(cleanDecorativeEnglish(content)))
     );
   }
   await writeFile(

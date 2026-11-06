@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { withIcp } from './build/icp.mjs';
 
 export async function buildToolkit({
   base,
@@ -203,7 +204,7 @@ export async function buildToolkit({
     );
     await writeFile(
       path.join(base, page === 'toolkit' ? 'public/index.html' : 'public/tools/' + page + '.html'),
-      rewriteCopy(cleanDecorativeEnglish(html))
+      withIcp(rewriteCopy(cleanDecorativeEnglish(html)))
     );
   }
 }
