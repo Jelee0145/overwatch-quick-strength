@@ -10,7 +10,8 @@ import {
 
 const MAX_ENDPOINT_LENGTH = 4096;
 const MAX_PAYLOAD_BYTES = 3993; // 4096-byte service limit minus header, delimiter and GCM tag.
-const TIMEOUT_MS = 10_000;
+// Short enough that one unreachable service cannot stall the shared reminder lock.
+const TIMEOUT_MS = 5_000;
 // Official broadcast destinations used by src/events/broadcasts.mjs. Paths are
 // matched strictly so query, fragment, userinfo and port injection cannot fit.
 const OFFICIAL_BROADCAST_URL =

@@ -642,3 +642,105 @@ test('push failure warnings contain only structured sanitized metadata', async (
     await c.db.close();
   }
 });
+
+test('an unreachable push host is held so later devices and rounds do not wait on it', async () => {
+  const c = setup();
+  try {
+    await c.service.handle('u', 'subscribe', { subscription: subscription('one') });
+    await c.service.handle('u', 'subscribe', { subscription: subscription('two') });
+    let attempts = 0;
+    c.service.send = async () => {
+      attempts++;
+      throw Object.assign(Error('private'), { name: 'TimeoutError' });
+    };
+    await c.service.decorate([match()]);
+    await c.service.handle('u', 'reserve', { matchId: match().id });
+    c.setTime(base + 60000);
+    await c.service.alarm();
+    assert.equal(attempts, 1, 'second device on the same host is skipped');
+    c.setTime(base + 90000);
+    await c.service.alarm();
+    assert.equal(attempts, 1, 'retry round skips the held host');
+    const r = (await c.service.handle('u', 'list')).reservations[0];
+    assert.equal(r.deliveryFailure.code, 'timeout');
+  } finally {
+    await c.db.close();
+  }
+});
+
+test('urgent tracking skips only our own failure penalty, never spacing or Retry-After', async () => {
+  const storage = new MemoryStorage();
+  let now = base,
+    mode = 'fail',
+    calls = 0;
+  const path = 'Overwatch_Champions_Series/2026/Asia/Stage_3/Korea/Regular_Season';
+  const source = 'https://liquipedia.net/overwatch/' + path;
+  const center = new EventCenter(
+    { storage },
+    {
+      EVENTS_CONTACT: 'https://test.example',
+      EVENTS_FETCH: async () => {
+        calls++;
+        if (mode === 'fail') return new Response('', { status: 503 });
+        if (mode === 'limited')
+          return new Response('', { status: 429, headers: { 'Retry-After': '120' } });
+        return response(
+          page(card({ path, timestamp: (base + 600000) / 1000, teams: ['A', 'B'] }), '')
+        );
+      }
+    }
+  );
+  center.now = () => now;
+  center.recentDue = async () => false;
+  center.schedule = async () => {};
+  const track = (urgent) =>
+    center.fetch(
+      new Request(
+        'https://events.internal/track?source=' +
+          encodeURIComponent(source) +
+          (urgent ? '&urgent=1' : ''),
+        { method: 'POST' }
+      )
+    );
+  assert.equal((await track(true)).status, 503);
+  now += 60000;
+  assert.equal((await track(false)).status, 429, 'regular traffic keeps the five-minute penalty');
+  mode = 'ok';
+  assert.equal((await track(true)).status, 200, 'urgent retries one minute after our failure');
+  now += 10000;
+  assert.equal((await track(true)).status, 429, 'urgent still keeps 30-second spacing');
+  now += 30000;
+  mode = 'limited';
+  assert.equal((await track(true)).status, 503);
+  now += 60000;
+  const before = calls;
+  assert.equal((await track(true)).status, 429, 'upstream Retry-After binds urgent checks');
+  assert.equal(calls, before);
+});
+
+test('failed tracking near a start retries in a minute and logs only categories', async () => {
+  const c = setup(),
+    start = base + 5 * 60000,
+    id = matchIdentity(match(start)),
+    logs = [];
+  const warn = console.warn;
+  console.warn = (line) => logs.push(String(line));
+  try {
+    await c.service.decorate([match(start)]);
+    c.setMatch(match(start));
+    await c.service.syncTracking('bot', { matchIds: [id] });
+    c.fail();
+    await c.service.alarm();
+    const state = await c.service.state();
+    assert.equal(state.sourceRetry[match().sourceUrl], base + 60000);
+    const entry = JSON.parse(logs.find((l) => l.includes('event_tracking_fetch')));
+    assert.deepEqual(
+      { event: entry.event, result: entry.result, status: entry.status, urgent: entry.urgent },
+      { event: 'event_tracking_fetch', result: 'http', status: 503, urgent: true }
+    );
+    assert.ok(!logs.join('\n').includes('liquipedia'), 'logs carry no source URL');
+  } finally {
+    console.warn = warn;
+    await c.db.close();
+  }
+});

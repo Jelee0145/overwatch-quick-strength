@@ -47,3 +47,9 @@ npm run check
 插件按阶段各发一次。`scheduleRevision` 变化且新时间尚未到达时发更正，每场最多 3 次。已开赛后的迟到修正不发消息。旧版插件中已提醒（`sent`）的记录，迁移后继续跟踪。
 
 回归：`node --test test/events/reminder-signals.test.mjs`（含 11-06、11-01 的回放），以及 `python -m unittest test.api_plugin.test_reminders`（本机用 uv 安装的 CPython）。
+
+### 开赛前后的可靠性补丁（2026-11-06）
+
+- **推送不再拖住 Bot**：浏览器推送和 Bot 追踪共用一把串行锁。推送服务网络失败或超时后，该推送主机 15 分钟内跳过；单次超时从 10 秒缩短到 5 秒。此前 FCM 超时一次就能锁住 30 秒，导致 Bot 同步超时（Nginx 499）。
+- **开赛前后加急核实**：比赛开赛前 2 小时至开赛后 1 小时内，追踪抓取带 `urgent=1`。加急只免除我方请求失败后的 5 分钟惩罚，改为 1 分钟后重试；Liquipedia 的 30 秒间隔和上游 `Retry-After` 照常遵守。提醒端在这段时间内失败也是 1 分钟后重试，其他时段仍为 5 分钟。
+- **日志**：服务端在抓取失败时记 `event_tracking_fetch`（结果类别、HTTP 状态、是否加急），恢复时记 `recovered` 和中断秒数，例行的 1 秒排队冷却不记录。插件每发一条提醒记一行 `OWQS 赛事提醒 kind/reason/match（前 8 位）/offset/sent`。两边都不记来源 URL、聊天会话、账号或消息正文。

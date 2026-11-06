@@ -457,5 +457,5 @@ test('sender requests a ten-second abort signal and propagates timeout failure',
     }
   });
   await assert.rejects(send(subscription, payload), { name: 'TimeoutError' });
-  assert.equal(requested, 10_000);
+  assert.equal(requested, 5_000);
 });

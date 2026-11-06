@@ -8,7 +8,17 @@ import { completion, pairingKey, reminderPhase } from './reminder-signals.mjs';
 const MINUTE = 60000,
   DAY = 86400000;
 const OFFICIAL_INTERVAL = MINUTE,
-  OFFICIAL_RETRY = 5 * MINUTE;
+  OFFICIAL_RETRY = 5 * MINUTE,
+  // An unreachable push service (FCM from mainland China) must not hold the shared lock
+  // that Bot tracking requests wait on; skip that host for a while after a network failure.
+  PUSH_HOST_HOLD = 15 * MINUTE;
+const pushHost = (subscription) => {
+  try {
+    return new URL(subscription.endpoint).hostname;
+  } catch {
+    return '';
+  }
+};
 const isChina = (match) =>
   match?.region === '中国' || /\/China(?:\/|#|$)/.test(match?.sourceUrl || '');
 // First observation of an already-finished match records 0: its completion time is unknown,
@@ -92,6 +102,7 @@ export class EventReminders {
     this.publicKey = publicKey;
     this.now = now;
     this.chain = Promise.resolve();
+    this.pushHold = new Map();
   }
   exclusive(fn) {
     const p = this.chain.then(fn);
@@ -485,13 +496,34 @@ export class EventReminders {
         )
         .sort((a, b) => (state.attempted?.[a] || 0) - (state.attempted?.[b] || 0))[0];
       if (source) {
+        // Around a start (or while a linked previous match may be finishing) failures retry in a
+        // minute instead of five, so the start reminder is not held by one upstream hiccup.
+        const urgent = [...ids].some((id) => {
+          const match = state.catalog[id]?.match,
+            start = Date.parse(match?.startsAt);
+          return (
+            match?.sourceUrl === source &&
+            match.status !== 'completed' &&
+            start - now <= 2 * 60 * MINUTE &&
+            now - start <= 60 * MINUTE
+          );
+        });
+        const failed = (result, extra = {}) => {
+          state.sourceFailing ||= {};
+          state.sourceFailing[source] ??= now;
+          console.warn(
+            JSON.stringify({ event: 'event_tracking_fetch', result, urgent, at: now, ...extra })
+          );
+        };
         state.attempted ||= {};
         state.attempted[source] = now;
         state.lastSourceAttempt = now;
         state.sourceRetry ||= {};
         try {
           const response = await this.env.EVENTS.get().fetch(
-            'https://events.internal/track?source=' + encodeURIComponent(source),
+            'https://events.internal/track?source=' +
+              encodeURIComponent(source) +
+              (urgent ? '&urgent=1' : ''),
             { method: 'POST' }
           );
           if (response.ok) {
@@ -539,6 +571,18 @@ export class EventReminders {
             );
             state.checked[source] = now;
             delete state.sourceRetry[source];
+            if (state.sourceFailing?.[source]) {
+              console.warn(
+                JSON.stringify({
+                  event: 'event_tracking_fetch',
+                  result: 'recovered',
+                  urgent,
+                  at: now,
+                  outageSeconds: Math.round((now - state.sourceFailing[source]) / 1000)
+                })
+              );
+              delete state.sourceFailing[source];
+            }
           } else if (response.status === 429) {
             const seconds = Number(response.headers.get('Retry-After'));
             state.sourceRetry[source] =
@@ -547,8 +591,11 @@ export class EventReminders {
                 5 * MINUTE,
                 Math.max(1000, Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 30000)
               );
+            // One-second gate cooldowns are routine scheduling, not upstream trouble.
+            if (!(seconds <= 1)) failed('429', { retryAfter: seconds || null });
           } else {
-            state.sourceRetry[source] = now + 5 * MINUTE;
+            state.sourceRetry[source] = now + (urgent ? MINUTE : 5 * MINUTE);
+            failed('http', { status: response.status });
             for (const id of ids) {
               const entry = state.catalog[id];
               if (entry?.match.sourceUrl === source && entry.tracking)
@@ -556,7 +603,8 @@ export class EventReminders {
             }
           }
         } catch {
-          state.sourceRetry[source] = now + 5 * MINUTE;
+          state.sourceRetry[source] = now + (urgent ? MINUTE : 5 * MINUTE);
+          failed('error');
           for (const id of ids) {
             const entry = state.catalog[id];
             if (entry?.match.sourceUrl === source && entry.tracking)
@@ -630,6 +678,8 @@ export class EventReminders {
           for (const [key, device] of Object.entries(account.subscriptions)) {
             if (this.now() - start > 5 * MINUTE) break;
             if (r.deliveries[key] || device.enabledAt > r.notifiedAt || !this.send) continue;
+            const host = pushHost(device.value);
+            if ((this.pushHold.get(host) || 0) > this.now()) continue;
             try {
               const result = await this.send(device.value, payload);
               if (result?.expired) {
@@ -644,8 +694,14 @@ export class EventReminders {
               }
             } catch (error) {
               r.deliveryFailure = pushFailure(error, this.now());
+              const held = r.deliveryFailure.code !== 'http';
+              if (held) this.pushHold.set(host, this.now() + PUSH_HOST_HOLD);
               console.warn(
-                JSON.stringify({ event: 'event_reminder_push_failed', ...r.deliveryFailure })
+                JSON.stringify({
+                  event: 'event_reminder_push_failed',
+                  ...r.deliveryFailure,
+                  ...(held ? { heldMinutes: PUSH_HOST_HOLD / MINUTE } : {})
+                })
               );
             }
             // Persist only an allowlisted failure category, never provider text or device URLs.

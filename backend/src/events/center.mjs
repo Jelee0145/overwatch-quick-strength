@@ -39,7 +39,8 @@ export class EventCenter {
       try {
         const source = url.searchParams.get('source'),
           api = trackedEventApi(source),
-          value = await this.source(api, { series: 'owcs' }, { priority: 'track' });
+          priority = url.searchParams.get('urgent') === '1' ? 'urgent' : 'track',
+          value = await this.source(api, { series: 'owcs' }, { priority });
         if (value.counts.scheduled >= 200 || value.counts.completed >= 200)
           throw Error('Incomplete tracked tournament');
         return json(
@@ -232,8 +233,20 @@ export class EventCenter {
     try {
       if (priority !== 'recent' && (await this.recentDue())) throw cooldown(1);
       const next = (await this.storage.get('refreshAfter')) || 0;
-      if (this.now() < next) throw cooldown(Math.ceil((next - this.now()) / 1000));
-      await this.storage.put('refreshAfter', this.now() + 30000);
+      // Reminder checks around a start may skip only the five-minute penalty that our own
+      // failed request added; they keep the 30-second spacing and any upstream Retry-After.
+      const penalty = await this.storage.get('failurePenaltyUntil');
+      const gate =
+        priority === 'urgent' && penalty === next
+          ? Math.max(
+              ((await this.storage.get('sourceStartedAt')) || 0) + 30000,
+              ((await this.storage.get('sourceFailedAt')) || 0) + 60000,
+              (await this.storage.get('upstreamRetryAt')) || 0
+            )
+          : next;
+      if (this.now() < gate) throw cooldown(Math.ceil((gate - this.now()) / 1000));
+      await this.storage.put('refreshAfter', Math.max(next, this.now() + 30000));
+      await this.storage.put('sourceStartedAt', this.now());
       started = true;
       const controller = new AbortController();
       timer = setTimeout(() => controller.abort(), 10000);
@@ -253,6 +266,7 @@ export class EventCenter {
           until = /^\d+$/.test(retry || '')
             ? this.now() + Number(retry) * 1000
             : Date.parse(retry || '');
+        if (Number.isFinite(until)) await this.storage.put('upstreamRetryAt', until);
         if (Number.isFinite(until) && until > (await this.storage.get('refreshAfter')))
           await this.storage.put('refreshAfter', until);
         throw Error('Upstream unavailable');
@@ -282,13 +296,19 @@ export class EventCenter {
         offset += part.length;
       }
       const data = JSON.parse(new TextDecoder().decode(bytes));
-      return parseEventBatch(data.parse?.text?.['*'], options);
+      const parsed = parseEventBatch(data.parse?.text?.['*'], options);
+      await this.storage.put('sourceFailedAt', null);
+      return parsed;
     } catch (error) {
-      if (started)
-        await this.storage.put(
-          'refreshAfter',
-          Math.max((await this.storage.get('refreshAfter')) || 0, this.now() + 5 * 60 * 1000)
+      if (started) {
+        const until = Math.max(
+          (await this.storage.get('refreshAfter')) || 0,
+          this.now() + 5 * 60 * 1000
         );
+        await this.storage.put('refreshAfter', until);
+        await this.storage.put('sourceFailedAt', this.now());
+        await this.storage.put('failurePenaltyUntil', until);
+      }
       throw error;
     } finally {
       clearTimeout(timer);

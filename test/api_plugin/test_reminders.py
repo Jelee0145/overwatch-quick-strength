@@ -183,3 +183,14 @@ class TwoStageReminderTests(ReminderTests):
         self.plugin.notify.assert_not_awaited()
         self.assertIn('已提醒', self.manager.listing(self.event))
         self.assertNotIn('跟踪中', self.manager.listing(self.event))
+
+    async def test_reminder_log_is_sanitized(self):
+        await self.manager.reserve(self.event, 1)
+        self.phase('pre', 'previous-completed')
+        with self.assertLogs(reminders.__name__, level='INFO') as captured:
+            await self.manager.sync()
+        line = ' '.join(captured.output)
+        self.assertIn('kind=pre', line)
+        self.assertIn('match=aaaaaaaa', line)
+        self.assertNotIn(self.event.unified_msg_origin, line)
+        self.assertNotIn('user', line)

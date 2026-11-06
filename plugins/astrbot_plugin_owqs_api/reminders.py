@@ -1,6 +1,7 @@
 """Persistent, session-scoped event reminders backed by server schedule tracking."""
 import asyncio
 import json
+import logging
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -27,6 +28,16 @@ def match_time(match):
         return datetime.fromisoformat(match['startsAt'].replace('Z', '+00:00')).astimezone(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M')
     except (KeyError, ValueError, TypeError, AttributeError):
         return '时间待定'
+
+
+def log_reminder(kind, reason, match_id, start, now, sent):
+    """One sanitized line per reminder message: no chat origin, account or message text."""
+    try:
+        from astrbot.api import logger
+    except ImportError:
+        logger = logging.getLogger(__name__)
+    offset = '-' if start is None else f'{(now - start) / 60:+.1f}m'
+    logger.info(f'OWQS 赛事提醒 kind={kind} reason={reason} match={match_id[:8]} offset={offset} sent={sent}')
 
 
 def starts_at(match):
@@ -289,6 +300,7 @@ class EventReminderManager:
         if not kind:
             return
         sent = await self.plugin.notify(origin, reminder_text(kind, reason, match))
+        log_reminder(kind, reason, match_id, start, now, sent)
         with self.db:
             if not sent:
                 self.db.execute("UPDATE event_reservations SET attempts=?,retry_at=?,reason='发送失败，稍后重试' WHERE owner=? AND origin=? AND match_id=? AND state='watching'",
