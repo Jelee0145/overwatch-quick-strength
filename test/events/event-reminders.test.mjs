@@ -229,9 +229,23 @@ test('real event center gate defers tracking without five-minute failure backoff
     await service.syncTracking('bot', { matchIds: [id] });
     await storage.put('snapshot', { matches: [], updatedAt: now });
     await storage.put('refreshAfter', now + 30000);
-    await service.alarm();
+    const info = console.info,
+      warn = console.warn,
+      logs = { info: [], warn: [] };
+    console.info = (line) => logs.info.push(String(line));
+    console.warn = (line) => logs.warn.push(String(line));
+    try {
+      await service.alarm();
+    } finally {
+      console.info = info;
+      console.warn = warn;
+    }
     let state = await service.state();
     assert.equal(state.sourceRetry[sourceUrl], base + 30000);
+    // Queued behind our own gate: logged as routine, not as an upstream 429 or an outage.
+    assert.equal(JSON.parse(logs.info[0]).result, 'queued');
+    assert.ok(!logs.warn.some((l) => l.includes('event_tracking_fetch')));
+    assert.equal(state.sourceFailing?.[sourceUrl], undefined);
     assert.equal(state.catalog[id].tracking, undefined);
     now += 30000;
     await service.alarm();

@@ -86,10 +86,11 @@ export class EventCenter {
       }
     }
     if (path === '/track' && request.method === 'POST') {
+      const priority = url.searchParams.get('urgent') === '1' ? 'urgent' : 'track';
+      let queued = false;
       try {
         const source = url.searchParams.get('source'),
           api = trackedEventApi(source),
-          priority = url.searchParams.get('urgent') === '1' ? 'urgent' : 'track',
           value = await this.source(api, { series: 'owcs' }, { priority });
         if (value.counts.scheduled >= 200 || value.counts.completed >= 200)
           throw Error('Incomplete tracked tournament');
@@ -100,12 +101,19 @@ export class EventCenter {
           })
         );
       } catch (error) {
-        if (Number.isFinite(error.retryAfter) && error.retryAfter > 0)
+        // Only our own request gate yields 429 here; Liquipedia failures surface as 503.
+        if (Number.isFinite(error.retryAfter) && error.retryAfter > 0) {
+          queued = true;
           return json({ error: '赛事来源繁忙，请稍后重试' }, 429, {
-            'Retry-After': String(Math.max(1, Math.ceil(error.retryAfter)))
+            'Retry-After': String(Math.max(1, Math.ceil(error.retryAfter))),
+            'X-OWQS-Event-Gate': 'local'
           });
+        }
         return json({ error: '预约赛程暂不可核实' }, error.status || 503);
       } finally {
+        // Detail parses step aside for reminder checks around a start (see details.mjs).
+        if (priority === 'urgent')
+          await this.storage.put('urgentTrack', { at: this.now(), queued });
         await this.schedule();
       }
     }

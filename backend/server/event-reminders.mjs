@@ -590,8 +590,20 @@ export class EventReminders {
                 5 * MINUTE,
                 Math.max(1000, Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 30000)
               );
-            // One-second gate cooldowns are routine scheduling, not upstream trouble.
-            if (!(seconds <= 1)) failed('429', { retryAfter: seconds || null });
+            // Our own request gate queued this check (marked by the events service): routine
+            // scheduling, not upstream trouble, so it neither counts as an outage nor warns.
+            if (response.headers.get('X-OWQS-Event-Gate') === 'local') {
+              if (!(seconds <= 1))
+                console.info(
+                  JSON.stringify({
+                    event: 'event_tracking_fetch',
+                    result: 'queued',
+                    urgent,
+                    at: now,
+                    retryAfter: seconds || null
+                  })
+                );
+            } else if (!(seconds <= 1)) failed('429', { retryAfter: seconds || null });
           } else {
             state.sourceRetry[source] = now + (urgent ? MINUTE : 5 * MINUTE);
             failed('http', { status: response.status });

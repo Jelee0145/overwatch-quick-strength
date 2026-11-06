@@ -33,6 +33,13 @@ const PARSE_GAP = 2 * MINUTE,
   SCHEDULE_ROOM = PARSE_GATE - SCHEDULE_SLACK,
   // After this many failed parses of a stage page, visitors are told instead of waiting.
   STALLED_AFTER = 3,
+  // Reminder checks around a match start ("urgent") come back about every two minutes per
+  // source. A detail parse holds the parse gate for 30 seconds, so after an urgent check went
+  // out it may start only early in that interval; after one was queued behind the gate it
+  // waits until an urgent check gets through. With no urgent check for three minutes, the
+  // reminder window is over and details run normally.
+  URGENT_FREE = 85 * 1000,
+  URGENT_IDLE = 3 * MINUTE,
   MAX_STANDING_ROOTS = 8,
   STANDING_ROWS = 16;
 const PAGE_URL = 'https://liquipedia.net/overwatch/';
@@ -286,7 +293,13 @@ export class EventDetails {
       upcoming = snapshot ? nextEventRefresh(snapshot.matches, snapshot.updatedAt, now) : now,
       gate = (await this.storage.get('refreshAfter')) || 0;
     this.after = Math.max(index.after || 0, gate);
-    if (sent || now < this.after || (await center.queries.hasPending())) {
+    const urgent = await this.storage.get('urgentTrack'),
+      sinceUrgent = urgent ? now - urgent.at : Infinity,
+      yieldUrgent =
+        sinceUrgent >= 0 &&
+        sinceUrgent < URGENT_IDLE &&
+        (urgent.queued || sinceUrgent > URGENT_FREE);
+    if (sent || now < this.after || yieldUrgent || (await center.queries.hasPending())) {
       this.wanted = waiting() || !!this.nextParse(index, activeRoots(snapshot?.matches, now), now);
       return;
     }

@@ -280,6 +280,43 @@ test('detail work never shares an alarm with another Liquipedia request or delay
   assert.ok(refreshes.length >= 9);
 });
 
+test('detail parses yield to urgent reminder checks around a match start', async () => {
+  const ctx = setup(),
+    track = () =>
+      ctx.center.fetch(
+        new Request(
+          'https://events.internal/track?urgent=1&source=' +
+            encodeURIComponent('https://liquipedia.net/overwatch/' + SUB),
+          { method: 'POST' }
+        )
+      );
+  await ctx.center.alarm();
+  assert.equal((await ctx.get()).status, 202);
+  // An urgent check queued behind our own gate is marked as local, not as upstream 429.
+  const queued = await track();
+  assert.equal(queued.status, 429);
+  assert.equal(queued.headers.get('X-OWQS-Event-Gate'), 'local');
+  ctx.advance(31000);
+  await ctx.center.alarm();
+  assert.equal(ctx.parses().length, 0, 'a waiting urgent check gets the next slot first');
+  assert.equal((await track()).status, 200);
+  // Right after an urgent check went out, the slot before the next one is free for details.
+  ctx.advance(31000);
+  await ctx.center.alarm();
+  assert.deepEqual(ctx.parses(), [ROOT]);
+  // The next urgent check, about two minutes later, finds the gate open again ...
+  ctx.advance(89000);
+  assert.equal((await track()).status, 200);
+  // ... and late in its interval details hold off, leaving the following slot to it ...
+  ctx.advance(90000);
+  await ctx.center.alarm();
+  assert.deepEqual(ctx.parses(), [ROOT]);
+  // ... and run normally once urgent checks have stopped.
+  ctx.advance(3 * 60000);
+  await ctx.center.alarm();
+  assert.deepEqual(ctx.parses(), [ROOT, SUB]);
+});
+
 test('a stage page that keeps failing is reported as stalled instead of pending forever', async () => {
   const ctx = setup();
   ctx.center.env.EVENTS_FETCH = ((inner) => async (url, init) =>
