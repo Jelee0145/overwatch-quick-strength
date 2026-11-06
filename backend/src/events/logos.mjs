@@ -4,8 +4,7 @@ import { liquipediaLogo } from './parser.mjs';
 // depend on reaching liquipedia.net and the page CSP needs no third-party image origin.
 export const LOGO_ROUTE = '/api/v1/events/logos/';
 const MAX_BYTES = 64 * 1024,
-  PER_RUN = 12,
-  GAP = 500,
+  PER_RUN = 6,
   RECHECK = 30 * 86400000,
   MAX_BACKOFF = 86400000;
 const TYPES = {
@@ -28,7 +27,6 @@ const base64 = (bytes) => {
     s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
 };
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function logoSources(matches = []) {
   const urls = new Set();
@@ -55,22 +53,27 @@ export class EventLogos {
   // Replace upstream badge URLs with local copies; unknown badges become null placeholders.
   async localize(value) {
     if (!value || !Array.isArray(value.matches)) return value;
-    const known = await this.storage.list({ prefix: 'logoSource:' });
+    const local = await this.resolver();
     const matches = value.matches.map((match) =>
       Array.isArray(match.teams)
         ? {
             ...match,
-            teams: match.teams.map((team) => {
-              if (!team?.logo) return team;
-              const saved = known.get('logoSource:' + team.logo);
-              if (saved?.hash) return { ...team, logo: LOGO_ROUTE + saved.hash };
-              if (liquipediaLogo(team.logo)) this.misses.add(team.logo);
-              return { ...team, logo: null };
-            })
+            teams: match.teams.map((team) => (team?.logo ? { ...team, logo: local(team.logo) } : team))
           }
         : match
     );
     return { ...value, matches };
+  }
+  // Maps an upstream badge URL to its local copy (or null), queueing unknown badges.
+  async resolver() {
+    const known = await this.storage.list({ prefix: 'logoSource:' });
+    return (url) => {
+      if (!url) return null;
+      const saved = known.get('logoSource:' + url);
+      if (saved?.hash) return LOGO_ROUTE + saved.hash;
+      if (liquipediaLogo(url)) this.misses.add(url);
+      return null;
+    };
   }
   pending() {
     return this.misses.size > 0;
@@ -95,7 +98,6 @@ export class EventLogos {
     });
     let done = 0;
     for (const url of due.slice(0, PER_RUN)) {
-      if (done) await sleep(GAP);
       if ((await this.download(fetcher, url)) === 'limited') break;
       done++;
     }
@@ -108,6 +110,8 @@ export class EventLogos {
       previous = await this.storage.get(key),
       identity = this.center.env.EVENTS_CONTACT || this.center.env.PUBLIC_ORIGIN || '';
     try {
+      // Badges share the site-wide two-second Liquipedia request spacing.
+      await this.center.lpSlot();
       const response = await fetcher(url, {
         headers: {
           ...(identity && !/[\r\n]/.test(identity)
